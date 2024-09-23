@@ -1,0 +1,19 @@
+name = "Blast"
+uuid = "aee4e916-1e40-4aff-8d35-b84b50e5d5e3"
+authors = ["Sofia Chiarenza <sofia.chiarenza@studenti.unimi.it>"]
+version = "0.1.0"
+
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Bessels = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
+DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+FastChebInterp = "cf66c380-9a80-432c-aff8-4f9c79c0bdde"
+FastTransforms = "057dd010-8810-581a-b7be-e3fc3b93f78c"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+Polynomials = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
+ProgressBars = "49802e3a-d2f1-5c88-81d8-b72133a6f568"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
