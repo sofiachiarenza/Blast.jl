@@ -1,7 +1,7 @@
 using Test
 using Blast
 
-@testset "Blast tests" begin
+@testset "Projected_matter.jl TESTS" begin
     i = 3
     j = 7
     l = 10 
