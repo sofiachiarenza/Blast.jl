@@ -81,6 +81,7 @@ The parameters are:
 """
 
 function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb = 119, N=2^(15)+1)
+    @assert kmin < kmax "The integration range is unphysical. Make sure kmin < kmax." #TODO: added assert because the test doesn't even work if they are the same.
     nχ = length(χ)
     nR = length(R)
 
