@@ -7,67 +7,76 @@ function w_ell_tullio(c,T)
     return @tullio w[i,j,k] := c[j,k,l] * T[i,j,k,l]
 end
 
-"""
-    compute_T̃(f, ℓ, χ, R, kmin, kmax, tracers; n_cheb = 119, N=2^(15)+1)
-Compute integrals of the Bessels function and the Chebyshev polynomials. 
-This is the precomputation part of the code.
-"""
+function get_clencurt_grid(kmin::Number, kmax::Number, N::Number)
+    CC_obj = FastTransforms.chebyshevmoments1(Float64, N)
+    x = FastTransforms.clenshawcurtisnodes(Float64, N)
+    x = (kmax - kmin) / 2 * x .+ (kmin + kmax) / 2 
 
+    return x
+end
 
-#TODO: the power spectrum is passed, but then I only use it to get the chebyshev polynomials. 
-#I think this should be done internally, without the need to pass the power spectrum.
-function compute_T̃(f, ℓ, χ, R, kmin, kmax, tracers; n_cheb = 119, N=2^(15)+1)
-    nχ = length(χ)
-    nR = length(R)
-
+function get_clencurt_weights(kmin::Number, kmax::Number, N::Number)
     CC_obj = FastTransforms.chebyshevmoments1(Float64, N)
     w = FastTransforms.clenshawcurtisweights(CC_obj)
-    x = FastTransforms.clenshawcurtisnodes(Float64, N)
-    
-    #rescaling to my interval
-    x = (kmax - kmin) / 2 * x .+ (kmin + kmax) / 2 
     w = (kmax - kmin) / 2 * w
 
-    k_cheb = chebpoints(n_cheb, log10(minimum(minimum.(x))), log10(maximum(maximum.(x))))
-    c = chebinterp(f(10. .^ k_cheb,χ[1],χ[1]), log10(minimum(minimum.(x))), log10(maximum(maximum.(x))))
+    return w
+end
 
-    T = zeros(n_cheb+1,N)
+function Bessel_Cheb_eval( ℓ::Number, kmin::Number, kmax::Number, χ::AbstractArray, n_cheb::Int, N::Number)
+
+    nχ = length(χ)
+    x = get_clencurt_grid(kmin, kmax, N)
+
+    k_cheb = chebpoints(n_cheb, log10(kmin), log10(kmax)) 
+    c = FastChebInterp.ChebPoly(k_cheb, SA[log10(kmin)], SA[log10(kmax)])
+
+    T = zeros(n_cheb+1,N) 
     Threads.@threads for i in 1:n_cheb+1
-        copy_c = deepcopy(c) #copio l'interpolante 
-        copy_c.coefs .*= 0 #azzero i coeff del polinomio
+        copy_c = deepcopy(c) 
+        copy_c.coefs .*= 0 
         copy_c.coefs[i] = 1.
         T[i,:] = copy_c.(log10.(x))
     end
 
-    f_bessel_χ1 = zeros(nχ, N)
+    Bessel = zeros(nχ, N)
     Threads.@threads for i in 1:nχ
-            f_bessel_χ1[i,:] = @views SpecialFunctions.sphericalbesselj.(ℓ, χ[i] * x)
+            Bessel[i,:] = @views SpecialFunctions.sphericalbesselj.(ℓ, χ[i] * x)
     end
+
+    return T, Bessel
+
+end
+
+"""
+    compute_T̃(ℓ, χ, R, kmin, kmax, tracers; n_cheb = 119, N=2^(15)+1)
+Compute integrals of the Bessels function and the Chebyshev polynomials. 
+This is the precomputation part of the code.
+"""
+
+function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb = 119, N=2^(15)+1)
+    nχ = length(χ)
+    nR = length(R)
+
+    x = get_clencurt_grid(kmin, kmax, N)
+    w = get_clencurt_weights(kmin, kmax, N)
+    T, Bessel1 = Bessel_Cheb_eval(ℓ, kmin, kmax, χ, n_cheb, N)
 
     T_tilde = zeros(1, nχ, nR, n_cheb+1)
     
     for (ridx, r) in enumerate(R)
-        f_bessel_χ2 = zeros(nχ, N)
+        Bessel2 = zeros(nχ, N)
         
         Threads.@threads for i in 1:nχ
-            f_bessel_χ2[i,:] = @views SpecialFunctions.sphericalbesselj.(ℓ, r*χ[i] * x)
+            Bessel2[i,:] = @views SpecialFunctions.sphericalbesselj.(ℓ, r*χ[i] * x)
         end
-    
-        α = zeros(N)
-    
-        # TODO: update tracers names, this is not generalizable.
-        if tracers == "CC"
-            α = w .* (x .^ 2) 
-        elseif tracers == "LL"
-            α = w ./ (x .^ 2)
-        elseif tracers == "CL"
-            α = w
-        end
+
+        α = w .* (x .^ β) #β = 2 for CC, -2 for LL and 0 for CL.
          
         @tturbo for l in 1:n_cheb+1, i in 1:nχ
             Cij = zero(eltype(w))
             for k in 1:N
-                Cij +=  T[l,k] * f_bessel_χ1[i,k] * f_bessel_χ2[i,k] * α[k]
+                Cij +=  T[l,k] * Bessel1[i,k] * Bessel2[i,k] * α[k]
             end
             T_tilde[1,i,ridx,l] = Cij
         end
