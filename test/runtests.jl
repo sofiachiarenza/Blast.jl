@@ -1,8 +1,6 @@
 using Test
 using Blast
 
-using FastTransforms
-
 @testset "Matrix product test" begin
     i = 3
     j = 7
