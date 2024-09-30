@@ -1,11 +1,16 @@
 """
-    w_ell_tullio(c,T)
-Compute the tensor contraction of the chebyshev coefficients of the power spectrum and the precomputed
-integrals to obtain the projected matter densities (the inner integrals in k).
+    w_ell_tullio(c::AbstractArray,T::AbstractArray)
+Compute the tensor contraction of the chebyshev coefficients of the power spectrum 'c' and the precomputed
+integrals 'T' to obtain the projected matter densities.
 """
-function w_ell_tullio(c,T)
+function w_ell_tullio(c::AbstractArray,T::AbstractArray)
     return @tullio w[i,j,k] := c[j,k,l] * T[i,j,k,l]
 end
+
+"""
+    get_clencurt_grid(kmin::Number, kmax::Number, N::Number)
+Return the integration points in k. They are a set of 'N' Chebyshev points rescaled between 'kmin' and 'kmax'.
+"""
 
 function get_clencurt_grid(kmin::Number, kmax::Number, N::Number)
     CC_obj = FastTransforms.chebyshevmoments1(Float64, N)
@@ -18,6 +23,12 @@ function get_clencurt_grid(kmin::Number, kmax::Number, N::Number)
     return x
 end
 
+"""
+    get_clencurt_weights(kmin::Number, kmax::Number, N::Number)
+Return the set of 'N' weights needed to perform the integration with the Clenshaw-Curtis quadrature rule.
+The weights are rescaled between 'kmin' and 'kmax'.  
+"""
+
 function get_clencurt_weights(kmin::Number, kmax::Number, N::Number)
     CC_obj = FastTransforms.chebyshevmoments1(Float64, N)
     w = FastTransforms.clenshawcurtisweights(CC_obj)
@@ -25,6 +36,11 @@ function get_clencurt_weights(kmin::Number, kmax::Number, N::Number)
 
     return w
 end
+
+"""
+    Bessel_Cheb_eval( ℓ::Number, kmin::Number, kmax::Number, χ::AbstractArray, n_cheb::Int, N::Number)
+Return the Chebyshev polynomials up to order 'n_cheb+1' and the Bessel function of order 'ℓ' evaluated on the grid of 'N' Chebyshev points in the interval ['kmin', 'kmax'] and on the specified 'χ' points. 
+"""
 
 function Bessel_Cheb_eval( ℓ::Number, kmin::Number, kmax::Number, χ::AbstractArray, n_cheb::Int, N::Number)
 
@@ -52,9 +68,16 @@ function Bessel_Cheb_eval( ℓ::Number, kmin::Number, kmax::Number, χ::Abstract
 end
 
 """
-    compute_T̃(ℓ, χ, R, kmin, kmax, tracers; n_cheb = 119, N=2^(15)+1)
-Compute integrals of the Bessels function and the Chebyshev polynomials. 
-This is the precomputation part of the code.
+    compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb = 119, N=2^(15)+1)
+Compute integrals of the Bessels function and the Chebyshev polynomials. This is the precomputation part of the code.
+The parameters are: 
+    - ℓ: Multipole order
+    - χ: Array containing values of the comoving distance. 
+    - R: Array containing values for the R=χ₁/χ₂ variable.
+    - kmin-kmax: Integration range in k.
+    - β: Exponent of the k dependence of the integral. This parameter depends on the combination of tracers: β=2,-2,0 for clustering, cosmic shear and the cross-correlation respectively.
+    - n_cheb: Number of chebyshev polynomials used in the approximation of the power spectra.
+    - N: Number of integration points in k.
 """
 
 function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb = 119, N=2^(15)+1)
