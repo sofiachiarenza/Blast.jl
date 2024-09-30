@@ -12,6 +12,9 @@ function get_clencurt_grid(kmin::Number, kmax::Number, N::Number)
     x = FastTransforms.clenshawcurtisnodes(Float64, N)
     x = (kmax - kmin) / 2 * x .+ (kmin + kmax) / 2 
 
+    x[1] *= (1+1e-8)
+    x[end] *= (1-1e-8) #TODO: this is just a quick patch, need to figure this out properly.
+
     return x
 end
 
