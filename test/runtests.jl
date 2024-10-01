@@ -59,12 +59,13 @@ run(`wget https://zenodo.org/api/records/13870029/files-archive`)
 #run(`tar xvf T_tilde_CC_check.tar`)
 #run(`rm T_tilde_CC_check.tar`)
 
-T_CC_check = zeros(3,96,48,120)
-T_CC_check[1,:,:,:] = npzread("T_tilde_l_2.0.npy")[:,:,:,1:120]
-T_CC_check[2,:,:,:] = npzread("T_tilde_l_97.1.npy")[:,:,:,1:120]
-T_CC_check[3,:,:,:] = npzread("T_tilde_l_211.6.npy")[:,:,:,1:120]
+input_path = pwd()
 
-run(`rm T_tilde_l_*`)
+T_CC_check = zeros(3,96,48,120)
+T_CC_check[1,:,:,:] = npzread(input_path*"/T_tilde_l_2.0.npy")[:,:,:,1:120]
+T_CC_check[2,:,:,:] = npzread(input_path*"/T_tilde_l_97.1.npy")[:,:,:,1:120]
+T_CC_check[3,:,:,:] = npzread(input_path*"/T_tilde_l_211.6.npy")[:,:,:,1:120]
+
 
 @testset "T tilde CC validation" begin
     ℓs = [2.0, 97.07777459, 211.63514264]
@@ -92,11 +93,9 @@ run(`wget https://zenodo.org/api/records/13870111/files-archive`)
 #run(`rm T_tilde_LL_check.tar`)
 
 T_LL_check = zeros(3,96,48,120)
-T_LL_check[1,:,:,:] = npzread("T_tilde_l_2.0.npy")[:,:,:,1:120]
-T_LL_check[2,:,:,:] = npzread("T_tilde_l_97.1.npy")[:,:,:,1:120]
-T_LL_check[3,:,:,:] = npzread("T_tilde_l_211.6.npy")[:,:,:,1:120]
-
-run(`rm T_tilde_l_*`)
+T_LL_check[1,:,:,:] = npzread(input_path*"/T_tilde_l_2.0.npy")[:,:,:,1:120]
+T_LL_check[2,:,:,:] = npzread(input_path*"/T_tilde_l_97.1.npy")[:,:,:,1:120]
+T_LL_check[3,:,:,:] = npzread(input_path*"/T_tilde_l_211.6.npy")[:,:,:,1:120]
 
 
 @testset "T tilde LL validation" begin
@@ -124,13 +123,10 @@ run(`wget https://zenodo.org/api/records/13870094/files-archive`)
 #run(`tar xvf T_tilde_CL_check.tar`)
 #run(`rm T_tilde_CL_check.tar`)
 
-
 T_CL_check = zeros(3,96,48,120)
-T_CL_check[1,:,:,:] = npzread("T_tilde_l_2.0.npy")[:,:,:,1:120]
-T_CL_check[2,:,:,:] = npzread("T_tilde_l_97.1.npy")[:,:,:,1:120]
-T_CL_check[3,:,:,:] = npzread("T_tilde_l_211.6.npy")[:,:,:,1:120]
-
-run(`rm T_tilde_l_*`)
+T_CL_check[1,:,:,:] = npzread(input_path*"/T_tilde_l_2.0.npy")[:,:,:,1:120]
+T_CL_check[2,:,:,:] = npzread(input_path*"/T_tilde_l_97.1.npy")[:,:,:,1:120]
+T_CL_check[3,:,:,:] = npzread(input_path*"/T_tilde_l_211.6.npy")[:,:,:,1:120]
 
 @testset "T tilde CL validation" begin
     ℓs = [2.0, 97.07777459, 211.63514264]
