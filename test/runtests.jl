@@ -107,7 +107,7 @@ run(`rm -r T_tilde_LL_check`)
     kmin = 2.5/7000
 
     for (il, l) in enumerate(ℓs)
-        println("Performing integration for ℓ=$l...\n")
+        println("Performing integration for ℓ=$l...")
         T_CC_blast[il,:,:,:] = Blast.compute_T̃(l, chi, R, kmin, kmax, 2)
         T_CL_blast[il,:,:,:] = Blast.compute_T̃(l, chi, R, kmin, kmax, 0)
         T_LL_blast[il,:,:,:] = Blast.compute_T̃(l, chi, R, kmin, kmax, -2)
