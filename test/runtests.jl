@@ -55,9 +55,9 @@ end
 
 #CC
 run(`wget https://zenodo.org/api/records/13870029/files-archive`)
-run(`mv files-archive T_tilde_CC_check.tar`)
-run(`tar xvf T_tilde_CC_check.tar`)
-run(`rm T_tilde_CC_check.tar`)
+#run(`mv files-archive T_tilde_CC_check.tar`)
+#run(`tar xvf T_tilde_CC_check.tar`)
+#run(`rm T_tilde_CC_check.tar`)
 
 T_CC_check = zeros(3,96,48,120)
 T_CC_check[1,:,:,:] = npzread("T_tilde_l_2.0.npy")[:,:,:,1:120]
@@ -87,9 +87,9 @@ end
 
 # downloading files LL
 run(`wget https://zenodo.org/api/records/13870111/files-archive`)
-run(`mv files-archive T_tilde_LL_check.tar`)
-run(`tar xvf T_tilde_LL_check.tar`)
-run(`rm T_tilde_LL_check.tar`)
+#run(`mv files-archive T_tilde_LL_check.tar`)
+#run(`tar xvf T_tilde_LL_check.tar`)
+#run(`rm T_tilde_LL_check.tar`)
 
 T_LL_check = zeros(3,96,48,120)
 T_LL_check[1,:,:,:] = npzread("T_tilde_l_2.0.npy")[:,:,:,1:120]
@@ -120,9 +120,9 @@ end
 
 #CL
 run(`wget https://zenodo.org/api/records/13870094/files-archive`)
-run(`mv files-archive T_tilde_CL_check.tar`)
-run(`tar xvf T_tilde_CL_check.tar`)
-run(`rm T_tilde_CL_check.tar`)
+#run(`mv files-archive T_tilde_CL_check.tar`)
+#run(`tar xvf T_tilde_CL_check.tar`)
+#run(`rm T_tilde_CL_check.tar`)
 
 
 T_CL_check = zeros(3,96,48,120)
