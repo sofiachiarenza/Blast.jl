@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - 'main'
-      - 'develop'
+      - 'precomp'
     paths-ignore:
       - 'LICENSE.md'
       - 'README.md'
