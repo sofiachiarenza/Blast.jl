@@ -67,13 +67,20 @@ end
 """
     compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb = 119, N=2^(15)+1)
 Compute integrals of the Bessels function and the Chebyshev polynomials. This is the precomputation part of the code.
-The parameters are: 
+The parameters are:
+
     - ℓ: Multipole order
+
     - χ: Array containing values of the comoving distance. 
+
     - R: Array containing values for the R=χ₁/χ₂ variable.
+
     - kmin-kmax: Integration range in k.
+
     - β: Exponent of the k dependence of the integral. This parameter depends on the combination of tracers: β=2,-2,0 for clustering, cosmic shear and the cross-correlation respectively.
+
     - n_cheb: Number of chebyshev polynomials used in the approximation of the power spectra.
+
     - N: Number of integration points in k.
 """
 function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb = 119, N=2^(15)+1)
