@@ -13,6 +13,7 @@ makedocs(
     authors  = "Sofia Chiarenza",
     pages = [
         "Home" => "index.md"
+        "API" => "api.md"
     ]
 )
 
