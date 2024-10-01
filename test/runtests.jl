@@ -54,10 +54,10 @@ end
 end
 
 #CC
-run(`wget https://zenodo.org/api/records/13870029/files-archive`)
+run(`wget --content-disposition https://zenodo.org/api/records/13870029/files-archive`)
 #run(`mv files-archive T_tilde_CC_check.tar`)
-#run(`tar xvf T_tilde_CC_check.tar`)
-#run(`rm T_tilde_CC_check.tar`)
+run(`unzip 13870029.zip`)
+run(`rm -r 13870029.zip`)
 
 input_path = pwd()
 
@@ -87,10 +87,9 @@ end
 
 
 # downloading files LL
-run(`wget https://zenodo.org/api/records/13870111/files-archive`)
-#run(`mv files-archive T_tilde_LL_check.tar`)
-#run(`tar xvf T_tilde_LL_check.tar`)
-#run(`rm T_tilde_LL_check.tar`)
+run(`wget --content-disposition https://zenodo.org/api/records/13870111/files-archive`)
+run(`unzip 13870111.zip`)
+run(`rm -r 13870111.zip`)
 
 T_LL_check = zeros(3,96,48,120)
 T_LL_check[1,:,:,:] = npzread(input_path*"/T_tilde_l_2.0.npy")[:,:,:,1:120]
@@ -118,10 +117,9 @@ end
 
 
 #CL
-run(`wget https://zenodo.org/api/records/13870094/files-archive`)
-#run(`mv files-archive T_tilde_CL_check.tar`)
-#run(`tar xvf T_tilde_CL_check.tar`)
-#run(`rm T_tilde_CL_check.tar`)
+run(`wget --content-disposition https://zenodo.org/api/records/13870094/files-archive`)
+run(`unzip 13870094.zip`)
+run(`rm -r 13870094.zip`)
 
 T_CL_check = zeros(3,96,48,120)
 T_CL_check[1,:,:,:] = npzread(input_path*"/T_tilde_l_2.0.npy")[:,:,:,1:120]
@@ -145,3 +143,5 @@ T_CL_check[3,:,:,:] = npzread(input_path*"/T_tilde_l_211.6.npy")[:,:,:,1:120]
 
     @test isapprox(T_CL_check, T_CL_blast)
 end
+
+run(`rm T_tilde_l_*`)
