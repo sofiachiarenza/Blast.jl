@@ -11,7 +11,6 @@ end
     get_clencurt_grid(kmin::Number, kmax::Number, N::Number)
 Return the integration points in k. They are a set of 'N' Chebyshev points rescaled between 'kmin' and 'kmax'.
 """
-
 function get_clencurt_grid(kmin::Number, kmax::Number, N::Number)
     CC_obj = FastTransforms.chebyshevmoments1(Float64, N)
     x = FastTransforms.clenshawcurtisnodes(Float64, N)
@@ -28,7 +27,6 @@ end
 Return the set of 'N' weights needed to perform the integration with the Clenshaw-Curtis quadrature rule.
 The weights are rescaled between 'kmin' and 'kmax'.  
 """
-
 function get_clencurt_weights(kmin::Number, kmax::Number, N::Number)
     CC_obj = FastTransforms.chebyshevmoments1(Float64, N)
     w = FastTransforms.clenshawcurtisweights(CC_obj)
@@ -41,7 +39,6 @@ end
     Bessel_Cheb_eval( ℓ::Number, kmin::Number, kmax::Number, χ::AbstractArray, n_cheb::Int, N::Number)
 Return the Chebyshev polynomials up to order 'n_cheb+1' and the Bessel function of order 'ℓ' evaluated on the grid of 'N' Chebyshev points in the interval ['kmin', 'kmax'] and on the specified 'χ' points. 
 """
-
 function Bessel_Cheb_eval( ℓ::Number, kmin::Number, kmax::Number, χ::AbstractArray, n_cheb::Int, N::Number)
 
     nχ = length(χ)
@@ -79,7 +76,6 @@ The parameters are:
     - n_cheb: Number of chebyshev polynomials used in the approximation of the power spectra.
     - N: Number of integration points in k.
 """
-
 function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb = 119, N=2^(15)+1)
     @assert kmin < kmax "The integration range is unphysical. Make sure kmin < kmax." #TODO: added assert because the test doesn't even work if they are the same.
     nχ = length(χ)
