@@ -54,95 +54,94 @@ end
 end
 
 #CC
-run(`wget --content-disposition https://zenodo.org/api/records/13870029/files-archive`)
-run(`unzip 13870029.zip`)
-run(`rm -r 13870029.zip`)
+run(`wget --content-disposition https://zenodo.org/api/records/13878301/files-archive`)
+run(`unzip 13878301.zip`)
+run(`rm -r 13878301.zip`)
 
 input_path = pwd()
 
-T_CC_check = zeros(3,96,48,120)
+T_CC_check = zeros(3,10,5,120)
 T_CC_check[1,:,:,:] = npzread(input_path*"/T_tilde_l_2.0.npy")[:,:,:,1:120]
 T_CC_check[2,:,:,:] = npzread(input_path*"/T_tilde_l_97.1.npy")[:,:,:,1:120]
 T_CC_check[3,:,:,:] = npzread(input_path*"/T_tilde_l_211.6.npy")[:,:,:,1:120]
 
+run(`bash -c "rm T_tilde_l_*"`)
 
 @testset "T tilde CC validation" begin
     ℓs = [2.0, 97.07777459, 211.63514264]
-    T_CC_blast = zeros(3,96,48,120)
+    T_CC_blast = zeros(3,10,5,120)
 
-    chi = LinRange(26,7000,96)
-    R = FastChebInterp.chebpoints(96, -1, 1)
+    chi = LinRange(26,7000,10)
+    R = FastChebInterp.chebpoints(10, -1, 1)
     R = reverse(R[R.>0])
     kmax = 200/13 
     kmin = 2.5/7000
 
     for (il, l) in enumerate(ℓs)
         println("Performing integration for ℓ=$l...")
-        T_CC_blast[il,:,:,:] = Blast.compute_T̃(l, chi, R, kmin, kmax, 2)
+        T_CC_blast[il,:,:,:] = Blast.compute_T̃(l, chi, R, kmin, kmax, 2, N=2^(13)+1)
     end
 
     @test isapprox(T_CC_check, T_CC_blast)
 end
 
-run(`bash -c "rm T_tilde_l_*"`)
-
-# downloading files LL
-run(`wget --content-disposition https://zenodo.org/api/records/13870111/files-archive`)
-run(`unzip 13870111.zip`)
-run(`rm -r 13870111.zip`)
-
-T_LL_check = zeros(3,96,48,120)
-T_LL_check[1,:,:,:] = npzread(input_path*"/T_tilde_l_2.0.npy")[:,:,:,1:120]
-T_LL_check[2,:,:,:] = npzread(input_path*"/T_tilde_l_97.1.npy")[:,:,:,1:120]
-T_LL_check[3,:,:,:] = npzread(input_path*"/T_tilde_l_211.6.npy")[:,:,:,1:120]
-
-
-@testset "T tilde LL validation" begin
-    ℓs = [2.0, 97.07777459, 211.63514264]
-    T_LL_blast = zeros(3,96,48,120)
-
-    chi = LinRange(26,7000,96)
-    R = FastChebInterp.chebpoints(96, -1, 1)
-    R = reverse(R[R.>0])
-    kmax = 200/13 
-    kmin = 2.5/7000
-
-    for (il, l) in enumerate(ℓs)
-        println("Performing integration for ℓ=$l...")
-        T_LL_blast[il,:,:,:] = Blast.compute_T̃(l, chi, R, kmin, kmax, -2)
-    end
-
-    @test isapprox(T_LL_check, T_LL_blast)
-end
-
-run(`bash -c "rm T_tilde_l_*"`)
 
 #CL
-run(`wget --content-disposition https://zenodo.org/api/records/13870094/files-archive`)
-run(`unzip 13870094.zip`)
-run(`rm -r 13870094.zip`)
+run(`wget --content-disposition https://zenodo.org/api/records/13878305/files-archive`)
+run(`unzip 13878305.zip`)
+run(`rm -r 13878305.zip`)
 
-T_CL_check = zeros(3,96,48,120)
+T_CL_check = zeros(3,10,5,120)
 T_CL_check[1,:,:,:] = npzread(input_path*"/T_tilde_l_2.0.npy")[:,:,:,1:120]
 T_CL_check[2,:,:,:] = npzread(input_path*"/T_tilde_l_97.1.npy")[:,:,:,1:120]
 T_CL_check[3,:,:,:] = npzread(input_path*"/T_tilde_l_211.6.npy")[:,:,:,1:120]
 
+run(`bash -c "rm T_tilde_l_*"`)
+
 @testset "T tilde CL validation" begin
     ℓs = [2.0, 97.07777459, 211.63514264]
-    T_CL_blast = zeros(3,96,48,120)
+    T_CL_blast = zeros(3,10,5,120)
 
-    chi = LinRange(26,7000,96)
-    R = FastChebInterp.chebpoints(96, -1, 1)
+    chi = LinRange(26,7000,10)
+    R = FastChebInterp.chebpoints(10, -1, 1)
     R = reverse(R[R.>0])
     kmax = 200/13 
     kmin = 2.5/7000
 
     for (il, l) in enumerate(ℓs)
         println("Performing integration for ℓ=$l...")
-        T_CL_blast[il,:,:,:] = Blast.compute_T̃(l, chi, R, kmin, kmax, 0)
+        T_CL_blast[il,:,:,:] = Blast.compute_T̃(l, chi, R, kmin, kmax, 0,  N=2^(13)+1)
     end
 
     @test isapprox(T_CL_check, T_CL_blast)
 end
 
+# downloading files LL
+run(`wget --content-disposition https://zenodo.org/api/records/13878920/files-archive`)
+run(`unzip 13878920.zip`)
+run(`rm -r 13878920.zip`)
+
+T_LL_check = zeros(3,10,5,120)
+T_LL_check[1,:,:,:] = npzread(input_path*"/T_tilde_l_2.5.npy")[:,:,:,1:120]
+T_LL_check[2,:,:,:] = npzread(input_path*"/T_tilde_l_97.1.npy")[:,:,:,1:120]
+T_LL_check[3,:,:,:] = npzread(input_path*"/T_tilde_l_211.6.npy")[:,:,:,1:120]
+
 run(`bash -c "rm T_tilde_l_*"`)
+
+@testset "T tilde LL validation" begin
+    ℓs = [2.49294619, 97.07777459, 211.63514264]
+    T_LL_blast = zeros(3,10,5,120)
+
+    chi = LinRange(26,7000,10)
+    R = FastChebInterp.chebpoints(10, -1, 1)
+    R = reverse(R[R.>0])
+    kmax = 200/13 
+    kmin = 2.5/7000
+
+    for (il, l) in enumerate(ℓs)
+        println("Performing integration for ℓ=$l...")
+        T_LL_blast[il,:,:,:] = Blast.compute_T̃(l, chi, R, kmin, kmax, -2,  N=2^(13)+1)
+    end
+
+    @test isapprox(T_LL_check, T_LL_blast)
+end
