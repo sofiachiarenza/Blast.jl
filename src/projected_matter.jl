@@ -90,7 +90,7 @@ function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Num
 
     x = get_clencurt_grid(kmin, kmax, N)
     w = get_clencurt_weights(kmin, kmax, N)
-    T, Bessel1 = Bessel_Cheb_eval(ℓ, kmin, kmax, χ, n_cheb, N)
+    T, Bessel1 = bessel_cheb_eval(ℓ, kmin, kmax, χ, n_cheb, N)
 
     T_tilde = zeros(1, nχ, nR, n_cheb+1)
     
