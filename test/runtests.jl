@@ -38,7 +38,7 @@ end
     ncheb = 2
     ell = 1
     test_chi = zeros(10)
-    T_blast, Bessel_blast = Blast.Bessel_Cheb_eval(ell, min, max, test_chi, ncheb, N)
+    T_blast, Bessel_blast = Blast.bessel_cheb_eval(ell, min, max, test_chi, ncheb, N)
 
     T_check = zeros(ncheb+1, N)
     T_check[1, :] = ones(N)
