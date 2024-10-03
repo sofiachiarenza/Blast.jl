@@ -19,5 +19,5 @@ makedocs(
 
 deploydocs(
     repo = "github.com/sofiachiarenza/Blast.jl.git",
-    devbranch = "precomp"
+    devbranch = "develop"
 )
