@@ -12,7 +12,7 @@ Create an FFTW real-to-real (R2R) transformation plan for a given multidimension
 """
 function plan_fft(vals::AbstractArray{<:Number,N}) where {N}
     kind = map(n -> n > 1 ? FFTW.REDFT00 : FFTW.DHT, size(vals))
-    p = FFTW.plan_r2r(vals, kind; flags=FFTW.PATIENT, timelimit=Inf) #TODO: FFTW:ESTIMATE is the default. FFTW:PATIENT spend several seconds (or more) benchmarking different possible FFT algorithms and picking the fastest one. 
+    p = FFTW.plan_r2r(copy(vals), kind; flags=FFTW.PATIENT, timelimit=Inf) #TODO: FFTW:ESTIMATE is the default. FFTW:PATIENT spend several seconds (or more) benchmarking different possible FFT algorithms and picking the fastest one. 
                                                                     # in this case, i think it's worth it to use patient but let's discuss. 
     return p 
 end
