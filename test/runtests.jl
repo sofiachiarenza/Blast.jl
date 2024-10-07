@@ -4,6 +4,7 @@ using Blast
 using FastTransforms
 using FastChebInterp
 using NPZ
+using FFTW
 
 @testset "Matrix product test" begin
     i = 3
@@ -144,4 +145,14 @@ run(`bash -c "rm T_tilde_l_*"`)
     end
 
     @test isapprox(T_LL_check, T_LL_blast)
+end
+
+@testset "Chebyshev coefficients" begin
+    A = rand(Float64, (2^(10), 1, 2^8))
+    true_coefs = FastChebInterp.chebcoefs(A)
+
+    plan = Blast.plan_fft(A)
+    my_coefs = Blast.fast_chebcoefs(A, plan)
+
+    @test true_coefs ≈ my_coefs
 end
