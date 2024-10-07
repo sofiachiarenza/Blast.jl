@@ -55,7 +55,7 @@ end
 end
 
 #CC
-#=run(`wget --content-disposition https://zenodo.org/api/records/13885803/files-archive`)
+run(`wget --content-disposition https://zenodo.org/api/records/13885803/files-archive`)
 run(`unzip 13885803.zip`)
 run(`rm -r 13885803.zip`)
 
@@ -145,7 +145,7 @@ run(`bash -c "rm T_tilde_l_*"`)
     end
 
     @test isapprox(T_LL_check, T_LL_blast)
-end=#
+end
 
 @testset "Chebyshev coefficients" begin
     dims = (2^10, 2^6)
