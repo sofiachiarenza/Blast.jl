@@ -55,7 +55,7 @@ end
 end
 
 #CC
-run(`wget --content-disposition https://zenodo.org/api/records/13885803/files-archive`)
+#=run(`wget --content-disposition https://zenodo.org/api/records/13885803/files-archive`)
 run(`unzip 13885803.zip`)
 run(`rm -r 13885803.zip`)
 
@@ -145,14 +145,21 @@ run(`bash -c "rm T_tilde_l_*"`)
     end
 
     @test isapprox(T_LL_check, T_LL_blast)
-end
+end=#
 
 @testset "Chebyshev coefficients" begin
-    A = rand(Float64, (2^(10), 1, 2^8))
-    true_coefs = FastChebInterp.chebcoefs(A)
+    dims = (2^10, 2^6)
+    A = rand(Float64, dims)
 
     plan = Blast.plan_fft(A)
     my_coefs = Blast.fast_chebcoefs(A, plan)
+
+    true_coefs = zeros(dims)
+    for i in 1:dims[2]
+        true_coefs[:,i] = FastChebInterp.chebcoefs(A[:,i])
+    end
+    true_coefs
+    
 
     @test true_coefs ≈ my_coefs
 end

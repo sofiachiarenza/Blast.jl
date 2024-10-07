@@ -1,7 +1,8 @@
 """
    plan_fft(vals::AbstractArray{<:Number,N})
 
-Create an FFTW real-to-real (R2R) transformation plan for a given multidimensional array `vals`.
+Create an FFTW real-to-real (R2R) transformation plan for the first axis of a given multidimensional array `vals`. 
+In practise, the `vals` array is the power spectrum P(k,χ). The first axis should then contain the wavenumbers `k`.
 
 # Arguments
 - `vals::AbstractArray{<:Number, N}`: The input array of any numerical type with `N` dimensions.
@@ -11,9 +12,9 @@ Create an FFTW real-to-real (R2R) transformation plan for a given multidimension
 
 """
 function plan_fft(vals::AbstractArray{<:Number,N}) where {N}
-    kind = map(n -> n > 1 ? FFTW.REDFT00 : FFTW.DHT, size(vals))
-    p = FFTW.plan_r2r(copy(vals), kind; flags=FFTW.PATIENT, timelimit=Inf) #TODO: FFTW:ESTIMATE is the default. FFTW:PATIENT spend several seconds (or more) benchmarking different possible FFT algorithms and picking the fastest one. 
-                                                                    # in this case, i think it's worth it to use patient but let's discuss. 
+    kind = map(n -> n > 1 ? FFTW.REDFT00 : FFTW.DHT, size(vals)[1])
+    p = FFTW.plan_r2r(deepcopy(vals), kind, [1]; flags=FFTW.PATIENT, timelimit=Inf)   
+                                                                                    
     return p 
 end
 
@@ -29,16 +30,14 @@ Arguments:
 Returns:
 - `coefs`: An array of the same size as `vals`, containing the computed Chebyshev coefficients.
 """
-function fast_chebcoefs(vals::AbstractArray{<:Number,N}, plan::FFTW.r2rFFTWPlan) where {N}
-   coefs = plan*vals
+function fast_chebcoefs(vals::AbstractArray, plan::FFTW.r2rFFTWPlan)
+    coefs = plan * vals
 
-   s = size(coefs)
-   coefs ./= prod(map(n -> n > 1 ? 2(n-1) : 1, s))
-   for dim = 1:N
-       if size(coefs, dim) > 1
-           coefs[CartesianIndices(ntuple(i -> i == dim ? (2:s[i]-1) : (1:s[i]), Val{N}()))] .*= 2
-       end
-   end
+    s = size(coefs)
+    coefs ./= 2*(s[1]-1)
+    
+    N = length(s)
+    coefs[CartesianIndices(ntuple(i -> i == 1 ? (2:s[1]-1) : (1:s[i]), Val{N}()))] *= 2
 
-   return coefs
+    return coefs
 end
