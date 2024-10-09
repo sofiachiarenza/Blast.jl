@@ -46,7 +46,7 @@ end
 Computes the Cℓ's by performing the two outer integrals in χ and R. The integration in χ is performed using the Simpson quadrature rule, while the integration in R is performed using the Clenshaw-Curtis quadrature rule.
 
 # Arguments
-- `w::AbstractArray{T, 3}`: A 3D array representing the projected matter densities, i.e. the inner integrals in $k$. The three axis are (ℓ, χ, R).
+- `w::AbstractArray{T, 3}`: A 3D array representing the projected matter densities, i.e. the inner integrals in k. The three axis are (ℓ, χ, R).
 - `K::AbstractArray{T, 4}`: A 4D array representing the kernel function, with dimensions (i,j,χ,R). i and j are the tomographic bins.
 - `χ::AbstractVector`: A 1D array containing the χ values.
 - `R::AbstractVector`: A 1D array containing the R values.
@@ -54,7 +54,7 @@ Computes the Cℓ's by performing the two outer integrals in χ and R. The integ
 # Returns
 - A multi-dimensional array `Cℓ` with axis (ℓ, i, j) containing the angular power spectrum coefficients in every combination of tomographic bins.
 """
-function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::AbstractVector, R::AbstractVector)
+function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::AbstractVector, R::AbstractVector) where T
     nχ = size(χ)
     nR = size(R)
     @assert nχ == size(w, 2) "Dimension mismatch: the χ array passed doesn't correspond to the one used in the evaluation of the inner k integral."
