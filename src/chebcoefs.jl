@@ -2,13 +2,13 @@
    plan_fft(vals::AbstractArray{<:Number,N})
 
 Create an FFTW real-to-real (R2R) transformation plan for the first axis of a given multidimensional array `vals`. 
-In practise, the `vals` array is the power spectrum P(k,χ). The first axis should then contain the wavenumbers `k`.
+In practise, the `vals` array is the power spectrum P(k,χ). The first axis should then contains the wavenumbers `k`, while the second axis contains the `χ` information.
 
 # Arguments
 - `vals::AbstractArray{<:Number, N}`: The input array of any numerical type with `N` dimensions.
 
 # Returns
-- `p::FFTW.rFFTWPlan`: An FFTW plan object for transforming `vals` with the appropriate R2R transformations. This plan can be applied using the `*` operator (e.g., `transformed_vals = p * vals`).
+- `p::FFTW.rFFTWPlan`: A FFTW plan object for transforming `vals` with the appropriate real to real transformations. This plan can be applied using the `*` operator (e.g., `transformed_vals = p * vals`).
 
 """
 function plan_fft(vals::AbstractArray{<:Number,N}) where {N}
@@ -20,12 +20,14 @@ end
 
 
 """
-    fast_chebcoefs(vals::AbstractArray{<:Number,N})
+    fast_chebcoefs(vals::AbstractArray{<:Number,N}, plan::FFTW.r2rFFTWPlan)
 
 Efficiently compute the Chebyshev coefficients of a multidimensional array `vals` using an O(n log n) method. This method leverages FFT-based type-I Discrete Cosine Transform (DCT-I).
 
 Arguments:
 - `vals::AbstractArray{<:Number,N}`: A multidimensional array of values for which to compute the Chebyshev coefficients.
+
+- `plan::FFTW.r2rFFTWPlan`: A FFTW plan object for transforming `vals` with the appropriate real to real transformations. This plan is applied using the `*` operator (e.g., `transformed_vals = p * vals`) and performs the DCT of the `vals` array along the first axis.
 
 Returns:
 - `coefs`: An array of the same size as `vals`, containing the computed Chebyshev coefficients.
