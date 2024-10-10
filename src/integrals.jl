@@ -11,7 +11,7 @@ Computes the weights for the Simpson quadrature rule for numerical integration b
 - An array of length `n` with the weights of type `T` for the Simpson quadrature rule.
 """
 function SimpsonWeightArray(n::Int; T=Float64)
-
+    @assert n > 1 "You cannot integrate with only 1 sampling point."
     number_intervals = floor((n-1)/2)
     weight_array = zeros(n)
     if n == number_intervals*2+1
@@ -55,8 +55,8 @@ Computes the Cℓ's by performing the two outer integrals in χ and R. The integ
 - A multi-dimensional array `Cℓ` with axis (ℓ, i, j) containing the angular power spectrum coefficients in every combination of tomographic bins.
 """
 function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::AbstractVector, R::AbstractVector) where T
-    nχ = size(χ)
-    nR = size(R)
+    nχ = length(χ)
+    nR = length(R)
     @assert nχ == size(w, 2) "Dimension mismatch: the χ array passed doesn't correspond to the one used in the evaluation of the inner k integral."
 
     #Integration in χ is peformed using the Simpson quadrature rule
@@ -66,7 +66,8 @@ function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::Abstra
     #Integration in R is performed using the Clenshaw-Curtis quadrature rule
     CC_obj = FastTransforms.chebyshevmoments1(Float64, 2*nR+1)
     pesi_R = FastTransforms.clenshawcurtisweights(CC_obj)
-    pesi_R = pesi_R[nR+2:end] 
+    pesi_R = pesi_R[nR+2:end]
+    pesi_R[1]/=2 #TODO: investigate if there are better solutions
 
     @tullio Cℓ[l,i,j] := χ[n]*K[i,j,n,m]*w[l,n,m]*pesi_χ[n]*pesi_R[m]*Δχ
 

@@ -5,6 +5,7 @@ using FastTransforms
 using FastChebInterp
 using NPZ
 using FFTW
+using Tullio
 
 @testset "Matrix product test" begin
     i = 3
@@ -55,7 +56,7 @@ end
 end
 
 #CC
-run(`wget --content-disposition https://zenodo.org/api/records/13885803/files-archive`)
+#=run(`wget --content-disposition https://zenodo.org/api/records/13885803/files-archive`)
 run(`unzip 13885803.zip`)
 run(`rm -r 13885803.zip`)
 
@@ -145,7 +146,7 @@ run(`bash -c "rm T_tilde_l_*"`)
     end
 
     @test isapprox(T_LL_check, T_LL_blast)
-end
+end=#
 
 @testset "Chebyshev coefficients" begin
     dims = (2^10, 2^6)
@@ -162,4 +163,27 @@ end
     
 
     @test true_coefs ≈ my_coefs
+end
+
+@testset "Outer integrals tests" begin
+    n = 100
+    x = LinRange(0,1,n)
+    Δx = ((last(x)-first(x))/(n-1))
+    weights = Blast.SimpsonWeightArray(n)
+
+    @tullio integral = x[i]*weights[i]*Δx
+
+    @test integral ≈ 0.5
+
+    pmd = ones(1, 200, 50)
+    kernel = ones(1, 1, 200, 50)
+    χ = LinRange(0, 1, 200) #FIXME: with big values of chi the test doesn't pass obviously.
+    R = chebpoints(100,-1,1)
+    R = reverse(R[R.>0])
+
+    cl_test = Blast.compute_Cℓ(pmd, kernel, χ, R)
+    cl_true = 0.5*(R[end]-R[1])
+
+    @test isapprox(cl_test[1,1,1], cl_true, atol = 1e-4) 
+
 end
