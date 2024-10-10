@@ -184,6 +184,6 @@ end
     cl_test = Blast.compute_Cℓ(pmd, kernel, χ, R)
     cl_true = 0.5*(R[end]-R[1])
 
-    @test isapprox(cl_test[1,1,1], cl_true, atol = 1e-4) 
+    @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
 
 end
