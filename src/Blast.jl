@@ -10,5 +10,6 @@ using FFTW
 
 include("projected_matter.jl")
 include("chebcoefs.jl")
+include("integrals.jl")
 
 end # module Blast
