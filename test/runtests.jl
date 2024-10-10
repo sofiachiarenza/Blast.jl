@@ -177,12 +177,12 @@ end
 
     pmd = ones(1, 200, 50)
     kernel = ones(1, 1, 200, 50)
-    χ = LinRange(0, 1, 200) #FIXME: with big values of chi the test doesn't pass obviously.
+    χ = LinRange(10, 100, 200) 
     R = chebpoints(100,-1,1)
     R = reverse(R[R.>0])
 
     cl_test = Blast.compute_Cℓ(pmd, kernel, χ, R)
-    cl_true = 0.5*(R[end]-R[1])
+    cl_true = 4950*(R[end]-R[1])
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
 

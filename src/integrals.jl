@@ -67,7 +67,7 @@ function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::Abstra
     CC_obj = FastTransforms.chebyshevmoments1(Float64, 2*nR+1)
     pesi_R = FastTransforms.clenshawcurtisweights(CC_obj)
     pesi_R = pesi_R[nR+2:end]
-    pesi_R[1]/=2 #TODO: investigate if there are better solutions
+    pesi_R[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
 
     @tullio Cℓ[l,i,j] := χ[n]*K[i,j,n,m]*w[l,n,m]*pesi_χ[n]*pesi_R[m]*Δχ
 
