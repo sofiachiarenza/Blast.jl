@@ -1,5 +1,5 @@
 """
-    SimpsonWeightArray(n::Int; T=Float64)
+    simpson_weight_array(n::Int; T=Float64)
 
 Computes the weights for the Simpson quadrature rule for numerical integration based on the input number of points `n`.
 
