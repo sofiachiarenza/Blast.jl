@@ -57,7 +57,14 @@ Computes the Cℓ's by performing the two outer integrals in χ and R. The integ
 function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::AbstractVector, R::AbstractVector) where T
     nχ = length(χ)
     nR = length(R)
-    @assert nχ == size(w, 2) "Dimension mismatch: the χ array passed doesn't correspond to the one used in the evaluation of the inner k integral."
+
+    if nχ != size(w, 2)
+        throw(DimensionMismatch("Dimension mismatch: the χ array passed doesn't correspond to the one used in the evaluation of the inner k integral. Expected $nχ, got $(size(w, 2))."))
+    end
+
+    if nR != size(w, 3)
+        throw(DimensionMismatch("Dimension mismatch: the R array passed doesn't correspond to the one used in the evaluation of the inner k integral. Expected $nR, got $(size(w, 3))."))
+    end
 
     #Integration in χ is peformed using the Simpson quadrature rule
     Δχ = ((last(χ)-first(χ))/(nχ-1))
@@ -65,11 +72,11 @@ function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::Abstra
 
     #Integration in R is performed using the Clenshaw-Curtis quadrature rule
     CC_obj = FastTransforms.chebyshevmoments1(Float64, 2*nR+1)
-    pesi_R = FastTransforms.clenshawcurtisweights(CC_obj)
-    pesi_R = pesi_R[nR+2:end]
-    pesi_R[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
+    w_R = FastTransforms.clenshawcurtisweights(CC_obj)
+    w_R = w_R[nR+2:end]
+    w_R[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
 
-    @tullio Cℓ[l,i,j] := χ[n]*K[i,j,n,m]*w[l,n,m]*w_χ[n]*pesi_R[m]*Δχ
+    @tullio Cℓ[l,i,j] := χ[n]*K[i,j,n,m]*w[l,n,m]*w_χ[n]*w_R[m]*Δχ
 
     return Cℓ
 
