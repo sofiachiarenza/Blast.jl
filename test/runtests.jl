@@ -169,7 +169,7 @@ end
     n = 100
     x = LinRange(0,1,n)
     Δx = ((last(x)-first(x))/(n-1))
-    weights = Blast.SimpsonWeightArray(n)
+    weights = Blast.simpson_weight_array(n)
 
     @tullio integral = x[i]*weights[i]*Δx
 
