@@ -1,5 +1,5 @@
 """
-   plan_fft(vals::AbstractArray{<:Number,N})
+    plan_fft(vals::AbstractArray{<:Number,N})
 
 Create an FFTW real-to-real (R2R) transformation plan for the first axis of a given multidimensional array `vals`. 
 In practise, the `vals` array is the power spectrum P(k,χ). The first axis should then contains the wavenumbers `k`, while the second axis contains the `χ` information.
