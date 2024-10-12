@@ -66,7 +66,7 @@ function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::Abstra
         throw(DimensionMismatch("Dimension mismatch: the R array passed doesn't correspond to the one used in the evaluation of the inner k integral. Expected $nR, got $(size(w, 3))."))
     end
 
-    #Integration in χ is peformed using the Simpson quadrature rule
+    #Integration in χ is performed using the Simpson quadrature rule
     Δχ = ((last(χ)-first(χ))/(nχ-1))
     w_χ = simpson_weight_array(nχ)
 
