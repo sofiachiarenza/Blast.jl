@@ -8,6 +8,6 @@ Blast.get_clencurt_grid
 Blast.w_ell_tullio
 Blast.plan_fft
 Blast.fast_chebcoefs
-Blast.SimpsonWeightArray
+Blast.simpson_weight_array
 Blast.compute_Cℓ
 ```
