@@ -84,7 +84,10 @@ Compute integrals of the Bessels function and the Chebyshev polynomials. This is
 - `N::Int`: Number of integration points in k.
 """
 function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb::Int = 119, N::Int = 2^(15)+1)
-    @assert kmin < kmax "The integration range is unphysical. Make sure kmin < kmax." #TODO: added assert because the test doesn't even work if they are the same.
+    if kmin >= kmax 
+        throw(DomainError("The integration range is unphysical. Make sure kmin < kmax.")) 
+    end
+    
     nχ = length(χ)
     nR = length(R)
 

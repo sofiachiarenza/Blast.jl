@@ -71,8 +71,9 @@ function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::Abstra
     w_χ = simpson_weight_array(nχ)
 
     #Integration in R is performed using the Clenshaw-Curtis quadrature rule
-    CC_obj = FastTransforms.chebyshevmoments1(Float64, 2*nR+1)
-    w_R = FastTransforms.clenshawcurtisweights(CC_obj)
+    #CC_obj = FastTransforms.chebyshevmoments1(Float64, 2*nR+1)
+    #w_R = FastTransforms.clenshawcurtisweights(CC_obj)
+    w_R = get_clencurt_weights(-1, 1, 2*nR+1 )
     w_R = w_R[nR+2:end]
     w_R[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
 
