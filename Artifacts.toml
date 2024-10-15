@@ -1,0 +1,20 @@
+[T_tilde_-2]
+git-tree-sha1 = "45653ffa4f03cd66d7567abf47e315aa36e63b65"
+
+    [[T_tilde_-2.download]]
+    sha256 = "a606ea59c14d7d8db8ae078b0bc8b4e3eedcab37a495033c27218db0287bfeb7"
+    url = "https://gist.github.com/sofiachiarenza/aa354343234890d1279c19ea4f10fcaa/raw/45653ffa4f03cd66d7567abf47e315aa36e63b65.tar.gz"
+
+[T_tilde_0]
+git-tree-sha1 = "538579184413aac94ae61cc664d2b89f60ecf1b5"
+
+    [[T_tilde_0.download]]
+    sha256 = "aee9308feea5ca8d2bf165a431edfd3366ce667556872613ad8da34884183b66"
+    url = "https://gist.github.com/sofiachiarenza/cd75b5e4b41a7fda39bfc35b15c00a7e/raw/538579184413aac94ae61cc664d2b89f60ecf1b5.tar.gz"
+
+[T_tilde_2]
+git-tree-sha1 = "10782b03211e62e3fe4c67f6c251c3aa4065a8b1"
+
+    [[T_tilde_2.download]]
+    sha256 = "fcec235ac6dfbac66bfdafd11c862f28374da85b47f445cd44bb14b7c6c32756"
+    url = "https://gist.github.com/sofiachiarenza/bc4cc659ef4b0b97fda005e690cab5ac/raw/10782b03211e62e3fe4c67f6c251c3aa4065a8b1.tar.gz"

@@ -5,6 +5,7 @@ using FastTransforms
 using FastChebInterp
 using NPZ
 using FFTW
+using Tullio
 
 @testset "Matrix product test" begin
     i = 3
@@ -162,4 +163,27 @@ end
     
 
     @test true_coefs ≈ my_coefs
+end
+
+@testset "Outer integrals tests" begin
+    n = 100
+    x = LinRange(0,1,n)
+    Δx = ((last(x)-first(x))/(n-1))
+    weights = Blast.simpson_weight_array(n)
+
+    @tullio integral = x[i]*weights[i]*Δx
+
+    @test integral ≈ 0.5
+
+    pmd = ones(1, 200, 50)
+    kernel = ones(1, 1, 200, 50)
+    χ = LinRange(10, 100, 200) 
+    R = chebpoints(100,-1,1)
+    R = reverse(R[R.>0])
+
+    cl_test = Blast.compute_Cℓ(pmd, kernel, χ, R)
+    cl_true = 4950*(R[end]-R[1])
+
+    @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
+
 end
