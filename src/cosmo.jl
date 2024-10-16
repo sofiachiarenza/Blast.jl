@@ -1,4 +1,4 @@
-# Just a starting point, mostly adapted from cosmocentral.jl. Needs a lot of expansions. 
+#TODO: @kwdef doesn't exist in Julia < 1.9, so tests don't pass :(((((((
 
 """
     AbstractCosmology{T}

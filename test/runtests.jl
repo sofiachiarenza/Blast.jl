@@ -7,6 +7,32 @@ using NPZ
 using FFTW
 using Tullio
 
+@testset "Background checks" begin
+    cosmo = Blast.FlatΛCDM()
+    z_range = Array(LinRange(0., 4.0, 600))
+    grid = Blast.CosmologicalGrid(z_range=z_range)
+    bg = Blast.BackgroundQuantities(
+    Hz_array = zeros(length(z_range)), χz_array=zeros(length(z_range)) )
+    
+    E0_test = Blast.compute_adimensional_hubble_factor(0., cosmo)
+    @test E0_test == 1.
+    H0_test = Blast.compute_hubble_factor(0., cosmo)
+    @test H0_test == cosmo.H0
+
+    #now check for the function evaluate_background_quantities
+    test_H_array = zeros(length(z_range))
+    test_χ_array = zeros(length(z_range))
+    for (iz, z) in enumerate(z_range)
+        test_H_array[iz] = Blast.compute_hubble_factor(z, cosmo)
+        test_χ_array[iz] = Blast.compute_χ(z, cosmo)
+    end
+    Blast.evaluate_background_quantities!(grid, bg, cosmo)
+
+    @test test_H_array ≈ bg.Hz_array
+    @test test_χ_array ≈ bg.χz_array
+
+end
+
 @testset "Matrix product test" begin
     i = 3
     j = 7
