@@ -73,7 +73,7 @@ the inverse of the adimensional Hubble factor `E(z)`.
 """
 function compute_χ(z::T, AbstractCosmology::AbstractCosmology) where T
     c_0 = 2.99792458e5  # Speed of light in km/s
-    integral, err = quadgk(x -> 1 / compute_adimensional_hubble_factor(x, AbstractCosmology), 0, z, rtol=1e-12)
+    integral, err = quadgk(x -> 1. / compute_adimensional_hubble_factor(x, AbstractCosmology), 0., z, rtol=1e-12)
     return integral * c_0 / AbstractCosmology.H0
 end
 
@@ -104,6 +104,67 @@ function evaluate_background_quantities!(CosmologicalGrid::CosmologicalGrid,
             CosmologicalGrid.z_range[z_idx], AbstractCosmology)
     end
 end
+
+
+function compute_galaxy_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::GalaxyKernel, CosmologicalGrid::CosmologicalGrid,
+    BackgroundQuantities::BackgroundQuantities,
+    AbstractCosmology::AbstractCosmology) where T
+
+    c_0 = 2.99792458e5 #speed of light in km/s
+
+    nz_func = DataInterpolations.AkimaInterpolation(nz, CosmologicalGrid.z_range, extrapolate=true)
+    nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
+
+    print(nz_norm)
+
+    #TODO: check if the background quantities have already been computed or not
+
+    AbstractCosmologicalProbes.Kernel = @. (BackgroundQuantities.Hz_array / c_0) * (nz/ nz_norm)
+end
+
+
+function compute_shear_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearKernel, CosmologicalGrid::CosmologicalGrid,
+    BackgroundQuantities::BackgroundQuantities,
+    AbstractCosmology::AbstractCosmology) where T
+
+    #TODO: check if the background quantities have already been computed or not
+    c_0 = 2.99792458e5
+
+    nz_func = DataInterpolations.AkimaInterpolation(nz, CosmologicalGrid.z_range, extrapolate=true)
+    nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
+
+    prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / c_0^2
+
+    for z_idx in 1:length(CosmologicalGrid.z_range)
+        integrand(x) = nz_func(x) * (1. - BackgroundQuantities.χz_array[z_idx]/compute_χ(x, AbstractCosmology))
+        z_low = CosmologicalGrid.z_range[z_idx]
+        z_top = 5 #TODO: check max redshift
+        int, err = quadgk(x -> integrand(x), z_low, z_top) 
+
+        AbstractCosmologicalProbes.Kernel[z_idx] = prefac * BackgroundQuantities.χz_array[z_idx] * (1. + CosmologicalGrid.z_range[z_idx]) * int / nz_norm
+    end
+end
+
+function compute_CMB_kernel!(AbstractCosmologicalProbes::CMBLensingKernel, CosmologicalGrid::CosmologicalGrid,
+    BackgroundQuantities::BackgroundQuantities,
+    AbstractCosmology::AbstractCosmology)
+
+    #TODO: check if the background quantities have already been computed or not
+    c_0 = 2.99792458e5
+
+    prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / c_0^2
+    χ_CMB = compute_χ(1100., AbstractCosmology)
+
+    AbstractCosmologicalProbes.Kernel = @. prefac * BackgroundQuantities.χz_array * (1. + CosmologicalGrid.z_range) * 
+                                        (1 - BackgroundQuantities.χz_array/χ_CMB)  
+
+end
+
+
+
+
+
+
 
 
 

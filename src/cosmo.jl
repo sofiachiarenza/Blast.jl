@@ -1,5 +1,3 @@
-#TODO: @kwdef doesn't exist in Julia < 1.9, so tests don't pass :(((((((
-
 """
     AbstractCosmology{T}
 An abstract type representing a general cosmological model.
@@ -18,6 +16,12 @@ An abstract type for background quantities in cosmology, such as the Hubble para
 and the growth factor (`D`).
 """
 abstract type AbstractBackgroundQuantities{T} end
+
+"""
+    AbstractCosmologicalProbes{T}
+An abstract type for the shear, clustering and CMB lensing kernels.
+"""
+abstract type AbstractCosmologicalProbes{T} end
 
 
 # Define the flat ΛCDM cosmological model with default parameters based on the fiducial N5K cosmology.
@@ -77,6 +81,18 @@ end
     Hz_array::Vector{T} = zeros(500)  # TODO: How do I make it adaptable to general needs?
     χz_array::Vector{T} = zeros(500)
     # Dz_array::Vector{T} = zeros(500)  # Growth factor array (could be added when power spectrum information is available).
+end
+
+@kwdef mutable struct GalaxyKernel{T} <: AbstractCosmologicalProbes{T}
+    Kernel::Vector{T} = zeros(500)
+end
+
+@kwdef mutable struct ShearKernel{T} <: AbstractCosmologicalProbes{T}
+    Kernel::Vector{T} = zeros(500)
+end
+
+@kwdef mutable struct CMBLensingKernel{T} <: AbstractCosmologicalProbes{T}
+    Kernel::Vector{T} = zeros(500)
 end
 
 

@@ -31,6 +31,18 @@ using Tullio
     @test test_H_array ≈ bg.Hz_array
     @test test_χ_array ≈ bg.χz_array
 
+    #testing the kernels- very basic!
+    GK = Blast.GalaxyKernel(zeros(length(z_range)))
+    nz = zeros(length(z_range))
+    Blast.compute_galaxy_kernel!(nz, GK, grid, bg, cosmo)
+
+    @test GK.Kernel ≈ zeros(length(z_range))
+
+    nz = ones(length(z_range))
+    Blast.compute_galaxy_kernel!(nz, GK, grid, bg, cosmo)
+
+    @test GK.Kernel ≈ bg.Hz_array / 2.99792458e5
+
 end
 
 @testset "Matrix product test" begin
