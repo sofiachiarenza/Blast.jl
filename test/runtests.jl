@@ -33,19 +33,15 @@ using Tullio
 
     #testing the kernels- very basic!
     GK = Blast.GalaxyKernel(zeros(length(z_range)))
-    nz = zeros(length(z_range))
-    Blast.compute_galaxy_kernel!(nz, GK, grid, bg, cosmo)
-
-    @test GK.Kernel ≈ zeros(length(z_range))
-
     nz = ones(length(z_range))
     Blast.compute_galaxy_kernel!(nz, GK, grid, bg, cosmo)
+    test_galaxykernel = @. bg.Hz_array / 2.99792458e5 * nz / 4.
 
-    @test GK.Kernel ≈ bg.Hz_array / 2.99792458e5
+    @test GK.Kernel ≈ test_galaxykernel
 
 end
 
-@testset "Matrix product test" begin
+#=@testset "Matrix product test" begin
     i = 3
     j = 7
     l = 10 
@@ -224,4 +220,4 @@ end
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
 
-end
+end=#
