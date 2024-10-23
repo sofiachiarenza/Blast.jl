@@ -72,9 +72,8 @@ the inverse of the adimensional Hubble factor `E(z)`.
 - `χ_z`: The comoving distance at redshift `z` in units of Mpc.
 """
 function compute_χ(z::T, AbstractCosmology::AbstractCosmology) where T
-    c_0 = 2.99792458e5  # Speed of light in km/s
     integral, err = quadgk(x -> 1. / compute_adimensional_hubble_factor(x, AbstractCosmology), 0., z, rtol=1e-12)
-    return integral * c_0 / AbstractCosmology.H0
+    return integral * C_LIGHT / AbstractCosmology.H0
 end
 
 """
@@ -128,15 +127,19 @@ function compute_shear_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearK
     nz_func = DataInterpolations.AkimaInterpolation(nz, CosmologicalGrid.z_range, extrapolate=true)
     nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
 
+    #print(nz_norm)
+
     prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / C_LIGHT^2
 
+    #print(prefac)
+
     for z_idx in 1:length(CosmologicalGrid.z_range)
-        integrand(x) = nz_func(x) * (1. - BackgroundQuantities.χz_array[z_idx]/compute_χ(x, AbstractCosmology))
+        integrand(x) = nz_func(x) / nz_norm * (1. - BackgroundQuantities.χz_array[z_idx]/compute_χ(x, AbstractCosmology))
         z_low = CosmologicalGrid.z_range[z_idx]
         z_top = 5 #TODO: check max redshift
         int, err = quadgk(x -> integrand(x), z_low, z_top) 
 
-        AbstractCosmologicalProbes.Kernel[z_idx] = prefac * BackgroundQuantities.χz_array[z_idx] * (1. + CosmologicalGrid.z_range[z_idx]) * int / nz_norm
+        AbstractCosmologicalProbes.Kernel[z_idx] = prefac * BackgroundQuantities.χz_array[z_idx] * (1. + CosmologicalGrid.z_range[z_idx]) * int 
     end
 end
 

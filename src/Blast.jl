@@ -11,14 +11,17 @@ using FFTW
 using NPZ
 using QuadGK
 using Artifacts
-
-#TODO: added limberjack to the project, remove it later and just keep it in the test's project.
+using PhysicalConstants
 
 include("projected_matter.jl")
 include("chebcoefs.jl")
 include("integrals.jl")
 include("cosmo.jl")
 include("background.jl")
+
+import PhysicalConstants.CODATA2018: c_0
+
+const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
 
 function load_precomputed_Ts(folder::String)
     ell_vector = npzread(joinpath(folder, "ell_list.npy"))
