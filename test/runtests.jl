@@ -6,14 +6,33 @@ using FastChebInterp
 using NPZ
 using FFTW
 using PhysicalConstants
+using DataInterpolations
 using Tullio
 
 import PhysicalConstants.CODATA2018: c_0
 const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
 
+input_path = pwd()
+
+run(`wget --content-disposition "https://zenodo.org/record/13984489/files/dNdzs_fullwidth.npz?download=1"`)
+n5k_bins = npzread(input_path*"/dNdzs_fullwidth.npz")
+run(`bash -c "rm dNdzs_fullwidth.npz"`)
+
+run(`wget --content-disposition "https://zenodo.org/records/13984491/files/LJ_clustering_kernels.npz?download=1"`)
+LJ_clustering_kernels = npzread(input_path*"/LJ_clustering_kernels.npz")
+run(`bash -c "rm LJ_clustering_kernels.npz"`)
+
+run(`wget --content-disposition "https://zenodo.org/records/13984495/files/LJ_shear_kernels.npz?download=1"`)
+LJ_shear_kernels = npzread(input_path*"/LJ_shear_kernels.npz")
+run(`bash -c "rm LJ_shear_kernels.npz"`)
+
+run(`wget --content-disposition "https://zenodo.org/records/13984500/files/LJ_cmb_kernel.npz?download=1"`)
+LJ_cmb_kernel = npzread(input_path*"/LJ_cmb_kernel.npz")
+run(`bash -c "rm LJ_cmb_kernel.npz"`)
+
 @testset "Background checks" begin
     cosmo = Blast.FlatΛCDM()
-    z_range = Array(LinRange(0., 4.0, 1000))
+    z_range = Array(LinRange(0., 3.5, 1000))
     grid = Blast.CosmologicalGrid(z_range=z_range)
     bg = Blast.BackgroundQuantities(
     Hz_array = zeros(length(z_range)), χz_array=zeros(length(z_range)) )
@@ -35,13 +54,36 @@ const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
     @test test_H_array ≈ bg.Hz_array
     @test test_χ_array ≈ bg.χz_array
 
-    #testing the kernels- very basic!
-    GK = Blast.GalaxyKernel(zeros(length(z_range)))
-    nz = ones(length(z_range))
-    Blast.compute_kernel!(nz, GK, grid, bg, cosmo)
-    test_galaxykernel = @. bg.Hz_array / C_LIGHT * nz / 4.
+    #testing the kernels - comparing to LimberJack 
+    blast_cl_ker = zeros(10, length(grid.z_range))
+    blast_sh_ker = zeros(5, length(grid.z_range))
+    blast_cmb_ker = zeros(length(grid.z_range))
+   
+    print("Computing clustering kernels...\n")
+    for i in 1:10
+        interp = DataInterpolations.AkimaInterpolation(n5k_bins["dNdz_cl"][:,i], n5k_bins["z_cl"], extrapolate = true)
+        GK = Blast.GalaxyKernel(zeros(length(z_range)))
+        Blast.compute_kernel!(Array(interp.(z_range)), GK, grid, bg, cosmo)
+        blast_cl_ker[i,:] = GK.Kernel
+    end
 
-    @test GK.Kernel ≈ test_galaxykernel
+    print("Computing lensing kernels...\n")
+    for i in 1:5
+        interp = DataInterpolations.AkimaInterpolation(n5k_bins["dNdz_sh"][:,i], n5k_bins["z_sh"], extrapolate = true)
+        SHK = Blast.ShearKernel(zeros(length(z_range)))
+        Blast.compute_kernel!(Array(interp.(z_range)), SHK, grid, bg, cosmo)
+        blast_sh_ker[i,:] = SHK.Kernel
+    end
+
+    print("Computing CMB kernel...\n")
+    CMBK = Blast.CMBLensingKernel(zeros(length(z_range)))
+    Blast.compute_kernel!(CMBK, grid, bg, cosmo)
+    blast_cmb_ker = CMBK.Kernel
+
+    @test isapprox(blast_cl_ker, LJ_clustering_kernels, rtol=1e-5)
+    @test isapprox(blast_sh_ker, LJ_shear_kernels, rtol=1e-2)
+    @test isapprox(blast_cmb_ker, LJ_cmb_kernel, rtol=1e-5)
+    
 
 end
 
