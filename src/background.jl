@@ -110,16 +110,12 @@ function compute_galaxy_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::Galax
     BackgroundQuantities::BackgroundQuantities,
     AbstractCosmology::AbstractCosmology) where T
 
-    c_0 = 2.99792458e5 #speed of light in km/s
-
     nz_func = DataInterpolations.AkimaInterpolation(nz, CosmologicalGrid.z_range, extrapolate=true)
     nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
 
-    print(nz_norm)
-
     #TODO: check if the background quantities have already been computed or not
 
-    AbstractCosmologicalProbes.Kernel = @. (BackgroundQuantities.Hz_array / c_0) * (nz/ nz_norm)
+    AbstractCosmologicalProbes.Kernel = @. (BackgroundQuantities.Hz_array / C_LIGHT) * (nz/ nz_norm)
 end
 
 
@@ -128,12 +124,11 @@ function compute_shear_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearK
     AbstractCosmology::AbstractCosmology) where T
 
     #TODO: check if the background quantities have already been computed or not
-    c_0 = 2.99792458e5
 
     nz_func = DataInterpolations.AkimaInterpolation(nz, CosmologicalGrid.z_range, extrapolate=true)
     nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
 
-    prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / c_0^2
+    prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / C_LIGHT^2
 
     for z_idx in 1:length(CosmologicalGrid.z_range)
         integrand(x) = nz_func(x) * (1. - BackgroundQuantities.χz_array[z_idx]/compute_χ(x, AbstractCosmology))
@@ -150,9 +145,8 @@ function compute_CMB_kernel!(AbstractCosmologicalProbes::CMBLensingKernel, Cosmo
     AbstractCosmology::AbstractCosmology)
 
     #TODO: check if the background quantities have already been computed or not
-    c_0 = 2.99792458e5
 
-    prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / c_0^2
+    prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / C_LIGHT^2
     χ_CMB = compute_χ(1100., AbstractCosmology)
 
     AbstractCosmologicalProbes.Kernel = @. prefac * BackgroundQuantities.χz_array * (1. + CosmologicalGrid.z_range) * 
