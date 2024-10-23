@@ -5,11 +5,15 @@ using FastTransforms
 using FastChebInterp
 using NPZ
 using FFTW
+using PhysicalConstants
 using Tullio
+
+import PhysicalConstants.CODATA2018: c_0
+const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
 
 @testset "Background checks" begin
     cosmo = Blast.FlatΛCDM()
-    z_range = Array(LinRange(0., 4.0, 600))
+    z_range = Array(LinRange(0., 4.0, 1000))
     grid = Blast.CosmologicalGrid(z_range=z_range)
     bg = Blast.BackgroundQuantities(
     Hz_array = zeros(length(z_range)), χz_array=zeros(length(z_range)) )
@@ -34,14 +38,14 @@ using Tullio
     #testing the kernels- very basic!
     GK = Blast.GalaxyKernel(zeros(length(z_range)))
     nz = ones(length(z_range))
-    Blast.compute_galaxy_kernel!(nz, GK, grid, bg, cosmo)
-    test_galaxykernel = @. bg.Hz_array / 2.99792458e5 * nz / 4.
+    Blast.compute_kernel!(nz, GK, grid, bg, cosmo)
+    test_galaxykernel = @. bg.Hz_array / C_LIGHT * nz / 4.
 
     @test GK.Kernel ≈ test_galaxykernel
 
 end
 
-#=@testset "Matrix product test" begin
+@testset "Matrix product test" begin
     i = 3
     j = 7
     l = 10 
@@ -220,4 +224,4 @@ end
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
 
-end=#
+end
