@@ -23,7 +23,7 @@ LJ_clustering_kernels = npzread(input_path*"/LJ_clustering_kernels.npz")
 run(`bash -c "rm LJ_clustering_kernels.npz"`)
 
 run(`wget --content-disposition "https://zenodo.org/records/13984495/files/LJ_shear_kernels.npz?download=1"`)
-LJ_shear_kernels = npzread(input_path*"/LJ_shear_kernels.npz")
+LJ_shear_kernels = npzread(input_path*"/LJ_shear_kernels.npz")[1:4,:]
 run(`bash -c "rm LJ_shear_kernels.npz"`)
 
 run(`wget --content-disposition "https://zenodo.org/records/13984500/files/LJ_cmb_kernel.npz?download=1"`)
@@ -56,7 +56,7 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
 
     #testing the kernels - comparing to LimberJack 
     blast_cl_ker = zeros(10, length(grid.z_range))
-    blast_sh_ker = zeros(5, length(grid.z_range))
+    blast_sh_ker = zeros(4, length(grid.z_range))
     blast_cmb_ker = zeros(length(grid.z_range))
    
     print("Computing clustering kernels...\n")
@@ -68,7 +68,7 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     end
 
     print("Computing lensing kernels...\n")
-    for i in 1:5
+    for i in 1:4
         interp = DataInterpolations.AkimaInterpolation(n5k_bins["dNdz_sh"][:,i], n5k_bins["z_sh"], extrapolate = true)
         SHK = Blast.ShearKernel(zeros(length(z_range)))
         Blast.compute_kernel!(Array(interp.(z_range)), SHK, grid, bg, cosmo)
@@ -81,7 +81,7 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     blast_cmb_ker = CMBK.Kernel
 
     @test isapprox(blast_cl_ker, LJ_clustering_kernels, rtol=1e-5)
-    @test isapprox(blast_sh_ker, LJ_shear_kernels, rtol=1e-2)
+    @test isapprox(blast_sh_ker, LJ_shear_kernels, rtol=1e-3)
     @test isapprox(blast_cmb_ker, LJ_cmb_kernel, rtol=1e-5)
     
 

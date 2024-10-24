@@ -132,7 +132,7 @@ function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearKernel,
     for z_idx in 1:length(CosmologicalGrid.z_range)
         integrand(x) = nz_func(x) * (1. - BackgroundQuantities.χz_array[z_idx]/compute_χ(x, AbstractCosmology))
         z_low = CosmologicalGrid.z_range[z_idx]
-        z_top = 3.5 #TODO: check max redshift, with n5k bins, lensing5 fallisce se uso valore diverso da 3.5
+        z_top = 5 #TODO: check max redshift, with n5k bins, lensing5 fallisce se uso valore diverso da 3.5
         int, err = quadgk(x -> integrand(x), z_low, z_top) 
 
         AbstractCosmologicalProbes.Kernel[z_idx] = prefac * BackgroundQuantities.χz_array[z_idx] * (1. + CosmologicalGrid.z_range[z_idx]) * int / nz_norm
