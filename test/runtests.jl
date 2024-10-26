@@ -8,7 +8,6 @@ using FFTW
 using PhysicalConstants
 using DataInterpolations
 using Tullio
-using Plots
 
 import PhysicalConstants.CODATA2018: c_0
 const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
