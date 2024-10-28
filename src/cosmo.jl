@@ -83,16 +83,38 @@ end
     # Dz_array::Vector{T} = zeros(500)  # Growth factor array (could be added when power spectrum information is available).
 end
 
+"""
+    GalaxyKernel{T} <: AbstractCosmologicalProbes{T}
+
+# Parameters
+- `Kernel::Vector{T}`: A vector of type `T` that holds the kernel values (default: zeros(500)).
+
+"""
 @kwdef mutable struct GalaxyKernel{T} <: AbstractCosmologicalProbes{T}
     Kernel::Vector{T} = zeros(500)
 end
 
+
+"""
+    ShearKernel{T} <: AbstractCosmologicalProbes{T}
+
+# Parameters:
+- `Kernel`: A vector of type `T` that holds the kernel values (default: zeros(500)).
+"""
 @kwdef mutable struct ShearKernel{T} <: AbstractCosmologicalProbes{T}
     Kernel::Vector{T} = zeros(500)
 end
 
+
+"""
+    CMBLensingKernel{T} <: AbstractCosmologicalProbes{T}
+
+# Parameters:
+- `Kernel`: A vector of type `T` that holds the kernel values (default: zeros(500)).
+"""
 @kwdef mutable struct CMBLensingKernel{T} <: AbstractCosmologicalProbes{T}
     Kernel::Vector{T} = zeros(500)
 end
+
 
 

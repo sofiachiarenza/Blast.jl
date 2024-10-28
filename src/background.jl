@@ -105,19 +105,46 @@ function evaluate_background_quantities!(CosmologicalGrid::CosmologicalGrid,
 end
 
 
-function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::GalaxyKernel, CosmologicalGrid::CosmologicalGrid,
-    BackgroundQuantities::BackgroundQuantities,
-    AbstractCosmology::AbstractCosmology) where T
+"""
+    compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::GalaxyKernel, 
+                    CosmologicalGrid::CosmologicalGrid, BackgroundQuantities::BackgroundQuantities, 
+                    AbstractCosmology::AbstractCosmology) where T
 
+Computes the galaxy clustering kernel based on a redshift distribution `nz` and stores it in the `GalaxyKernel` struct.
+
+# Parameters:
+- `nz`: Redshift distribution of galaxies, as a vector of type `T`.
+- `AbstractCosmologicalProbes`: An instance of `GalaxyKernel` to store the computed kernel values.
+- `CosmologicalGrid`: A grid specifying the redshift range over which the kernel is computed.
+- `BackgroundQuantities`: A struct containing precomputed Hubble parameter and comoving distance values.
+- `AbstractCosmology`: A cosmological model.
+
+"""
+function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::GalaxyKernel, 
+                        CosmologicalGrid::CosmologicalGrid, BackgroundQuantities::BackgroundQuantities, 
+                        AbstractCosmology::AbstractCosmology) where T
     nz_func = DataInterpolations.AkimaInterpolation(nz, CosmologicalGrid.z_range, extrapolate=true)
     nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
 
-    #TODO: check if the background quantities have already been computed or not
-
-    AbstractCosmologicalProbes.Kernel = @. (BackgroundQuantities.Hz_array / C_LIGHT) * (nz/ nz_norm)
+    AbstractCosmologicalProbes.Kernel = @. (BackgroundQuantities.Hz_array / C_LIGHT) * (nz / nz_norm)
 end
 
 
+"""
+    compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearKernel, 
+                    CosmologicalGrid::CosmologicalGrid, BackgroundQuantities::BackgroundQuantities, 
+                    AbstractCosmology::AbstractCosmology) where T
+
+Computes the weak lensing shear kernel based on a redshift distribution `nz` and stores it in the `ShearKernel` struct.
+
+# Parameters:
+- `nz`: Redshift distribution of galaxies, as a vector of type `T`.
+- `AbstractCosmologicalProbes`: An instance of `ShearKernel` to store the computed kernel values.
+- `CosmologicalGrid`: A grid specifying the redshift range over which the kernel is computed.
+- `BackgroundQuantities`: A struct containing precomputed Hubble parameter and comoving distance values.
+- `AbstractCosmology`: A cosmological model.
+
+"""
 function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearKernel, CosmologicalGrid::CosmologicalGrid,
     BackgroundQuantities::BackgroundQuantities,
     AbstractCosmology::AbstractCosmology) where T
@@ -139,6 +166,20 @@ function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearKernel,
     end
 end
 
+"""
+    compute_kernel!(AbstractCosmologicalProbes::CMBLensingKernel, 
+                    CosmologicalGrid::CosmologicalGrid, BackgroundQuantities::BackgroundQuantities, 
+                    AbstractCosmology::AbstractCosmology)
+
+Computes the CMB lensing kernel and stores it in the `CMBLensingKernel` struct.
+
+# Parameters:
+- `AbstractCosmologicalProbes`: An instance of `CMBLensingKernel` to store the computed kernel values.
+- `CosmologicalGrid`: A grid specifying the redshift range over which the kernel is computed.
+- `BackgroundQuantities`: A struct containing precomputed Hubble parameter and comoving distance values.
+- `AbstractCosmology`: A cosmological model.
+
+"""
 function compute_kernel!(AbstractCosmologicalProbes::CMBLensingKernel, CosmologicalGrid::CosmologicalGrid,
     BackgroundQuantities::BackgroundQuantities,
     AbstractCosmology::AbstractCosmology)
