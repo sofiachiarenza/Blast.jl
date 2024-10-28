@@ -123,6 +123,11 @@ Computes the galaxy clustering kernel based on a redshift distribution `nz` and 
 function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::GalaxyKernel, 
                         CosmologicalGrid::CosmologicalGrid, BackgroundQuantities::BackgroundQuantities, 
                         AbstractCosmology::AbstractCosmology) where T
+
+    if all(iszero, BackgroundQuantities.Hz_array) || all(iszero, BackgroundQuantities.χz_array)
+        evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
+    end
+    
     nz_func = DataInterpolations.AkimaInterpolation(nz, CosmologicalGrid.z_range, extrapolate=true)
     nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
 
@@ -149,7 +154,9 @@ function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearKernel,
     BackgroundQuantities::BackgroundQuantities,
     AbstractCosmology::AbstractCosmology) where T
 
-    #TODO: check if the background quantities have already been computed or not
+    if all(iszero, BackgroundQuantities.Hz_array) || all(iszero, BackgroundQuantities.χz_array)
+        evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
+    end
 
     nz_func = DataInterpolations.AkimaInterpolation(nz, CosmologicalGrid.z_range, extrapolate=true)
     nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
@@ -184,7 +191,9 @@ function compute_kernel!(AbstractCosmologicalProbes::CMBLensingKernel, Cosmologi
     BackgroundQuantities::BackgroundQuantities,
     AbstractCosmology::AbstractCosmology)
 
-    #TODO: check if the background quantities have already been computed or not
+    if all(iszero, BackgroundQuantities.Hz_array) || all(iszero, BackgroundQuantities.χz_array)
+        evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
+    end
 
     prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / C_LIGHT^2
     χ_CMB = compute_χ(1100., AbstractCosmology)
