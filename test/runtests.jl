@@ -5,7 +5,87 @@ using FastTransforms
 using FastChebInterp
 using NPZ
 using FFTW
+using PhysicalConstants
+using DataInterpolations
 using Tullio
+
+import PhysicalConstants.CODATA2018: c_0
+const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
+
+input_path = pwd()
+
+run(`wget --content-disposition "https://zenodo.org/records/13997096/files/bins.npz?download=1"`)
+bins = npzread(input_path*"/bins.npz")
+run(`bash -c "rm bins.npz"`)
+
+run(`wget --content-disposition "https://zenodo.org/records/13996320/files/LJ_clustering_kernels.npz?download=1"`)
+LJ_clustering_kernels = npzread(input_path*"/LJ_clustering_kernels.npz")
+run(`bash -c "rm LJ_clustering_kernels.npz"`)
+
+run(`wget --content-disposition "https://zenodo.org/records/13996321/files/LJ_shear_kernels.npz?download=1"`)
+LJ_shear_kernels = npzread(input_path*"/LJ_shear_kernels.npz")[1:3,:]
+run(`bash -c "rm LJ_shear_kernels.npz"`)
+
+run(`wget --content-disposition "https://zenodo.org/records/13997095/files/LJ_cmb_kernel.npz?download=1"`)
+LJ_cmb_kernel = npzread(input_path*"/LJ_cmb_kernel.npz")
+run(`bash -c "rm LJ_cmb_kernel.npz"`)
+
+@testset "Background checks" begin
+    cosmo = Blast.FlatΛCDM()
+    z_range = Array(LinRange(0., 4, 1000))
+    grid = Blast.CosmologicalGrid(z_range=z_range)
+    bg = Blast.BackgroundQuantities(
+    Hz_array = zeros(length(z_range)), χz_array=zeros(length(z_range)) )
+    
+    E0_test = Blast.compute_adimensional_hubble_factor(0., cosmo)
+    @test E0_test == 1.
+    H0_test = Blast.compute_hubble_factor(0., cosmo)
+    @test H0_test == cosmo.H0
+
+    #now check for the function evaluate_background_quantities
+    test_H_array = zeros(length(z_range))
+    test_χ_array = zeros(length(z_range))
+    for (iz, z) in enumerate(z_range)
+        test_H_array[iz] = Blast.compute_hubble_factor(z, cosmo)
+        test_χ_array[iz] = Blast.compute_χ(z, cosmo)
+    end
+    Blast.evaluate_background_quantities!(grid, bg, cosmo)
+
+    @test test_H_array ≈ bg.Hz_array
+    @test test_χ_array ≈ bg.χz_array
+
+    #testing the kernels - comparing to LimberJack 
+    blast_cl_ker = zeros(10, length(grid.z_range))
+    blast_sh_ker = zeros(3, length(grid.z_range))
+    blast_cmb_ker = zeros(length(grid.z_range))
+
+    print("Computing clustering kernels...\n")
+    for i in 1:10
+        interp = DataInterpolations.AkimaInterpolation(bins["dNdz"][i,:], bins["z"], extrapolate = true)
+        GK = Blast.GalaxyKernel(zeros(length(z_range)))
+        Blast.compute_kernel!(Array(interp.(z_range)), GK, grid, bg, cosmo)
+        blast_cl_ker[i,:] = GK.Kernel
+    end
+
+    print("Computing shear kernels...\n")
+    for i in 1:3
+        interp = DataInterpolations.AkimaInterpolation(bins["dNdz"][i,:], bins["z"], extrapolate = true)
+        SHK = Blast.ShearKernel(zeros(length(z_range)))
+        Blast.compute_kernel!(Array(interp.(z_range)), SHK, grid, bg, cosmo)
+        blast_sh_ker[i,:] = SHK.Kernel
+    end
+
+    print("Computing CMB kernels...\n")
+    CMBK = Blast.CMBLensingKernel(zeros(length(z_range)))
+    Blast.compute_kernel!(CMBK, grid, bg, cosmo)
+    blast_cmb_ker = CMBK.Kernel
+
+    @test isapprox(blast_cl_ker, LJ_clustering_kernels, rtol=1e-5)
+    @test isapprox(blast_sh_ker, LJ_shear_kernels, rtol=1e-3)
+    @test isapprox(blast_cmb_ker, LJ_cmb_kernel, rtol=1e-5)
+    
+
+end
 
 @testset "Matrix product test" begin
     i = 3
@@ -59,8 +139,6 @@ end
 run(`wget --content-disposition https://zenodo.org/api/records/13885803/files-archive`)
 run(`unzip 13885803.zip`)
 run(`rm -r 13885803.zip`)
-
-input_path = pwd()
 
 T_CC_check = zeros(3,10,10,120)
 T_CC_check[1,:,:,:] = npzread(input_path*"/T_tilde_l_2.0.npy")
