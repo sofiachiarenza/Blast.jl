@@ -124,6 +124,7 @@ function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::GalaxyKernel
                         CosmologicalGrid::CosmologicalGrid, BackgroundQuantities::BackgroundQuantities, 
                         AbstractCosmology::AbstractCosmology) where T
 
+    #TODO: this test will suck for autodiff, will need fixing
     if all(iszero, BackgroundQuantities.Hz_array) || all(iszero, BackgroundQuantities.χz_array)
         evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
     end
@@ -154,6 +155,7 @@ function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearKernel,
     BackgroundQuantities::BackgroundQuantities,
     AbstractCosmology::AbstractCosmology) where T
 
+    #TODO: this test will suck for autodiff, will need fixing
     if all(iszero, BackgroundQuantities.Hz_array) || all(iszero, BackgroundQuantities.χz_array)
         evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
     end
@@ -191,6 +193,7 @@ function compute_kernel!(AbstractCosmologicalProbes::CMBLensingKernel, Cosmologi
     BackgroundQuantities::BackgroundQuantities,
     AbstractCosmology::AbstractCosmology)
 
+    #TODO: this test will suck for autodiff, will need fixing
     if all(iszero, BackgroundQuantities.Hz_array) || all(iszero, BackgroundQuantities.χz_array)
         evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
     end
