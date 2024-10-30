@@ -1,3 +1,65 @@
+#TODO: missing documentation of these new functions 
+
+function make_grid(BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+    return vec(BackgroundQuantities.χz_array * R')
+end
+
+function grid_interpolator(AbstractCosmologicalProbes::AbstractCosmologicalProbes, 
+    BackgroundQuantities::BackgroundQuantities, grid::Vector{T}) where T
+
+    kernel_interpolated = zeros(T, AbstractCosmologicalProbes.n_bins, length(BackgroundQuantities.χz_array))
+
+    for b in 1: AbstractCosmologicalProbes.n_bins
+        interp = AkimaInterpolation(AbstractCosmologicalProbes.Kernel[b,:], BackgroundQuantities.χz_array, extrapolate=true)
+        kernel_interpolated[b, :] = interp.(grid)
+    end
+
+    return kernel_interpolated
+end
+
+function get_kernel_array(AbstractCosmologicalProbes::GalaxyKernel, 
+    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+    nχ = length(BackgroundQuantities.χz_array)
+    nR = length(R)
+    n_bins = AbstractCosmologicalProbes.n_bins
+
+    W_array = reshape(grid_interpolator(GalaxyKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), n_bins, nχ, nR)
+
+    return W_array
+end
+
+function get_kernel_array(AbstractCosmologicalProbes::Union{ShearKernel, CMBLensingKernel}, 
+    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+    nχ = length(BackgroundQuantities.χz_array)
+    nR = length(R)
+    n_bins = AbstractCosmologicalProbes.n_bins
+
+    W_L = grid_interpolator(AbstractCosmologicalProbes, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
+    χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
+    W_array = reshape( W_L./χ2_app , n_bins, nχ, nR)
+
+    return W_array
+end
+
+function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel},
+    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+    W_A = get_kernel_array(ProbeA, BackgroundQuantities, R)
+    W_A_r1 = W_A[:,:,end]
+
+    W_B = get_kernel_array(ProbeB, BackgroundQuantities, R)
+    W_B_r1 = W_B[:,:,end]
+
+    @tullio K[i,j,c,r] := W_A_r1[i,c] * W_B[j,c,r] + W_A[i,c,r]*W_B_r1[j,c]
+
+    return K
+end
+
+
+
 """
     simpson_weight_array(n::Int; T=Float64)
 
@@ -77,7 +139,7 @@ function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, Background
     w_R = w_R[nR+2:end]
     w_R[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
 
-    @tullio Cℓ[l,i,j] := χ[n]*K[i,j,n,m]*w[l,n,m]*w_χ[n]*w_R[m]*Δχ
+    @tullio Cℓ[l,i,j] := BackgroundQuantities.χz_array[n]*K[i,j,n,m]*w[l,n,m]*w_χ[n]*w_R[m]*Δχ
 
     return Cℓ
 

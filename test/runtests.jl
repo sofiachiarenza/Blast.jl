@@ -54,35 +54,29 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     @test test_H_array ≈ bg.Hz_array
     @test test_χ_array ≈ bg.χz_array
 
-    #testing the kernels - comparing to LimberJack 
-    blast_cl_ker = zeros(10, length(grid.z_range))
-    blast_sh_ker = zeros(3, length(grid.z_range))
-    blast_cmb_ker = zeros(length(grid.z_range))
-
     print("Computing clustering kernels...\n")
+
+    nz_interp = zeros(10, length(z_range))
     for i in 1:10
         interp = DataInterpolations.AkimaInterpolation(bins["dNdz"][i,:], bins["z"], extrapolate = true)
-        GK = Blast.GalaxyKernel(zeros(length(z_range)))
-        Blast.compute_kernel!(Array(interp.(z_range)), GK, grid, bg, cosmo)
-        blast_cl_ker[i,:] = GK.Kernel
+        nz_interp[i,:] = interp.(z_range)
     end
+
+    GK = Blast.GalaxyKernel(n_bins = 10, nχ = length(grid.z_range) )
+    Blast.compute_kernel!(nz_interp, GK, grid, bg, cosmo)
+
 
     print("Computing shear kernels...\n")
-    for i in 1:3
-        interp = DataInterpolations.AkimaInterpolation(bins["dNdz"][i,:], bins["z"], extrapolate = true)
-        SHK = Blast.ShearKernel(zeros(length(z_range)))
-        Blast.compute_kernel!(Array(interp.(z_range)), SHK, grid, bg, cosmo)
-        blast_sh_ker[i,:] = SHK.Kernel
-    end
+    SHK = Blast.ShearKernel(n_bins = 3, nχ = length(grid.z_range))
+    Blast.compute_kernel!(nz_interp[1:3,:], SHK, grid, bg, cosmo)
 
     print("Computing CMB kernels...\n")
-    CMBK = Blast.CMBLensingKernel(zeros(length(z_range)))
+    CMBK = Blast.CMBLensingKernel(nχ = length(grid.z_range))
     Blast.compute_kernel!(CMBK, grid, bg, cosmo)
-    blast_cmb_ker = CMBK.Kernel
 
-    @test isapprox(blast_cl_ker, LJ_clustering_kernels, rtol=1e-5)
-    @test isapprox(blast_sh_ker, LJ_shear_kernels, rtol=1e-3)
-    @test isapprox(blast_cmb_ker, LJ_cmb_kernel, rtol=1e-5)
+    @test isapprox(GK.Kernel, LJ_clustering_kernels, rtol=1e-5)
+    @test isapprox(SHK.Kernel, LJ_shear_kernels, rtol=1e-3)
+    @test isapprox(CMBK.Kernel[1,:], LJ_cmb_kernel, rtol=1e-5)
     
 
 end
@@ -255,11 +249,14 @@ end
 
     pmd = ones(1, 200, 50)
     kernel = ones(1, 1, 200, 50)
-    χ = LinRange(10, 100, 200) 
+    χ = Array(LinRange(10, 100, 200))
     R = chebpoints(100,-1,1)
     R = reverse(R[R.>0])
 
-    cl_test = Blast.compute_Cℓ(pmd, kernel, χ, R)
+    cosmo = Blast.FlatΛCDM()
+    bg = Blast.BackgroundQuantities(Hz_array = zeros(200), χz_array=χ )
+
+    cl_test = Blast.compute_Cℓ(pmd, kernel, bg, R)
     cl_true = 4950*(R[end]-R[1])
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 

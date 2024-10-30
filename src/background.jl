@@ -120,7 +120,8 @@ Computes the galaxy clustering kernel based on a redshift distribution `nz` and 
 - `AbstractCosmology`: A cosmological model.
 
 """
-function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::GalaxyKernel, 
+#TODO: update documentation here
+function compute_kernel!(nz::AbstractArray{T, 2}, AbstractCosmologicalProbes::GalaxyKernel, 
                         CosmologicalGrid::CosmologicalGrid, BackgroundQuantities::BackgroundQuantities, 
                         AbstractCosmology::AbstractCosmology) where T
 
@@ -128,11 +129,15 @@ function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::GalaxyKernel
     if all(iszero, BackgroundQuantities.Hz_array) || all(iszero, BackgroundQuantities.χz_array)
         evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
     end
-    
-    nz_func = DataInterpolations.AkimaInterpolation(nz, CosmologicalGrid.z_range, extrapolate=true)
-    nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
 
-    AbstractCosmologicalProbes.Kernel = @. (BackgroundQuantities.Hz_array / C_LIGHT) * (nz / nz_norm)
+    n_bins = AbstractCosmologicalProbes.n_bins
+    
+    for b in 1:n_bins
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], CosmologicalGrid.z_range, extrapolate=true)
+        nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
+
+        AbstractCosmologicalProbes.Kernel[b,:] = @. (BackgroundQuantities.Hz_array / C_LIGHT) * (nz[b,:] / nz_norm)
+    end
 end
 
 
@@ -151,7 +156,7 @@ Computes the weak lensing shear kernel based on a redshift distribution `nz` and
 - `AbstractCosmology`: A cosmological model.
 
 """
-function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearKernel, CosmologicalGrid::CosmologicalGrid,
+function compute_kernel!(nz::AbstractArray{T, 2}, AbstractCosmologicalProbes::ShearKernel, CosmologicalGrid::CosmologicalGrid,
     BackgroundQuantities::BackgroundQuantities,
     AbstractCosmology::AbstractCosmology) where T
 
@@ -160,18 +165,22 @@ function compute_kernel!(nz::Vector{T}, AbstractCosmologicalProbes::ShearKernel,
         evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
     end
 
-    nz_func = DataInterpolations.AkimaInterpolation(nz, CosmologicalGrid.z_range, extrapolate=true)
-    nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
+    n_bins = AbstractCosmologicalProbes.n_bins
 
-    prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / C_LIGHT^2
+    for b in 1:n_bins
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], CosmologicalGrid.z_range, extrapolate=true)
+        nz_norm, _ = quadgk(x->nz_func(x), first(CosmologicalGrid.z_range), last(CosmologicalGrid.z_range))
 
-    for z_idx in 1:length(CosmologicalGrid.z_range)
-        integrand(x) = nz_func(x) * (1. - BackgroundQuantities.χz_array[z_idx]/compute_χ(x, AbstractCosmology))
-        z_low = CosmologicalGrid.z_range[z_idx]
-        z_top = 5 #TODO: check max redshift, with n5k bins, lensing5 fallisce se uso valore diverso da 3.5
-        int, err = quadgk(x -> integrand(x), z_low, z_top) 
+        prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / C_LIGHT^2
 
-        AbstractCosmologicalProbes.Kernel[z_idx] = prefac * BackgroundQuantities.χz_array[z_idx] * (1. + CosmologicalGrid.z_range[z_idx]) * int / nz_norm
+        for z_idx in 1:length(CosmologicalGrid.z_range)
+            integrand(x) = nz_func(x) * (1. - BackgroundQuantities.χz_array[z_idx]/compute_χ(x, AbstractCosmology))
+            z_low = CosmologicalGrid.z_range[z_idx]
+            z_top = 5 #TODO: check max redshift, with n5k bins, lensing5 fallisce se uso valore diverso da 3.5
+            int, err = quadgk(x -> integrand(x), z_low, z_top) 
+
+            AbstractCosmologicalProbes.Kernel[b, z_idx] = prefac * BackgroundQuantities.χz_array[z_idx] * (1. + CosmologicalGrid.z_range[z_idx]) * int / nz_norm
+        end
     end
 end
 
@@ -191,151 +200,21 @@ Computes the CMB lensing kernel and stores it in the `CMBLensingKernel` struct.
 """
 function compute_kernel!(AbstractCosmologicalProbes::CMBLensingKernel, CosmologicalGrid::CosmologicalGrid,
     BackgroundQuantities::BackgroundQuantities,
-    AbstractCosmology::AbstractCosmology)
+    AbstractCosmology::AbstractCosmology) 
 
     #TODO: this test will suck for autodiff, will need fixing
     if all(iszero, BackgroundQuantities.Hz_array) || all(iszero, BackgroundQuantities.χz_array)
         evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
     end
 
+    n_bins = AbstractCosmologicalProbes.n_bins
+
+    if n_bins > 1
+        throw(DomainError("CMB Lensing must have a single tomographic bin!"))
+    end
+
     prefac = 1.5 * AbstractCosmology.H0^2 * AbstractCosmology.Ωm / C_LIGHT^2
     χ_CMB = compute_χ(1100., AbstractCosmology)
 
-    AbstractCosmologicalProbes.Kernel = @. prefac * BackgroundQuantities.χz_array * (1. + CosmologicalGrid.z_range) * (1 - BackgroundQuantities.χz_array/χ_CMB)
-end
-
-function make_grid(BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
-    return vec(BackgroundQuantities.χz_array * R')
-end
-
-#TODO: come gestisco i bins? Qua tutto lavora con un bin specifico, voglio fare tutto insieme come facevo prima?
-
-function grid_interpolator(AbstractCosmologicalProbes::AbstractCosmologicalProbes, BackgroundQuantities::BackgroundQuantities, grid::Vector{T}) where T
-    interp = AkimaInterpolation(AbstractCosmologicalProbes.Kernel, BackgroundQuantities.χz_array, extrapolate=true)
-    return interp.(grid)
-end
-
-function combine_kernels(AbstractCosmologicalProbes::GalaxyKernel, 
-    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
-
-    nχ = length(BackgroundQuantities.χz_array)
-    nR = length(R)
-
-    W_C = reshape(grid_interpolator(GalaxyKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
-
-    W_C_r1 = W_C[:,end]
-    
-    @tullio K[c,r] := W_C_r1[c] * W_C[c,r] + W_C[c,r]*W_C_r1[c]
-
-    return K
-end
-
-function combine_kernels(AbstractCosmologicalProbes::ShearKernel, 
-    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
-
-    nχ = length(BackgroundQuantities.χz_array)
-    nR = length(R)
-
-    W_L = grid_interpolator(ShearKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
-    χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
-    W_L = reshape( W_L./χ2_app , nχ, nR)
-
-    W_L_r1 = W_L[:,end]
-
-    @tullio K[c,r] := W_L_r1[c] * W_L[c,r] + W_L[c,r]*W_L_r1[c]
-
-    return K
-end
-
-function combine_kernels(galaxy_kernel::GalaxyKernel, shear_kernel::ShearKernel, 
-    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
-
-    nχ = length(BackgroundQuantities.χz_array)
-    nR = length(R)
-
-    W_C = reshape(grid_interpolator(galaxy_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
-
-    W_L = grid_interpolator(shear_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
-    χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
-    W_L = reshape( W_L./χ2_app , nχ, nR)
-
-    W_C_r1 = W_C[:,end]
-    W_L_r1 = W_L[:,end]
-
-    @tullio K[c,r] := W_C_r1[c] * W_L[c,r] + W_C[c,r]*W_L_r1[c]
-
-    return K
-end
-
-#TODO: is it necessary to define the function(s) with inverse signature?
-function combine_kernels(shear_kernel::ShearKernel, galaxy_kernel::GalaxyKernel,  
-    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
-
-    nχ = length(BackgroundQuantities.χz_array)
-    nR = length(R)
-
-    W_C = reshape(grid_interpolator(galaxy_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
-
-    W_L = grid_interpolator(shear_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
-    χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
-    W_L = reshape( W_L./χ2_app , nχ, nR)
-
-    W_C_r1 = W_C[:,end]
-    W_L_r1 = W_L[:,end]
-
-    @tullio K[c,r] := W_C_r1[c] * W_L[c,r] + W_C[c,r]*W_L_r1[c]
-
-    return K
-end
-
-function combine_kernels(AbstractCosmologicalProbes::CMBLensingKernel, 
-    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
-
-    nχ = length(BackgroundQuantities.χz_array)
-    nR = length(R)
-
-    W = reshape(grid_interpolator(CMBLensingKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
-    W_r1 = W_C[:,end]
-
-    @tullio K[c,r] := W_r1[c] * W[c,r] + W[c,r]*W_r1[c]
-
-    return K
-end
-
-function combine_kernels(cmb_kernel::CMBLensingKernel, galaxy_kernel::GalaxyKernel, 
-    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
-
-    nχ = length(BackgroundQuantities.χz_array)
-    nR = length(R)
-
-    W_C = reshape(grid_interpolator(galaxy_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
-    W = reshape(grid_interpolator(cmb_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
-
-    W_C_r1 = W_C[:,end]
-    W_r1 = W[:,end]
-
-    @tullio K[c,r] := W_C_r1[c] * W[c,r] + W_C[c,r]*W_r1[c]
-
-    return K
-end
-
-
-function combine_kernels(cmb_kernel::CMBLensingKernel, shear_kernel::ShearKernel, 
-    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
-
-    nχ = length(BackgroundQuantities.χz_array)
-    nR = length(R)
-
-    W = reshape(grid_interpolator(cmb_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
-
-    W_L = grid_interpolator(shear_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
-    χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
-    W_L = reshape( W_L./χ2_app , nχ, nR)
-
-    W_r1 = W[:,end]
-    W_L_r1 = W_L[:,end]
-
-    @tullio K[c,r] := W_r1[c] * W_L[c,r] + W[c,r]*W_L_r1[c]
-
-    return K
+    AbstractCosmologicalProbes.Kernel[1,:] = @. prefac * BackgroundQuantities.χz_array * (1. + CosmologicalGrid.z_range) * (1 - BackgroundQuantities.χz_array/χ_CMB)
 end

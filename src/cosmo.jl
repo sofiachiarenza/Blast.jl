@@ -91,8 +91,11 @@ end
 - `Kernel::Vector{T}`: A vector of type `T` that holds the kernel values (default: zeros(500)).
 
 """
+#TODO: update documentation, I added bins!
 @kwdef mutable struct GalaxyKernel{T} <: AbstractCosmologicalProbes{T}
-    Kernel::Vector{T} = zeros(500)
+    n_bins::Int = 1
+    nχ::Int = 500
+    Kernel::AbstractArray{T, 2} = zeros(n_bins, nχ)
 end
 
 
@@ -103,7 +106,9 @@ end
 - `Kernel`: A vector of type `T` that holds the kernel values (default: zeros(500)).
 """
 @kwdef mutable struct ShearKernel{T} <: AbstractCosmologicalProbes{T}
-    Kernel::Vector{T} = zeros(500)
+    n_bins::Int = 1
+    nχ::Int = 500
+    Kernel::AbstractArray{T, 2} = zeros(n_bins, nχ)
 end
 
 
@@ -114,7 +119,20 @@ end
 - `Kernel`: A vector of type `T` that holds the kernel values (default: zeros(500)).
 """
 @kwdef mutable struct CMBLensingKernel{T} <: AbstractCosmologicalProbes{T}
-    Kernel::Vector{T} = zeros(500)
+    n_bins::Int = 1
+    nχ::Int = 500
+    Kernel::AbstractArray{T, 2} = zeros(n_bins, nχ)
+end
+
+#TODO: missing documentation
+function set_bins!(AbstractCosmologicalProbes::AbstractCosmologicalProbes, n_bins::Int)
+    AbstractCosmologicalProbes.n_bins = n_bins
+    AbstractCosmologicalProbes.Kernel = zeros(eltype(AbstractCosmologicalProbes.Kernel), n_bins, AbstractCosmologicalProbes.nχ)
+end
+
+function set_χ!(AbstractCosmologicalProbes::AbstractCosmologicalProbes, nχ::Int)
+    AbstractCosmologicalProbes.nχ = nχ
+    AbstractCosmologicalProbes.Kernel = zeros(eltype(AbstractCosmologicalProbes.Kernel), AbstractCosmologicalProbes.n_bins, nχ)
 end
 
 
