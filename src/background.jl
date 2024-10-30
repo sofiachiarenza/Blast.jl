@@ -204,12 +204,138 @@ function compute_kernel!(AbstractCosmologicalProbes::CMBLensingKernel, Cosmologi
     AbstractCosmologicalProbes.Kernel = @. prefac * BackgroundQuantities.χz_array * (1. + CosmologicalGrid.z_range) * (1 - BackgroundQuantities.χz_array/χ_CMB)
 end
 
+function make_grid(BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+    return vec(BackgroundQuantities.χz_array * R')
+end
+
+#TODO: come gestisco i bins? Qua tutto lavora con un bin specifico, voglio fare tutto insieme come facevo prima?
+
+function grid_interpolator(AbstractCosmologicalProbes::AbstractCosmologicalProbes, BackgroundQuantities::BackgroundQuantities, grid::Vector{T}) where T
+    interp = AkimaInterpolation(AbstractCosmologicalProbes.Kernel, BackgroundQuantities.χz_array, extrapolate=true)
+    return interp.(grid)
+end
+
+function combine_kernels(AbstractCosmologicalProbes::GalaxyKernel, 
+    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+    nχ = length(BackgroundQuantities.χz_array)
+    nR = length(R)
+
+    W_C = reshape(grid_interpolator(GalaxyKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+
+    W_C_r1 = W_C[:,end]
+    
+    @tullio K[c,r] := W_C_r1[c] * W_C[c,r] + W_C[c,r]*W_C_r1[c]
+
+    return K
+end
+
+function combine_kernels(AbstractCosmologicalProbes::ShearKernel, 
+    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+    nχ = length(BackgroundQuantities.χz_array)
+    nR = length(R)
+
+    W_L = grid_interpolator(ShearKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
+    χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
+    W_L = reshape( W_L./χ2_app , nχ, nR)
+
+    W_L_r1 = W_L[:,end]
+
+    @tullio K[c,r] := W_L_r1[c] * W_L[c,r] + W_L[c,r]*W_L_r1[c]
+
+    return K
+end
+
+function combine_kernels(AbstractCosmologicalProbes::GalaxyKernel, AbstractCosmologicalProbes::ShearKernel, 
+    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+    nχ = length(BackgroundQuantities.χz_array)
+    nR = length(R)
+
+    W_C = reshape(grid_interpolator(GalaxyKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+
+    W_L = grid_interpolator(ShearKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
+    χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
+    W_L = reshape( W_L./χ2_app , nχ, nR)
+
+    W_C_r1 = W_C[:,end]
+    W_L_r1 = W_L[:,end]
+
+    @tullio K[c,r] := W_C_r1[c] * W_L[c,r] + W_C[c,r]*W_L_r1[c]
+
+    return K
+end
+
+#TODO: is it necessary to define the function(s) with inverse signature?
+function combine_kernels(AbstractCosmologicalProbes::ShearKernel, AbstractCosmologicalProbes::GalaxyKernel, 
+    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+    nχ = length(BackgroundQuantities.χz_array)
+    nR = length(R)
+
+    W_C = reshape(grid_interpolator(GalaxyKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+
+    W_L = grid_interpolator(ShearKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
+    χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
+    W_L = reshape( W_L./χ2_app , nχ, nR)
+
+    W_C_r1 = W_C[:,end]
+    W_L_r1 = W_L[:,end]
+
+    @tullio K[c,r] := W_C_r1[c] * W_L[c,r] + W_C[c,r]*W_L_r1[c]
+
+    return K
+end
+
+function combine_kernels(AbstractCosmologicalProbes::CMBLensingKernel, 
+    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+    nχ = length(BackgroundQuantities.χz_array)
+    nR = length(R)
+
+    W = reshape(grid_interpolator(CMBLensingKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+    W_r1 = W_C[:,end]
+
+    @tullio K[c,r] := W_r1[c] * W[c,r] + W[c,r]*W_r1[c]
+
+    return K
+end
+
+function combine_kernels(AbstractCosmologicalProbes::CMBLensingKernel, AbstractCosmologicalProbes::GalaxyKernel, 
+    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+    nχ = length(BackgroundQuantities.χz_array)
+    nR = length(R)
+
+    W_C = reshape(grid_interpolator(GalaxyKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+    W = reshape(grid_interpolator(CMBLensingKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+
+    W_C_r1 = W_C[:,end]
+    W_r1 = W[:,end]
+
+    @tullio K[c,r] := W_C_r1[c] * W[c,r] + W_C[c,r]*W_r1[c]
+
+    return K
+end
 
 
+function combine_kernels(AbstractCosmologicalProbes::CMBLensingKernel, AbstractCosmologicalProbes::ShearKernel, 
+    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
+    nχ = length(BackgroundQuantities.χz_array)
+    nR = length(R)
 
+    W = reshape(grid_interpolator(CMBLensingKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
 
+    W_L = grid_interpolator(ShearKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
+    χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
+    W_L = reshape( W_L./χ2_app , nχ, nR)
 
+    W_r1 = W[:,end]
+    W_L_r1 = W_L[:,end]
 
+    @tullio K[c,r] := W_r1[c] * W_L[c,r] + W[c,r]*W_L_r1[c]
 
-#Il growth factor D(z) va estratto da un power spectrum
+    return K
+end

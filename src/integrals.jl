@@ -54,8 +54,8 @@ Computes the Cℓ's by performing the two outer integrals in χ and R. The integ
 # Returns
 - A multi-dimensional array `Cℓ` with axis (ℓ, i, j) containing the angular power spectrum coefficients in every combination of tomographic bins.
 """
-function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::AbstractVector, R::AbstractVector) where T
-    nχ = length(χ)
+function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, BackgroundQuantities::BackgroundQuantities, R::AbstractVector) where T
+    nχ = length(BackgroundQuantities.χz_array)
     nR = length(R)
 
     if nχ != size(w, 2)
@@ -67,7 +67,7 @@ function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::Abstra
     end
 
     #Integration in χ is performed using the Simpson quadrature rule
-    Δχ = ((last(χ)-first(χ))/(nχ-1))
+    Δχ = ((last(BackgroundQuantities.χz_array)-first(BackgroundQuantities.χz_array))/(nχ-1))
     w_χ = simpson_weight_array(nχ)
 
     #Integration in R is performed using the Clenshaw-Curtis quadrature rule
