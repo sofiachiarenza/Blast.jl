@@ -13,11 +13,11 @@ using QuadGK
 using Artifacts
 using PhysicalConstants
 
+include("cosmo.jl")
+include("background.jl")
 include("projected_matter.jl")
 include("chebcoefs.jl")
 include("integrals.jl")
-include("cosmo.jl")
-include("background.jl")
 
 import PhysicalConstants.CODATA2018: c_0
 

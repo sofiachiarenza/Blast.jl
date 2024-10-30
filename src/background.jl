@@ -247,15 +247,15 @@ function combine_kernels(AbstractCosmologicalProbes::ShearKernel,
     return K
 end
 
-function combine_kernels(AbstractCosmologicalProbes::GalaxyKernel, AbstractCosmologicalProbes::ShearKernel, 
+function combine_kernels(galaxy_kernel::GalaxyKernel, shear_kernel::ShearKernel, 
     BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
     nχ = length(BackgroundQuantities.χz_array)
     nR = length(R)
 
-    W_C = reshape(grid_interpolator(GalaxyKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+    W_C = reshape(grid_interpolator(galaxy_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
 
-    W_L = grid_interpolator(ShearKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
+    W_L = grid_interpolator(shear_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
     χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
     W_L = reshape( W_L./χ2_app , nχ, nR)
 
@@ -268,15 +268,15 @@ function combine_kernels(AbstractCosmologicalProbes::GalaxyKernel, AbstractCosmo
 end
 
 #TODO: is it necessary to define the function(s) with inverse signature?
-function combine_kernels(AbstractCosmologicalProbes::ShearKernel, AbstractCosmologicalProbes::GalaxyKernel, 
+function combine_kernels(shear_kernel::ShearKernel, galaxy_kernel::GalaxyKernel,  
     BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
     nχ = length(BackgroundQuantities.χz_array)
     nR = length(R)
 
-    W_C = reshape(grid_interpolator(GalaxyKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+    W_C = reshape(grid_interpolator(galaxy_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
 
-    W_L = grid_interpolator(ShearKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
+    W_L = grid_interpolator(shear_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
     χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
     W_L = reshape( W_L./χ2_app , nχ, nR)
 
@@ -302,14 +302,14 @@ function combine_kernels(AbstractCosmologicalProbes::CMBLensingKernel,
     return K
 end
 
-function combine_kernels(AbstractCosmologicalProbes::CMBLensingKernel, AbstractCosmologicalProbes::GalaxyKernel, 
+function combine_kernels(cmb_kernel::CMBLensingKernel, galaxy_kernel::GalaxyKernel, 
     BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
     nχ = length(BackgroundQuantities.χz_array)
     nR = length(R)
 
-    W_C = reshape(grid_interpolator(GalaxyKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
-    W = reshape(grid_interpolator(CMBLensingKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+    W_C = reshape(grid_interpolator(galaxy_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+    W = reshape(grid_interpolator(cmb_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
 
     W_C_r1 = W_C[:,end]
     W_r1 = W[:,end]
@@ -320,15 +320,15 @@ function combine_kernels(AbstractCosmologicalProbes::CMBLensingKernel, AbstractC
 end
 
 
-function combine_kernels(AbstractCosmologicalProbes::CMBLensingKernel, AbstractCosmologicalProbes::ShearKernel, 
+function combine_kernels(cmb_kernel::CMBLensingKernel, shear_kernel::ShearKernel, 
     BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
     nχ = length(BackgroundQuantities.χz_array)
     nR = length(R)
 
-    W = reshape(grid_interpolator(CMBLensingKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
+    W = reshape(grid_interpolator(cmb_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), nχ, nR)
 
-    W_L = grid_interpolator(ShearKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
+    W_L = grid_interpolator(shear_kernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
     χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
     W_L = reshape( W_L./χ2_app , nχ, nR)
 
