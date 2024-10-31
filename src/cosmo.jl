@@ -93,10 +93,12 @@ end
 """
 #TODO: update documentation, I added bins!
 @kwdef mutable struct GalaxyKernel{T} <: AbstractCosmologicalProbes{T}
-    n_bins::Int = 1
-    nχ::Int = 500
-    Kernel::AbstractArray{T, 2} = zeros(n_bins, nχ)
+    Kernel::AbstractArray{T, 2} = zeros(1, 1)
 end
+
+GalaxyKernel{T}(n_bins::Int, nχ::Int) where T = GalaxyKernel{T}(Kernel = zeros(T, n_bins, nχ))
+
+GalaxyKernel(n_bins::Int, nχ::Int) = GalaxyKernel{Float64}(n_bins, nχ)
 
 
 """
@@ -106,10 +108,12 @@ end
 - `Kernel`: A vector of type `T` that holds the kernel values (default: zeros(500)).
 """
 @kwdef mutable struct ShearKernel{T} <: AbstractCosmologicalProbes{T}
-    n_bins::Int = 1
-    nχ::Int = 500
-    Kernel::AbstractArray{T, 2} = zeros(n_bins, nχ)
+    Kernel::AbstractArray{T, 2} = zeros(1, 1)
 end
+
+ShearKernel{T}(n_bins::Int, nχ::Int) where T = ShearKernel{T}(Kernel = zeros(T, n_bins, nχ))
+
+ShearKernel(n_bins::Int, nχ::Int) = ShearKernel{Float64}(n_bins, nχ)
 
 
 """
@@ -119,21 +123,12 @@ end
 - `Kernel`: A vector of type `T` that holds the kernel values (default: zeros(500)).
 """
 @kwdef mutable struct CMBLensingKernel{T} <: AbstractCosmologicalProbes{T}
-    n_bins::Int = 1
-    nχ::Int = 500
-    Kernel::AbstractArray{T, 2} = zeros(n_bins, nχ)
+    Kernel::AbstractArray{T, 2} = zeros(1, 1)
 end
 
-#TODO: missing documentation
-function set_bins!(AbstractCosmologicalProbes::AbstractCosmologicalProbes, n_bins::Int)
-    AbstractCosmologicalProbes.n_bins = n_bins
-    AbstractCosmologicalProbes.Kernel = zeros(eltype(AbstractCosmologicalProbes.Kernel), n_bins, AbstractCosmologicalProbes.nχ)
-end
+CMBLensingKernel{T}(n_bins::Int, nχ::Int) where T = CMBLensingKernel{T}(Kernel = zeros(T, n_bins, nχ))
 
-function set_χ!(AbstractCosmologicalProbes::AbstractCosmologicalProbes, nχ::Int)
-    AbstractCosmologicalProbes.nχ = nχ
-    AbstractCosmologicalProbes.Kernel = zeros(eltype(AbstractCosmologicalProbes.Kernel), AbstractCosmologicalProbes.n_bins, nχ)
-end
+CMBLensingKernel(n_bins::Int, nχ::Int) = CMBLensingKernel{Float64}(n_bins, nχ) 
 
 
 

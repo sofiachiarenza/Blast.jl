@@ -130,7 +130,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, AbstractCosmologicalProbes::Ga
         evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
     end
 
-    n_bins = AbstractCosmologicalProbes.n_bins
+    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
     
     for b in 1:n_bins
         nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], CosmologicalGrid.z_range, extrapolate=true)
@@ -165,7 +165,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, AbstractCosmologicalProbes::Sh
         evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
     end
 
-    n_bins = AbstractCosmologicalProbes.n_bins
+    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
 
     for b in 1:n_bins
         nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], CosmologicalGrid.z_range, extrapolate=true)
@@ -207,7 +207,7 @@ function compute_kernel!(AbstractCosmologicalProbes::CMBLensingKernel, Cosmologi
         evaluate_background_quantities!(CosmologicalGrid, BackgroundQuantities, AbstractCosmology)
     end
 
-    n_bins = AbstractCosmologicalProbes.n_bins
+    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
 
     if n_bins > 1
         throw(DomainError("CMB Lensing must have a single tomographic bin!"))

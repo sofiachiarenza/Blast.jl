@@ -4,12 +4,14 @@ function make_grid(BackgroundQuantities::BackgroundQuantities, R::Vector{T}) whe
     return vec(BackgroundQuantities.χz_array * R')
 end
 
-function grid_interpolator(AbstractCosmologicalProbes::AbstractCosmologicalProbes, 
+function grid_interpolator(AbstractCosmologicalProbes::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
     BackgroundQuantities::BackgroundQuantities, grid::Vector{T}) where T
 
-    kernel_interpolated = zeros(T, AbstractCosmologicalProbes.n_bins, length(BackgroundQuantities.χz_array))
+    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
 
-    for b in 1: AbstractCosmologicalProbes.n_bins
+    kernel_interpolated = zeros(n_bins, length(grid))
+
+    for b in 1:n_bins
         interp = AkimaInterpolation(AbstractCosmologicalProbes.Kernel[b,:], BackgroundQuantities.χz_array, extrapolate=true)
         kernel_interpolated[b, :] = interp.(grid)
     end
@@ -20,11 +22,11 @@ end
 function get_kernel_array(AbstractCosmologicalProbes::GalaxyKernel, 
     BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
-    nχ = length(BackgroundQuantities.χz_array)
+    nχ = size(AbstractCosmologicalProbes.Kernel, 2)
     nR = length(R)
-    n_bins = AbstractCosmologicalProbes.n_bins
+    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
 
-    W_array = reshape(grid_interpolator(GalaxyKernel, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R)), n_bins, nχ, nR)
+    W_array = reshape(grid_interpolator(AbstractCosmologicalProbes, BackgroundQuantities, make_grid(BackgroundQuantities, R)), n_bins, nχ, nR)
 
     return W_array
 end
@@ -32,12 +34,17 @@ end
 function get_kernel_array(AbstractCosmologicalProbes::Union{ShearKernel, CMBLensingKernel}, 
     BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
-    nχ = length(BackgroundQuantities.χz_array)
+    nχ = size(AbstractCosmologicalProbes.Kernel, 2)
     nR = length(R)
-    n_bins = AbstractCosmologicalProbes.n_bins
+    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
 
-    W_L = grid_interpolator(AbstractCosmologicalProbes, BackgroundQuantities, make_grid(BackgroundQuantities.χz_array, R))
-    χ2_app = make_grid(BackgroundQuantities.χz_array, R) .^ 2
+    W_L = grid_interpolator(AbstractCosmologicalProbes, BackgroundQuantities, make_grid(BackgroundQuantities, R))
+
+    χ2_app = zeros(n_bins, nχ*nR)
+    for i in 1:n_bins
+        χ2_app[i,:] = make_grid(BackgroundQuantities, R) .^ 2
+    end
+    
     W_array = reshape( W_L./χ2_app , n_bins, nχ, nR)
 
     return W_array

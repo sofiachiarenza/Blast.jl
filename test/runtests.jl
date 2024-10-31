@@ -12,7 +12,7 @@ using Tullio
 import PhysicalConstants.CODATA2018: c_0
 const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
 
-input_path = pwd()
+#=input_path = pwd()
 
 run(`wget --content-disposition "https://zenodo.org/records/13997096/files/bins.npz?download=1"`)
 bins = npzread(input_path*"/bins.npz")
@@ -261,4 +261,34 @@ end
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
 
+end=#
+
+@testset "Tomographic bins combination" begin
+    a = Vector([1.,2.,3.,4.,5.])
+    b = ones(8)
+
+    cosmo = Blast.FlatΛCDM()
+    bg = Blast.BackgroundQuantities(Hz_array = zeros(5), χz_array = a )
+
+    true_res = vcat(fill(a, length(b))...)
+
+    @test true_res ≈ Blast.make_grid(bg, b)
+
+    GK = Blast.GalaxyKernel(1,length(a))
+    GK.Kernel = ones(size(GK.Kernel,1), size(GK.Kernel,2))
+
+    SHK = Blast.ShearKernel(1, length(a))
+    SHK.Kernel = ones(size(SHK.Kernel,1), size(SHK.Kernel,2))
+
+    CK = Blast.CMBLensingKernel(1, length(a))
+    CK.Kernel = ones(size(CK.Kernel,1), size(CK.Kernel,2))
+
+    theory_gal = ones(1, length(a), length(b))
+    theory_sh = ones(1, length(a), length(b)) ./ reshape(a .^ 2, 1, 5, 1)
+    theory_cmb = ones(1, length(a), length(b)) ./ reshape(a .^ 2, 1, 5, 1)
+
+
+    @test theory_gal ≈ Blast.get_kernel_array(GK, bg, b)
+    @test theory_sh ≈ Blast.get_kernel_array(SHK, bg, b)
+    @test theory_cmb ≈ Blast.get_kernel_array(CK, bg, b)
 end
