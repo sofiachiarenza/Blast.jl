@@ -12,7 +12,7 @@ using Tullio
 import PhysicalConstants.CODATA2018: c_0
 const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
 
-#=input_path = pwd()
+input_path = pwd()
 
 run(`wget --content-disposition "https://zenodo.org/records/13997096/files/bins.npz?download=1"`)
 bins = npzread(input_path*"/bins.npz")
@@ -62,16 +62,16 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
         nz_interp[i,:] = interp.(z_range)
     end
 
-    GK = Blast.GalaxyKernel(n_bins = 10, nχ = length(grid.z_range) )
+    GK = Blast.GalaxyKernel(10, length(grid.z_range) )
     Blast.compute_kernel!(nz_interp, GK, grid, bg, cosmo)
 
 
     print("Computing shear kernels...\n")
-    SHK = Blast.ShearKernel(n_bins = 3, nχ = length(grid.z_range))
+    SHK = Blast.ShearKernel(3, length(grid.z_range))
     Blast.compute_kernel!(nz_interp[1:3,:], SHK, grid, bg, cosmo)
 
     print("Computing CMB kernels...\n")
-    CMBK = Blast.CMBLensingKernel(nχ = length(grid.z_range))
+    CMBK = Blast.CMBLensingKernel(1, length(grid.z_range))
     Blast.compute_kernel!(CMBK, grid, bg, cosmo)
 
     @test isapprox(GK.Kernel, LJ_clustering_kernels, rtol=1e-5)
@@ -261,7 +261,7 @@ end
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
 
-end=#
+end
 
 @testset "Tomographic bins combination" begin
     a = Vector([1.,2.,3.,4.,5.])
