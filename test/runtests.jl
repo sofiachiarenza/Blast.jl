@@ -77,8 +77,6 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     @test isapprox(GK.Kernel, LJ_clustering_kernels, rtol=1e-5)
     @test isapprox(SHK.Kernel, LJ_shear_kernels, rtol=1e-3)
     @test isapprox(CMBK.Kernel[1,:], LJ_cmb_kernel, rtol=1e-5)
-    
-
 end
 
 @testset "Matrix product test" begin
@@ -233,7 +231,6 @@ end
     end
     true_coefs
     
-
     @test true_coefs ≈ my_coefs
 end
 
@@ -260,7 +257,6 @@ end
     cl_true = 4950*(R[end]-R[1])
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
-
 end
 
 @testset "Tomographic bins combination" begin
