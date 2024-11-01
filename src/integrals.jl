@@ -1,14 +1,32 @@
-#TODO: missing documentation of these new functions 
+"""
+    make_grid(BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
+Constructs a grid by multiplying the `χz_array` from `BackgroundQuantities` with the vector `R`.
+
+# Arguments
+- `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
+- `R::Vector{T}`: A vector of values to be used in the grid construction, where `T` can be any type.
+"""
 function make_grid(BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
     return vec(BackgroundQuantities.χz_array * R')
 end
 
+"""
+    grid_interpolator(AbstractCosmologicalProbes::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+        BackgroundQuantities::BackgroundQuantities, grid::Vector{T}) where T
+
+Interpolates the kernel values for a given grid based on the specified cosmological probes. 
+Returns a 2D array of interpolated kernel values, where rows correspond to the number of bins and columns correspond to the grid points.
+
+# Arguments
+- `AbstractCosmologicalProbes::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}`: The kernel data to be interpolated.
+- `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
+- `grid::Vector{T}`: A vector of values where the interpolated kernel values will be evaluated.
+"""
 function grid_interpolator(AbstractCosmologicalProbes::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
     BackgroundQuantities::BackgroundQuantities, grid::Vector{T}) where T
 
     n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
-
     kernel_interpolated = zeros(n_bins, length(grid))
 
     for b in 1:n_bins
@@ -19,25 +37,48 @@ function grid_interpolator(AbstractCosmologicalProbes::Union{GalaxyKernel, Shear
     return kernel_interpolated
 end
 
+"""
+    get_kernel_array(AbstractCosmologicalProbes::GalaxyKernel, 
+        BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+Obtains the kernel array for the `GalaxyKernel` probe, with dimensions (bins, nχ, nR).
+
+# Arguments
+- `AbstractCosmologicalProbes::GalaxyKernel`: An instance of the `GalaxyKernel` type.
+- `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
+- `R::Vector{T}`: A vector of values for which the kernel array is to be computed.
+"""
 function get_kernel_array(AbstractCosmologicalProbes::GalaxyKernel, 
     BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
+    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
     nχ = size(AbstractCosmologicalProbes.Kernel, 2)
     nR = length(R)
-    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
-
+    
     W_array = reshape(grid_interpolator(AbstractCosmologicalProbes, BackgroundQuantities, make_grid(BackgroundQuantities, R)), n_bins, nχ, nR)
 
     return W_array
 end
 
+"""
+    get_kernel_array(AbstractCosmologicalProbes::Union{ShearKernel, CMBLensingKernel}, 
+        BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+Obtains the kernel array for the `ShearKernel` or `CMBLensingKernel` probe, with dimensions (bins, nχ, nR)
+The difference with respect to the galaxy case is that these kernels are divided by χ².
+
+# Arguments
+- `AbstractCosmologicalProbes::Union{ShearKernel, CMBLensingKernel}`: An instance of either `ShearKernel` or `CMBLensingKernel`.
+- `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
+- `R::Vector{T}`: A vector of values for which the kernel array is to be computed.
+"""
 function get_kernel_array(AbstractCosmologicalProbes::Union{ShearKernel, CMBLensingKernel}, 
     BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
+    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
     nχ = size(AbstractCosmologicalProbes.Kernel, 2)
     nR = length(R)
-    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
-
+    
     W_L = grid_interpolator(AbstractCosmologicalProbes, BackgroundQuantities, make_grid(BackgroundQuantities, R))
 
     χ2_app = zeros(n_bins, nχ*nR)
@@ -50,6 +91,20 @@ function get_kernel_array(AbstractCosmologicalProbes::Union{ShearKernel, CMBLens
     return W_array
 end
 
+"""
+    combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+        ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+        BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+Combines the kernels from two different cosmological probes into a single array. 
+This is needed to perform the integration in the χ-R coordinates.
+
+# Arguments
+- `ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}`: The first cosmological probe to combine.
+- `ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}`: The second cosmological probe to combine.
+- `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
+- `R::Vector{T}`: A vector of values used in the combination.
+"""
 function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
     ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel},
     BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
@@ -65,10 +120,32 @@ function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKern
     return K
 end
 
-function factorial_frac(n::Vector{T}) where T
-    return @. (n-1)*n*(n+1)*(n+2)
+"""
+    factorial_frac(ℓ::Vector{T}) where T
+
+Computes the ratio (ℓ+2)!/(ℓ-2)!, needed in the pre-factors of the the angular power spectra.
+
+# Arguments
+- `ℓ::Vector{T}`: vectors of ℓ values.
+"""
+function factorial_frac(ℓ::Vector{T}) where T
+    return @. (ℓ-1)*ℓ*(ℓ+1)*(ℓ+2)
 end
 
+"""
+    get_ell_prefactor(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+        ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, ℓ_list::Vector)
+
+Calculates the prefactor for the angular power spectrum based on the types of the two probes.
+
+# Arguments
+- `ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}`: The first probe used to determine the prefactor.
+- `ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}`: The second probe used to determine the prefactor.
+- `ℓ_list::Vector`: A vector of angular multipole values.
+
+# Returns
+- A vector of prefactor values corresponding to the input `ℓ_list`.
+"""
 #TODO: this function is HORRIBLE, pelase come up with something better!!!
 function get_ell_prefactor(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
     ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, ℓ_list::Vector)
@@ -136,18 +213,26 @@ function simpson_weight_array(n::Int; T=Float64)
 end
 
 """
-    compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, χ::AbstractVector, R::AbstractVector)
+    compute_Cℓ(w::AbstractArray{T, 3}, 
+               ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+               ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+               BackgroundQuantities::BackgroundQuantities, 
+               R::AbstractVector, 
+               ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
 
-Computes the Cℓ's by performing the two outer integrals in χ and R. The integration in χ is performed using the Simpson quadrature rule, while the integration in R is performed using the Clenshaw-Curtis quadrature rule.
+Computes the angular power spectrum `Cℓ` by performing two outer integrals over `χ` and `R`. 
+The Simpson quadrature rule is used for integration over `χ`, while Clenshaw-Curtis quadrature is used for `R`.
 
 # Arguments
-- `w::AbstractArray{T, 3}`: A 3D array representing the projected matter densities, i.e. the inner integrals in k. The three axis are (ℓ, χ, R).
-- `K::AbstractArray{T, 4}`: A 4D array representing the kernel function, with dimensions (i,j,χ,R). i and j are the tomographic bins.
-- `χ::AbstractVector`: A 1D array containing the χ values.
-- `R::AbstractVector`: A 1D array containing the R values.
+- `w::AbstractArray{T, 3}`: A 3D array representing the projected matter densities, containing the inner integrals over `k`. The array dimensions are (ℓ, χ, R).
+- `ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}`: The first cosmological probe kernel type.
+- `ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}`: The second cosmological probe kernel type.
+- `BackgroundQuantities::BackgroundQuantities`: Contains background information, including `χz_array` for distances in the cosmology.
+- `R::AbstractVector`: A 1D array representing the radial grid values for integration.
+- `ℓ_list::AbstractArray{T,1}`: An optional 1D array of angular multipole values, defaulting to the global variable Blast.ℓ, the list of ℓ values used for the precomputed part.
 
 # Returns
-- A multi-dimensional array `Cℓ` with axis (ℓ, i, j) containing the angular power spectrum coefficients in every combination of tomographic bins.
+- A 3D array `Cℓ` with dimensions (ℓ, i, j), where `i` and `j` represent the tomographic bins. The array contains the computed angular power spectrum coefficients for each combination of `ℓ` values and tomographic bins.
 """
 function compute_Cℓ(w::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
     ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, BackgroundQuantities::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T

@@ -8,6 +8,14 @@ Blast.get_clencurt_grid
 Blast.w_ell_tullio
 Blast.plan_fft
 Blast.fast_chebcoefs
+Blast.make_grid
+Blast.grid_interpolator
+Blast.get_kernel_array(Blast.AbstractCosmologicalProbes::Blast.GalaxyKernel, 
+    Blast.BackgroundQuantities::Blast.BackgroundQuantities, R::Vector{T}) where T
+Blast.get_kernel_array(Blast.AbstractCosmologicalProbes::Union{Blast.ShearKernel, Blast.    CMBLensingKernel}, Blast.BackgroundQuantities::Blast.BackgroundQuantities, R::Vector{T}) where T
+Blast.combine_kernels
+Blast.factorial_frac
+Blast.get_ell_prefactor
 Blast.simpson_weight_array
 Blast.compute_Cℓ
 Blast.FlatΛCDM
