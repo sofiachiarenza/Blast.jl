@@ -146,10 +146,10 @@ Calculates the prefactor for the angular power spectrum based on the types of th
 # Returns
 - A vector of prefactor values corresponding to the input `ℓ_list`.
 """
-#TODO: this function is HORRIBLE, pelase come up with something better!!!
 function get_ell_prefactor(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
     ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, ℓ_list::Vector)
 
+    #TODO: this function is HORRIBLE, pelase come up with something better!!!
     if isa(ProbeA, GalaxyKernel) && isa(ProbeB, GalaxyKernel)
         prefactor = 2 / π * ones(length(ℓ_list))
     elseif isa(ProbeA, GalaxyKernel) && isa(ProbeB, ShearKernel)

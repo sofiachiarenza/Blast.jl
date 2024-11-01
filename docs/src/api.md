@@ -30,12 +30,12 @@ Blast.factorial_frac
 Blast.get_ell_prefactor
 Blast.simpson_weight_array
 Blast.compute_Cℓ
-Blast.compute_adimensional_hubble_factor(z::T, cosmo::Blast.FlatΛCDM) where T
-Blast.compute_adimensional_hubble_factor(z::T, Ωm::T, Ωr::T, Ωde::T, Ωk::T, w0::T, wa::T) where T
+Blast.compute_adimensional_hubble_factor(::T, ::Blast.FlatΛCDM) where T
+Blast.compute_adimensional_hubble_factor(::T, ::T, ::T, ::T, ::T, ::T, ::T) where T
 Blast.compute_hubble_factor
 Blast.compute_χ
 Blast.evaluate_background_quantities!
-Blast.compute_kernel!(nz::Vector{T}, ::Blast.GalaxyKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology) where T
-Blast.compute_kernel!(nz::Vector{T}, ::Blast.ShearKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology) where T
+Blast.compute_kernel!(::AbstractArray{T, 2}, ::Blast.GalaxyKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology) where T
+Blast.compute_kernel!(::AbstractArray{T, 2}, ::Blast.ShearKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology) where T
 Blast.compute_kernel!(::Blast.CMBLensingKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology)
 ```
