@@ -65,6 +65,32 @@ function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKern
     return K
 end
 
+function factorial_frac(n::Vector{T}) where T
+    return @. (n-1)*n*(n+1)*(n+2)
+end
+
+#TODO: this function is HORRIBLE, pelase come up with something better!!!
+function get_ell_prefactor(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, ℓ_list::Vector)
+
+    if isa(ProbeA, GalaxyKernel) && isa(ProbeB, GalaxyKernel)
+        prefactor = 2 / π * ones(length(ℓ_list))
+    elseif isa(ProbeA, GalaxyKernel) && isa(ProbeB, ShearKernel)
+        prefactor =  2 / π * sqrt.(factorial_frac(ℓ_list))
+    elseif isa(ProbeA, ShearKernel) && isa(ProbeB, GalaxyKernel)
+        prefactor =  2 / π * sqrt.(factorial_frac(ℓ_list))
+    elseif isa(ProbeA, ShearKernel) && isa(ProbeB, ShearKernel)
+        prefactor = 2 / π * factorial_frac(ℓ_list)
+    elseif isa(ProbeA, CMBLensingKernel) && isa(ProbeB, ShearKernel)
+        prefactor = 2 / π * ones(length(ℓ_list)) #TODO: figure out all cmb lensing prefactors!!!!!!
+    elseif isa(ProbeA, CMBLensingKernel) && isa(ProbeB, CMBLensingKernel)
+        prefactor = 2 / π * ones(length(ℓ_list))
+    elseif isa(ProbeA, CMBLensingKernel) && isa(ProbeB, GalaxyKernel)
+        prefactor = 2 / π * ones(length(ℓ_list))
+    end
+
+    return prefactor
+end
 
 
 """
@@ -123,31 +149,26 @@ Computes the Cℓ's by performing the two outer integrals in χ and R. The integ
 # Returns
 - A multi-dimensional array `Cℓ` with axis (ℓ, i, j) containing the angular power spectrum coefficients in every combination of tomographic bins.
 """
-function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, BackgroundQuantities::BackgroundQuantities, R::AbstractVector) where T
+function compute_Cℓ(w::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, BackgroundQuantities::BackgroundQuantities, R::AbstractVector) where T
+
     nχ = length(BackgroundQuantities.χz_array)
     nR = length(R)
 
-    if nχ != size(w, 2)
-        throw(DimensionMismatch("Dimension mismatch: the χ array passed doesn't correspond to the one used in the evaluation of the inner k integral. Expected $nχ, got $(size(w, 2))."))
-    end
-
-    if nR != size(w, 3)
-        throw(DimensionMismatch("Dimension mismatch: the R array passed doesn't correspond to the one used in the evaluation of the inner k integral. Expected $nR, got $(size(w, 3))."))
-    end
+    K = combine_kernels(ProbeA, ProbeB, BackgroundQuantities, R)
 
     #Integration in χ is performed using the Simpson quadrature rule
     Δχ = ((last(BackgroundQuantities.χz_array)-first(BackgroundQuantities.χz_array))/(nχ-1))
     w_χ = simpson_weight_array(nχ)
 
     #Integration in R is performed using the Clenshaw-Curtis quadrature rule
-    #CC_obj = FastTransforms.chebyshevmoments1(Float64, 2*nR+1)
-    #w_R = FastTransforms.clenshawcurtisweights(CC_obj)
     w_R = get_clencurt_weights(-1, 1, 2*nR+1 )
     w_R = w_R[nR+2:end]
     w_R[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
 
-    @tullio Cℓ[l,i,j] := BackgroundQuantities.χz_array[n]*K[i,j,n,m]*w[l,n,m]*w_χ[n]*w_R[m]*Δχ
+    ell_prefactor = get_ell_prefactor(ProbeA, ProbeB, Blast.ℓ)
 
-    return Cℓ
+    @tullio Cℓ[l,i,j] := ell_prefactor[l]*BackgroundQuantities.χz_array[n]*K[i,j,n,m]*w[l,n,m]*w_χ[n]*w_R[m]*Δχ
 
+    return Cℓ 
 end
