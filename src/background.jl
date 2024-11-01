@@ -11,6 +11,7 @@ cosmological parameters from a `FlatΛCDM` model.
 # Returns:
 - `E_z`: The adimensional Hubble factor at redshift `z`.
 """
+
 function compute_adimensional_hubble_factor(z::T, cosmo::FlatΛCDM) where T
     E_z = compute_adimensional_hubble_factor(z, cosmo.Ωm, cosmo.Ωr,
         cosmo.Ωde, cosmo.Ωk, cosmo.w0, cosmo.wa)
