@@ -150,7 +150,7 @@ Computes the Cℓ's by performing the two outer integrals in χ and R. The integ
 - A multi-dimensional array `Cℓ` with axis (ℓ, i, j) containing the angular power spectrum coefficients in every combination of tomographic bins.
 """
 function compute_Cℓ(w::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
-    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, BackgroundQuantities::BackgroundQuantities, R::AbstractVector) where T
+    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, BackgroundQuantities::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
 
     nχ = length(BackgroundQuantities.χz_array)
     nR = length(R)
@@ -166,7 +166,7 @@ function compute_Cℓ(w::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearK
     w_R = w_R[nR+2:end]
     w_R[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
 
-    ell_prefactor = get_ell_prefactor(ProbeA, ProbeB, Blast.ℓ)
+    ell_prefactor = get_ell_prefactor(ProbeA, ProbeB, ℓ_list)
 
     @tullio Cℓ[l,i,j] := ell_prefactor[l]*BackgroundQuantities.χz_array[n]*K[i,j,n,m]*w[l,n,m]*w_χ[n]*w_R[m]*Δχ
 

@@ -245,7 +245,12 @@ end
     @test integral ≈ 0.5
 
     pmd = ones(1, 200, 50)
-    kernel = ones(1, 1, 200, 50)
+
+    Probe1 = Blast.GalaxyKernel(1, 200)
+    Probe1.Kernel = ones(1,200)
+    Probe2 = Blast.GalaxyKernel(1,200)
+    Probe2.Kernel = ones(1,200) 
+
     χ = Array(LinRange(10, 100, 200))
     R = chebpoints(100,-1,1)
     R = reverse(R[R.>0])
@@ -253,8 +258,8 @@ end
     cosmo = Blast.FlatΛCDM()
     bg = Blast.BackgroundQuantities(Hz_array = zeros(200), χz_array=χ )
 
-    cl_test = Blast.compute_Cℓ(pmd, kernel, bg, R)
-    cl_true = 4950*(R[end]-R[1])
+    cl_test = Blast.compute_Cℓ(pmd, Probe1, Probe2, bg, R, Float64[1.0]) 
+    cl_true = 4950*(R[end]-R[1]) * 2 / π * 2 #2/pi isn the ell prefactor, the other 2 comes from the window combination!
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
 end
