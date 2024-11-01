@@ -235,6 +235,14 @@ end
 end
 
 @testset "Outer integrals tests" begin
+
+    elle = 7
+
+    a = Blast.factorial_frac(elle)
+    b = factorial(elle + 2) / factorial(elle - 2)
+
+    @test a ≈ b
+
     n = 100
     x = LinRange(0,1,n)
     Δx = ((last(x)-first(x))/(n-1))

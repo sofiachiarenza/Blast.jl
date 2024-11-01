@@ -121,14 +121,14 @@ function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKern
 end
 
 """
-    factorial_frac(ℓ::Vector{T}) where T
+    factorial_frac(ℓ::Union{Number,Vector{T}}}) where T
 
 Computes the ratio (ℓ+2)!/(ℓ-2)!, needed in the pre-factors of the the angular power spectra.
 
 # Arguments
 - `ℓ::Vector{T}`: vectors of ℓ values.
 """
-function factorial_frac(ℓ::Vector{T}) where T
+function factorial_frac(ℓ::Union{Number,Vector{T}}) where T
     return @. (ℓ-1)*ℓ*(ℓ+1)*(ℓ+2)
 end
 
