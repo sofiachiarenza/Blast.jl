@@ -300,6 +300,14 @@ end
     w_R = Blast.get_clencurt_weights_R_integration(2*nR+1)
     pref= Blast.get_ell_prefactor(Probe1, Probe2, Blast.ℓ)
 
+    pref_check = Blast.get_ell_prefactor(Probe2, Probe1, Blast.ℓ)
+
+    @test pref ≈ pref_check
+
+    pref_LL = Blast.get_ell_prefactor(Probe2, Probe2, Blast.ℓ)
+
+    @test pref_LL[1] ≈ 2 / π * factorial(4)/factorial(0) 
+
     K = Blast.combine_kernels(Probe1, Probe2, bg, R)
 
     Cℓ_mod2 = Blast.compute_Cℓ(w, K, bg, w_χ, w_R, pref)
