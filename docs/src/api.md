@@ -30,11 +30,18 @@ Blast.factorial_frac
 Blast.get_ell_prefactor
 Blast.simpson_weight_array
 Blast.get_clencurt_weights_R_integration
-Blast.compute_Cℓ(::AbstractArray{T, 3}, ::Union{Blast.GalaxyKernel, Blast.ShearKernel, Blast.CMBLensingKernel}, 
-               ::Union{Blast.GalaxyKernel, Blast.ShearKernel, Blast.CMBLensingKernel}, ::Blast.BackgroundQuantities, 
-               ::AbstractVector, ::AbstractArray{T,1}) where T
-Blast.compute_Cℓ(::AbstractArray{T, 3}, ::AbstractArray{T, 4}, ::Blast.BackgroundQuantities, ::AbstractArray{T, 1},
-                ::AbstractArray{T, 1}, ::AbstractArray{T,1}) where T
+Blast.compute_Cℓ(::AbstractArray{T, 3}, 
+               ::Union{Blast.GalaxyKernel, Blast.ShearKernel, Blast.CMBLensingKernel}, 
+               ::Union{Blast.GalaxyKernel, Blast.ShearKernel, Blast.CMBLensingKernel}, 
+               ::Blast.BackgroundQuantities, 
+               R::AbstractVector, 
+               ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
+Blast.compute_Cℓ(::AbstractArray{T, 3}, 
+               ::AbstractArray{T, 4}, 
+               ::Blast.BackgroundQuantities, 
+               ::AbstractArray{T, 1}, 
+               ::AbstractArray{T, 1}, 
+               ::AbstractArray{T,1}) where T
 Blast.compute_adimensional_hubble_factor(::T, ::Blast.FlatΛCDM) where T
 Blast.compute_adimensional_hubble_factor(::T, ::T, ::T, ::T, ::T, ::T, ::T) where T
 Blast.compute_hubble_factor

@@ -233,7 +233,6 @@ function get_clencurt_weights_R_integration(N::Int)
     return w
 end
 
-
 """
     compute_Cℓ(w::AbstractArray{T, 3}, 
                ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
@@ -291,7 +290,7 @@ Computes the angular power spectrum `Cℓ` by performing integrals over `χ` and
 # Arguments
 - `w::AbstractArray{T, 3}`: A 3D array representing the projected matter densities, containing the inner integrals over `k`. The array dimensions are (ℓ, χ, R).
 - `K::AbstractArray{T, 4}`: A 4D array representing the kernel product `K[i, j, χ, R]` for the given cosmological probes. It combines the effects of the probes and tomographic bin combinations.
-- `BackgroundQuantities::BackgroundQuantities`: Contains background information, including `χz_array` for distances in the cosmology.
+- `bkgq::BackgroundQuantities`: Contains background information, including `χz_array` for distances in the cosmology.
 - `weights_χ::AbstractArray{T, 1}`: A 1D array of weights for Simpson quadrature integration over `χ`.
 - `weights_R::AbstractArray{T, 1}`: A 1D array of weights for Clenshaw-Curtis quadrature integration over `R`.
 - `ell_prefactor::AbstractArray{T,1}`: A 1D array of prefactors dependent on angular multipole values `ℓ`, combining with other components to form the power spectrum.
