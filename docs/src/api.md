@@ -27,7 +27,12 @@ Blast.get_kernel_array(::Blast.GalaxyKernel, ::Blast.BackgroundQuantities, ::Vec
 Blast.get_kernel_array(::Union{Blast.ShearKernel, Blast.CMBLensingKernel}, ::Blast.BackgroundQuantities, ::Vector{T}) where T
 Blast.combine_kernels
 Blast.factorial_frac
-Blast.get_ell_prefactor
+Blast.get_ell_prefactor(::Blast.GalaxyKernel, ::Blast.GalaxyKernel, ::Vector)
+Blast.get_ell_prefactor(::Blast.GalaxyKernel, ::Blast.ShearKernel, ::Vector)
+Blast.get_ell_prefactor(::Blast.ShearKernel, ::Blast.ShearKernel, ::Vector)
+Blast.get_ell_prefactor(::Blast.CMBLensingKernel, ::Blast.ShearKernel, ::Vector)
+Blast.get_ell_prefactor(::Blast.CMBLensingKernel, ::Blast.CMBLensingKernel, ::Vector)
+Blast.get_ell_prefactor(::Blast.CMBLensingKernel, ::Blast.GalaxyKernel, ::Vector)
 Blast.simpson_weight_array
 Blast.get_clencurt_weights_R_integration
 Blast.compute_Cℓ(::AbstractArray{T, 3}, 

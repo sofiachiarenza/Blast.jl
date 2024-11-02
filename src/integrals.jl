@@ -133,42 +133,88 @@ function factorial_frac(ℓ::Union{Number,Vector{T}}) where T
 end
 
 """
-    get_ell_prefactor(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
-        ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, ℓ_list::Vector)
+    get_ell_prefactor(ProbeA::GalaxyKernel, ProbeB::GalaxyKernel, ℓ_list::Vector)
 
-Calculates the prefactor for the angular power spectrum based on the types of the two probes.
+Calculates the prefactor for the angular power spectrum when both probes are `GalaxyKernel`.
 
 # Arguments
-- `ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}`: The first probe used to determine the prefactor.
-- `ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}`: The second probe used to determine the prefactor.
 - `ℓ_list::Vector`: A vector of angular multipole values.
-
-# Returns
-- A vector of prefactor values corresponding to the input `ℓ_list`.
 """
-function get_ell_prefactor(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
-    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, ℓ_list::Vector)
-
-    #TODO: this function is HORRIBLE, pelase come up with something better!!!
-    if isa(ProbeA, GalaxyKernel) && isa(ProbeB, GalaxyKernel)
-        prefactor = 2 / π * ones(length(ℓ_list))
-    elseif isa(ProbeA, GalaxyKernel) && isa(ProbeB, ShearKernel)
-        prefactor =  2 / π * sqrt.(factorial_frac(ℓ_list))
-    elseif isa(ProbeA, ShearKernel) && isa(ProbeB, GalaxyKernel)
-        prefactor =  2 / π * sqrt.(factorial_frac(ℓ_list))
-    elseif isa(ProbeA, ShearKernel) && isa(ProbeB, ShearKernel)
-        prefactor = 2 / π * factorial_frac(ℓ_list)
-    elseif isa(ProbeA, CMBLensingKernel) && isa(ProbeB, ShearKernel)
-        prefactor = 2 / π * ones(length(ℓ_list)) #TODO: figure out all cmb lensing prefactors!!!!!!
-    elseif isa(ProbeA, CMBLensingKernel) && isa(ProbeB, CMBLensingKernel)
-        prefactor = 2 / π * ones(length(ℓ_list))
-    elseif isa(ProbeA, CMBLensingKernel) && isa(ProbeB, GalaxyKernel)
-        prefactor = 2 / π * ones(length(ℓ_list))
-    end
-
-    return prefactor
+function get_ell_prefactor(ProbeA::GalaxyKernel, ProbeB::GalaxyKernel, ℓ_list::Vector)
+    return 2 / π * ones(length(ℓ_list))
 end
 
+"""
+    get_ell_prefactor(ProbeA::GalaxyKernel, ProbeB::ShearKernel, ℓ_list::Vector)
+
+Calculates the prefactor for the angular power spectrum when probes are `GalaxyKernel` and `ShearKernel`.
+
+# Arguments
+- `ℓ_list::Vector`: A vector of angular multipole values.
+"""
+function get_ell_prefactor(ProbeA::GalaxyKernel, ProbeB::ShearKernel, ℓ_list::Vector)
+    return 2 / π * sqrt.(factorial_frac(ℓ_list))
+end
+
+# Define the same prefactor for ShearKernel and GalaxyKernel order
+get_ell_prefactor(ProbeA::ShearKernel, ProbeB::GalaxyKernel, ℓ_list::Vector) = 
+    get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
+
+"""
+    get_ell_prefactor(ProbeA::ShearKernel, ProbeB::ShearKernel, ℓ_list::Vector)
+
+Calculates the prefactor for the angular power spectrum when both probes are `ShearKernel`.
+
+# Arguments
+- `ℓ_list::Vector`: A vector of angular multipole values.
+"""
+function get_ell_prefactor(ProbeA::ShearKernel, ProbeB::ShearKernel, ℓ_list::Vector)
+    return 2 / π * factorial_frac(ℓ_list)
+end
+
+"""
+    get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::ShearKernel, ℓ_list::Vector)
+
+Calculates the prefactor for the angular power spectrum when probes are `CMBLensingKernel` and `ShearKernel`.
+
+# Arguments
+- `ℓ_list::Vector`: A vector of angular multipole values.
+"""
+function get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::ShearKernel, ℓ_list::Vector)
+    return 2 / π * ones(length(ℓ_list)) #TODO: check actual prefactor
+end
+
+# Define the same prefactor for ShearKernel and GalaxyKernel order
+get_ell_prefactor(ProbeA::ShearKernel, ProbeB::CMBLensingKernel, ℓ_list::Vector) = 
+    get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
+
+"""
+    get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::CMBLensingKernel, ℓ_list::Vector)
+
+Calculates the prefactor for the angular power spectrum when both probes are `CMBLensingKernel`.
+
+# Arguments
+- `ℓ_list::Vector`: A vector of angular multipole values.
+"""
+function get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::CMBLensingKernel, ℓ_list::Vector)
+    return 2 / π * ones(length(ℓ_list)) #TODO: check actual prefactor
+end
+
+"""
+    get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::GalaxyKernel, ℓ_list::Vector)
+
+Calculates the prefactor for the angular power spectrum when probes are `CMBLensingKernel` and `GalaxyKernel`.
+
+# Arguments
+- `ℓ_list::Vector`: A vector of angular multipole values.
+"""
+function get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::GalaxyKernel, ℓ_list::Vector)
+    return 2 / π * ones(length(ℓ_list))  #TODO: check actual prefactor
+end
+
+# Define the same prefactor for ShearKernel and GalaxyKernel order
+get_ell_prefactor(ProbeA::GalaxyKernel, ProbeB::CMBLensingKernel, ℓ_list::Vector) = 
+    get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
 
 """
     simpson_weight_array(n::Int; T=Float64)
