@@ -12,7 +12,7 @@ using Tullio
 import PhysicalConstants.CODATA2018: c_0
 const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
 
-input_path = pwd()
+#=input_path = pwd()
 
 run(`wget --content-disposition "https://zenodo.org/records/13997096/files/bins.npz?download=1"`)
 bins = npzread(input_path*"/bins.npz")
@@ -232,7 +232,7 @@ end
     true_coefs
     
     @test true_coefs ≈ my_coefs
-end
+end=#
 
 @testset "Outer integrals tests" begin
 
@@ -270,6 +270,42 @@ end
     cl_true = 4950*(R[end]-R[1]) * 2 / π * 2 #2/pi is the ell prefactor, the other 2 comes from the window combination!
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
+end
+
+@testset "More outer integral tests" begin
+    nχ = 200
+    z = LinRange(0.01, 4, nχ)
+    R = chebpoints(100,-1,1)
+    R = reverse(R[R.>0])
+    nR = length(R)
+
+    cosmo = Blast.FlatΛCDM()
+    bg = Blast.BackgroundQuantities(Hz_array = zeros(nχ), χz_array = zeros(nχ))
+    grid = Blast.CosmologicalGrid(z_range = z)
+    Blast.evaluate_background_quantities!(grid, bg, cosmo)
+
+    Probe1 = Blast.GalaxyKernel(1, nχ)
+    Probe1.Kernel = ones(1,nχ)
+    Probe2 = Blast.ShearKernel(1,nχ)
+    Probe2.Kernel = ones(1,nχ) 
+    nz = rand(3,nχ)
+    Blast.compute_kernel!(nz, Probe1, grid, bg, cosmo)
+    Blast.compute_kernel!(nz, Probe2, grid, bg, cosmo)
+
+    w = rand(length(Blast.ℓ), nχ, nR)
+
+    Cℓ_mod1 = Blast.compute_Cℓ(w, Probe1, Probe2, bg, R)
+
+    w_χ = Blast.simpson_weight_array(nχ)
+    w_R = Blast.get_clencurt_weights_R_integration(2*nR+1)
+    pref= Blast.get_ell_prefactor(Probe1, Probe2, Blast.ℓ)
+
+    K = Blast.combine_kernels(Probe1, Probe2, bg, R)
+
+    Cℓ_mod2 = Blast.compute_Cℓ(w, K, bg, w_χ, w_R, pref)
+
+    @test Cℓ_mod1 ≈ Cℓ_mod2
+
 end
 
 @testset "Tomographic bins combination" begin

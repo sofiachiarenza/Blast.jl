@@ -7,8 +7,8 @@ Constructs a grid by multiplying the `χz_array` from `BackgroundQuantities` wit
 - `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
 - `R::Vector{T}`: A vector of values to be used in the grid construction, where `T` can be any type.
 """
-function make_grid(bkgq::BackgroundQuantities, R::Vector{T}) where T
-    return vec(bkgq.χz_array * R')
+function make_grid(bg::BackgroundQuantities, R::Vector{T}) where T
+    return vec(bg.χz_array * R')
 end
 
 """
@@ -24,13 +24,13 @@ Returns a 2D array of interpolated kernel values, where rows correspond to the n
 - `grid::Vector{T}`: A vector of values where the interpolated kernel values will be evaluated.
 """
 function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
-    bkgq::BackgroundQuantities, grid::Vector{T}) where T
+    bg::BackgroundQuantities, grid::Vector{T}) where T
 
     n_bins = size(Probe.Kernel, 1)
     kernel_interpolated = zeros(n_bins, length(grid))
 
     for b in 1:n_bins
-        interp = AkimaInterpolation(Probe.Kernel[b,:], bkgq.χz_array, extrapolate=true)
+        interp = AkimaInterpolation(Probe.Kernel[b,:], bg.χz_array, extrapolate=true)
         kernel_interpolated[b, :] = interp.(grid)
     end
 
@@ -49,13 +49,13 @@ Obtains the kernel array for the `GalaxyKernel` probe, with dimensions (bins, n�
 - `R::Vector{T}`: A vector of values for which the kernel array is to be computed.
 """
 function get_kernel_array(Probe::GalaxyKernel, 
-    bkgq::BackgroundQuantities, R::Vector{T}) where T
+    bg::BackgroundQuantities, R::Vector{T}) where T
 
     n_bins = size(Probe.Kernel, 1)
     nχ = size(Probe.Kernel, 2)
     nR = length(R)
     
-    W_array = reshape(grid_interpolator(Probe, bkgq, make_grid(bkgq, R)), n_bins, nχ, nR)
+    W_array = reshape(grid_interpolator(Probe, bg, make_grid(bg, R)), n_bins, nχ, nR)
 
     return W_array
 end
@@ -73,17 +73,17 @@ The difference with respect to the galaxy case is that these kernels are divided
 - `R::Vector{T}`: A vector of values for which the kernel array is to be computed.
 """
 function get_kernel_array(Probe::Union{ShearKernel, CMBLensingKernel}, 
-    bkgq::BackgroundQuantities, R::Vector{T}) where T
+    bg::BackgroundQuantities, R::Vector{T}) where T
 
     n_bins = size(Probe.Kernel, 1)
     nχ = size(Probe.Kernel, 2)
     nR = length(R)
     
-    W_L = grid_interpolator(Probe, bkgq, make_grid(bkgq, R))
+    W_L = grid_interpolator(Probe, bg, make_grid(bg, R))
 
     χ2_app = zeros(n_bins, nχ*nR)
     for i in 1:n_bins
-        χ2_app[i,:] = make_grid(bkgq, R) .^ 2
+        χ2_app[i,:] = make_grid(bg, R) .^ 2
     end
     
     W_array = reshape( W_L./χ2_app , n_bins, nχ, nR)
@@ -107,12 +107,12 @@ This is needed to perform the integration in the χ-R coordinates.
 """
 function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
     ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel},
-    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+    bg::BackgroundQuantities, R::Vector{T}) where T
 
-    W_A = get_kernel_array(ProbeA, BackgroundQuantities, R)
+    W_A = get_kernel_array(ProbeA, bg, R)
     W_A_r1 = W_A[:,:,end]
 
-    W_B = get_kernel_array(ProbeB, BackgroundQuantities, R)
+    W_B = get_kernel_array(ProbeB, bg, R)
     W_B_r1 = W_B[:,:,end]
 
     @tullio K[i,j,c,r] := W_A_r1[i,c] * W_B[j,c,r] + W_A[i,c,r]*W_B_r1[j,c]
