@@ -267,7 +267,7 @@ end
     bg = Blast.BackgroundQuantities(Hz_array = zeros(200), χz_array=χ )
 
     cl_test = Blast.compute_Cℓ(pmd, Probe1, Probe2, bg, R, Float64[1.0]) 
-    cl_true = 4950*(R[end]-R[1]) * 2 / π * 2 #2/pi isn the ell prefactor, the other 2 comes from the window combination!
+    cl_true = 4950*(R[end]-R[1]) * 2 / π * 2 #2/pi is the ell prefactor, the other 2 comes from the window combination!
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
 end

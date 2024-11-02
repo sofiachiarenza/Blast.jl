@@ -7,8 +7,8 @@ Constructs a grid by multiplying the `χz_array` from `BackgroundQuantities` wit
 - `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
 - `R::Vector{T}`: A vector of values to be used in the grid construction, where `T` can be any type.
 """
-function make_grid(BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
-    return vec(BackgroundQuantities.χz_array * R')
+function make_grid(bkgq::BackgroundQuantities, R::Vector{T}) where T
+    return vec(bkgq.χz_array * R')
 end
 
 """
@@ -23,14 +23,14 @@ Returns a 2D array of interpolated kernel values, where rows correspond to the n
 - `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
 - `grid::Vector{T}`: A vector of values where the interpolated kernel values will be evaluated.
 """
-function grid_interpolator(AbstractCosmologicalProbes::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
-    BackgroundQuantities::BackgroundQuantities, grid::Vector{T}) where T
+function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+    bkgq::BackgroundQuantities, grid::Vector{T}) where T
 
-    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
+    n_bins = size(Probe.Kernel, 1)
     kernel_interpolated = zeros(n_bins, length(grid))
 
     for b in 1:n_bins
-        interp = AkimaInterpolation(AbstractCosmologicalProbes.Kernel[b,:], BackgroundQuantities.χz_array, extrapolate=true)
+        interp = AkimaInterpolation(Probe.Kernel[b,:], bkgq.χz_array, extrapolate=true)
         kernel_interpolated[b, :] = interp.(grid)
     end
 
@@ -48,14 +48,14 @@ Obtains the kernel array for the `GalaxyKernel` probe, with dimensions (bins, n�
 - `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
 - `R::Vector{T}`: A vector of values for which the kernel array is to be computed.
 """
-function get_kernel_array(AbstractCosmologicalProbes::GalaxyKernel, 
-    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+function get_kernel_array(Probe::GalaxyKernel, 
+    bkgq::BackgroundQuantities, R::Vector{T}) where T
 
-    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
-    nχ = size(AbstractCosmologicalProbes.Kernel, 2)
+    n_bins = size(Probe.Kernel, 1)
+    nχ = size(Probe.Kernel, 2)
     nR = length(R)
     
-    W_array = reshape(grid_interpolator(AbstractCosmologicalProbes, BackgroundQuantities, make_grid(BackgroundQuantities, R)), n_bins, nχ, nR)
+    W_array = reshape(grid_interpolator(Probe, bkgq, make_grid(bkgq, R)), n_bins, nχ, nR)
 
     return W_array
 end
@@ -72,18 +72,18 @@ The difference with respect to the galaxy case is that these kernels are divided
 - `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
 - `R::Vector{T}`: A vector of values for which the kernel array is to be computed.
 """
-function get_kernel_array(AbstractCosmologicalProbes::Union{ShearKernel, CMBLensingKernel}, 
-    BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+function get_kernel_array(Probe::Union{ShearKernel, CMBLensingKernel}, 
+    bkgq::BackgroundQuantities, R::Vector{T}) where T
 
-    n_bins = size(AbstractCosmologicalProbes.Kernel, 1)
-    nχ = size(AbstractCosmologicalProbes.Kernel, 2)
+    n_bins = size(Probe.Kernel, 1)
+    nχ = size(Probe.Kernel, 2)
     nR = length(R)
     
-    W_L = grid_interpolator(AbstractCosmologicalProbes, BackgroundQuantities, make_grid(BackgroundQuantities, R))
+    W_L = grid_interpolator(Probe, bkgq, make_grid(bkgq, R))
 
     χ2_app = zeros(n_bins, nχ*nR)
     for i in 1:n_bins
-        χ2_app[i,:] = make_grid(BackgroundQuantities, R) .^ 2
+        χ2_app[i,:] = make_grid(bkgq, R) .^ 2
     end
     
     W_array = reshape( W_L./χ2_app , n_bins, nχ, nR)
@@ -213,6 +213,28 @@ function simpson_weight_array(n::Int; T=Float64)
 end
 
 """
+    get_clencurt_weights_R_integration(N::Int)
+
+Calculate Clenshaw-Curtis quadrature weights for numerical integration over a given interval.
+The weights are computed for the second half of the Chebyshev points, omitting the zero element. 
+The first weight is halved, although this is an approximation and may benefit from further optimization.
+
+# Arguments
+- `N::Int`: The number of quadrature points.
+"""
+function get_clencurt_weights_R_integration(N::Int)
+
+    w = get_clencurt_weights(-1, 1, N)
+
+    index = div(N + 3, 2) 
+    w = w[index:end]
+    w[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
+
+    return w
+end
+
+
+"""
     compute_Cℓ(w::AbstractArray{T, 3}, 
                ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
                ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
@@ -235,25 +257,55 @@ The Simpson quadrature rule is used for integration over `χ`, while Clenshaw-Cu
 - A 3D array `Cℓ` with dimensions (ℓ, i, j), where `i` and `j` represent the tomographic bins. The array contains the computed angular power spectrum coefficients for each combination of `ℓ` values and tomographic bins.
 """
 function compute_Cℓ(w::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
-    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, BackgroundQuantities::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
+    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
 
-    nχ = length(BackgroundQuantities.χz_array)
+    nχ = length(bkgq.χz_array)
     nR = length(R)
 
-    K = combine_kernels(ProbeA, ProbeB, BackgroundQuantities, R)
+    K = combine_kernels(ProbeA, ProbeB, bkgq, R)
 
     #Integration in χ is performed using the Simpson quadrature rule
-    Δχ = ((last(BackgroundQuantities.χz_array)-first(BackgroundQuantities.χz_array))/(nχ-1))
+    Δχ = ((last(bkgq.χz_array)-first(bkgq.χz_array))/(nχ-1))
     w_χ = simpson_weight_array(nχ)
 
     #Integration in R is performed using the Clenshaw-Curtis quadrature rule
-    w_R = get_clencurt_weights(-1, 1, 2*nR+1 )
-    w_R = w_R[nR+2:end]
-    w_R[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
+    w_R = get_clencurt_weights_R_integration(2*nR+1)
 
     ell_prefactor = get_ell_prefactor(ProbeA, ProbeB, ℓ_list)
 
-    @tullio Cℓ[l,i,j] := ell_prefactor[l]*BackgroundQuantities.χz_array[n]*K[i,j,n,m]*w[l,n,m]*w_χ[n]*w_R[m]*Δχ
+    @tullio Cℓ[l,i,j] := ell_prefactor[l]*bkgq.χz_array[n]*K[i,j,n,m]*w[l,n,m]*w_χ[n]*w_R[m]*Δχ
+
+    return Cℓ 
+end
+
+"""
+    compute_Cℓ(w::AbstractArray{T, 3}, 
+               K::AbstractArray{T, 4}, 
+               bkgq::BackgroundQuantities, 
+               weights_χ::AbstractArray{T, 1}, 
+               weights_R::AbstractArray{T, 1}, 
+               ell_prefactor::AbstractArray{T,1}) where T
+
+Computes the angular power spectrum `Cℓ` by performing integrals over `χ` and `R` for a given set of inputs.
+
+# Arguments
+- `w::AbstractArray{T, 3}`: A 3D array representing the projected matter densities, containing the inner integrals over `k`. The array dimensions are (ℓ, χ, R).
+- `K::AbstractArray{T, 4}`: A 4D array representing the kernel product `K[i, j, χ, R]` for the given cosmological probes. It combines the effects of the probes and tomographic bin combinations.
+- `BackgroundQuantities::BackgroundQuantities`: Contains background information, including `χz_array` for distances in the cosmology.
+- `weights_χ::AbstractArray{T, 1}`: A 1D array of weights for Simpson quadrature integration over `χ`.
+- `weights_R::AbstractArray{T, 1}`: A 1D array of weights for Clenshaw-Curtis quadrature integration over `R`.
+- `ell_prefactor::AbstractArray{T,1}`: A 1D array of prefactors dependent on angular multipole values `ℓ`, combining with other components to form the power spectrum.
+
+# Returns
+- A 3D array `Cℓ` with dimensions (ℓ, i, j), where `i` and `j` represent the tomographic bins. The array contains the computed angular power spectrum coefficients for each combination of `ℓ` values and tomographic bins.
+"""
+function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, bkgq::BackgroundQuantities, weights_χ::AbstractArray{T, 1},
+                    weights_R::AbstractArray{T, 1}, ell_prefactor::AbstractArray{T,1}) where T
+    
+    nχ = length(bkgq.χz_array)
+    Δχ = ((last(bkgq.χz_array)-first(bkgq.χz_array))/(nχ-1))
+
+    @tullio Cℓ[l,i,j] := ell_prefactor[l]*bkgq.χz_array[n]*K[i,j,n,m]*w[l,n,m]*weights_χ[n]*weights_R[m]*Δχ
 
     return Cℓ 
 end
