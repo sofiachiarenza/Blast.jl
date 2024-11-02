@@ -12,7 +12,7 @@ using Tullio
 import PhysicalConstants.CODATA2018: c_0
 const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
 
-#=input_path = pwd()
+input_path = pwd()
 
 run(`wget --content-disposition "https://zenodo.org/records/13997096/files/bins.npz?download=1"`)
 bins = npzread(input_path*"/bins.npz")
@@ -232,7 +232,7 @@ end
     true_coefs
     
     @test true_coefs ≈ my_coefs
-end=#
+end
 
 @testset "Outer integrals tests" begin
 
