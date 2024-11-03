@@ -12,18 +12,18 @@ function make_grid(bg::BackgroundQuantities, R::Vector{T}) where T
 end
 
 """
-    grid_interpolator(AbstractCosmologicalProbes::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+    grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel}, 
         BackgroundQuantities::BackgroundQuantities, grid::Vector{T}) where T
 
 Interpolates the kernel values for a given grid based on the specified cosmological probes. 
 Returns a 2D array of interpolated kernel values, where rows correspond to the number of bins and columns correspond to the grid points.
 
 # Arguments
-- `AbstractCosmologicalProbes::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}`: The kernel data to be interpolated.
+- `Probe::Union{GalaxyKernel, ShearKernel}`: The kernel data to be interpolated.
 - `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
 - `grid::Vector{T}`: A vector of values where the interpolated kernel values will be evaluated.
 """
-function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
+function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel}, 
     bg::BackgroundQuantities, grid::Vector{T}) where T
 
     n_bins = size(Probe.Kernel, 1)
@@ -38,10 +38,34 @@ function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel, CMBLensingKer
 end
 
 """
+    grid_interpolator(Probe::CMBLensingKernel, 
+        bg::BackgroundQuantities, grid::Vector{T}) where T
+
+Interpolates the kernel values for a given grid based on the specified cosmological probes. 
+Returns a 2D array of interpolated kernel values, where rows correspond to the number of bins and columns correspond to the grid points.
+
+# Arguments
+- `Probe::CMBLensingKernel`: The kernel data to be interpolated.
+- `bg::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
+- `grid::Vector{T}`: A vector of values where the interpolated kernel values will be evaluated.
+"""
+function grid_interpolator(Probe::CMBLensingKernel, 
+    bg::BackgroundQuantities, grid::Vector{T}) where T
+
+    kernel_interpolated = zeros(1, length(grid))
+
+    interp = AkimaInterpolation(Probe.Kernel, bg.χz_array, extrapolate=true)
+    kernel_interpolated[1, :] = interp.(grid)
+
+    return kernel_interpolated
+end
+
+"""
     get_kernel_array(AbstractCosmologicalProbes::GalaxyKernel, 
         BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
-Obtains the kernel array for the `GalaxyKernel` probe, with dimensions (bins, nχ, nR).
+Obtains the kernel array for the `GalaxyKernel` probe, with dimensions (bins, nχ, nR). 
+
 
 # Arguments
 - `AbstractCosmologicalProbes::GalaxyKernel`: An instance of the `GalaxyKernel` type.
@@ -61,18 +85,18 @@ function get_kernel_array(Probe::GalaxyKernel,
 end
 
 """
-    get_kernel_array(AbstractCosmologicalProbes::Union{ShearKernel, CMBLensingKernel}, 
-        BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+    get_kernel_array(Probe::ShearKernel, 
+        bg::BackgroundQuantities, R::Vector{T}) where T
 
-Obtains the kernel array for the `ShearKernel` or `CMBLensingKernel` probe, with dimensions (bins, nχ, nR)
-The difference with respect to the galaxy case is that these kernels are divided by χ².
+Obtains the kernel array for the weak lensing probe, with dimensions (bins, nχ, nR)
+The difference with respect to the galaxy case is that these kernels are divided by ``\\chi^2``.
 
 # Arguments
-- `AbstractCosmologicalProbes::Union{ShearKernel, CMBLensingKernel}`: An instance of either `ShearKernel` or `CMBLensingKernel`.
-- `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
+- `Probe::ShearKernel`: An instance of `ShearKernel`.
+- `bg::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
 - `R::Vector{T}`: A vector of values for which the kernel array is to be computed.
 """
-function get_kernel_array(Probe::Union{ShearKernel, CMBLensingKernel}, 
+function get_kernel_array(Probe::ShearKernel, 
     bg::BackgroundQuantities, R::Vector{T}) where T
 
     n_bins = size(Probe.Kernel, 1)
@@ -87,6 +111,33 @@ function get_kernel_array(Probe::Union{ShearKernel, CMBLensingKernel},
     end
     
     W_array = reshape( W_L./χ2_app , n_bins, nχ, nR)
+
+    return W_array
+end
+
+"""
+    get_kernel_array(Probe::CMBLensingKernel, 
+        bg::BackgroundQuantities, R::Vector{T}) where T
+
+Obtains the kernel array for the CMB lensing probe, with dimensions (1, nχ, nR)
+Similarly to the weak lensing case, the kernel is divided by ``\\chi^2``.
+
+# Arguments
+- `Probe::CMBLensingKernel`: An instance of `CMBLensingKernel`.
+- `bg::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
+- `R::Vector{T}`: A vector of values for which the kernel array is to be computed.
+"""
+function get_kernel_array(Probe::CMBLensingKernel, 
+    bg::BackgroundQuantities, R::Vector{T}) where T
+
+    nχ = size(Probe.Kernel, 1)
+    nR = length(R)
+    
+    W_L = grid_interpolator(Probe, bg, make_grid(bg, R))
+
+    W_L[1,:] = W_L[1,:] ./ (make_grid(bg, R) .^ 2)
+    
+    W_array = reshape(W_L, 1, nχ, nR)
 
     return W_array
 end

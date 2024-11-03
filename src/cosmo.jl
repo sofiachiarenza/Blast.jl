@@ -139,12 +139,12 @@ Represents a CMB lensing kernel.
 - `CMBLensingKernel(n_bins::Int, nχ::Int)`: Creates a `CMBLensingKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `Float64`.
 """
 @kwdef mutable struct CMBLensingKernel{T} <: AbstractCosmologicalProbes{T}
-    Kernel::AbstractArray{T, 2} = zeros(1, 1)
+    Kernel::AbstractArray{T, 1} = zeros(1)
 end
 
-CMBLensingKernel{T}(n_bins::Int, nχ::Int) where T = CMBLensingKernel{T}(Kernel = zeros(T, n_bins, nχ))
+CMBLensingKernel{T}(nχ::Int) where T = CMBLensingKernel{T}(Kernel = zeros(T, nχ))
 
-CMBLensingKernel(n_bins::Int, nχ::Int) = CMBLensingKernel{Float64}(n_bins, nχ)
+CMBLensingKernel(nχ::Int) = CMBLensingKernel{Float64}(nχ)
 
 
 

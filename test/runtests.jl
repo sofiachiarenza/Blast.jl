@@ -71,12 +71,12 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     Blast.compute_kernel!(nz_interp[1:3,:], SHK, grid, bg, cosmo)
 
     print("Computing CMB kernels...\n")
-    CMBK = Blast.CMBLensingKernel(1, length(grid.z_range))
+    CMBK = Blast.CMBLensingKernel(length(grid.z_range))
     Blast.compute_kernel!(CMBK, grid, bg, cosmo)
 
     @test isapprox(GK.Kernel, LJ_clustering_kernels, rtol=1e-5)
     @test isapprox(SHK.Kernel, LJ_shear_kernels, rtol=1e-3)
-    @test isapprox(CMBK.Kernel[1,:], LJ_cmb_kernel, rtol=1e-5)
+    @test isapprox(CMBK.Kernel, LJ_cmb_kernel, rtol=1e-5)
 end
 
 @testset "Matrix product test" begin
@@ -270,9 +270,7 @@ end
     cl_true = 4950*(R[end]-R[1]) * 2 / π * 2 #2/pi is the ell prefactor, the other 2 comes from the window combination!
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
-end
 
-@testset "More outer integral tests" begin
     nχ = 200
     z = LinRange(0.01, 4, nχ)
     R = chebpoints(100,-1,1)
@@ -333,8 +331,8 @@ end
     SHK = Blast.ShearKernel(1, length(a))
     SHK.Kernel = ones(size(SHK.Kernel,1), size(SHK.Kernel,2))
 
-    CK = Blast.CMBLensingKernel(1, length(a))
-    CK.Kernel = ones(size(CK.Kernel,1), size(CK.Kernel,2))
+    CK = Blast.CMBLensingKernel(length(a))
+    CK.Kernel = ones(size(CK.Kernel))
 
     theory_gal = ones(1, length(a), length(b))
     theory_sh = ones(1, length(a), length(b)) ./ reshape(a .^ 2, 1, 5, 1)

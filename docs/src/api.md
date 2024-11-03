@@ -22,9 +22,11 @@ Blast.w_ell_tullio
 Blast.plan_fft
 Blast.fast_chebcoefs
 Blast.make_grid
-Blast.grid_interpolator
+Blast.grid_interpolator(::Union{Blast.GalaxyKernel, Blast.ShearKernel},::Blast.BackgroundQuantities, ::Vector{T}) where T
+Blast.grid_interpolator(::Blast.CMBLensingKernel, ::Blast.BackgroundQuantities, ::Vector{T}) where T
 Blast.get_kernel_array(::Blast.GalaxyKernel, ::Blast.BackgroundQuantities, ::Vector{T}) where T
-Blast.get_kernel_array(::Union{Blast.ShearKernel, Blast.CMBLensingKernel}, ::Blast.BackgroundQuantities, ::Vector{T}) where T
+Blast.get_kernel_array(::Blast.ShearKernel, ::Blast.BackgroundQuantities, ::Vector{T}) where T
+Blast.get_kernel_array(::Blast.CMBLensingKernel, ::Blast.BackgroundQuantities, ::Vector{T}) where T
 Blast.combine_kernels
 Blast.factorial_frac
 Blast.get_ell_prefactor(::Blast.GalaxyKernel, ::Blast.GalaxyKernel, ::Vector)
