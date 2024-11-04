@@ -1,3 +1,7 @@
+<p align="center">
+<img width="400px" src="https://raw.githubusercontent.com/sofiachiarenza/Blast.jl/Cls/docs/assets/logo1.png"/>
+</p>
+
 # Blast.jl
 
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://sofiachiarenza.github.io/Blast.jl/dev)
