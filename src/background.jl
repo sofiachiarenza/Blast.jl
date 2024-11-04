@@ -117,7 +117,7 @@ end
 
 
 """
-    compute_kernel!(nz::AbstractArray{T, 2}, Probe::GalaxyKernel, 
+    compute_kernel!(nz::AbstractArray{T, 2}, Probe::GalaxyKernel, z::AbstractArray{T, 1},
                     grid::CosmologicalGrid, bg::BackgroundQuantities, 
                     cosmo::AbstractCosmology) where T
 
@@ -129,13 +129,14 @@ W_g(\\chi) = \\frac{H(z)}{c}n(z)
 
 # Parameters:
 - `nz`: A 2D array of type `T` where each row represents the redshift distribution of galaxies for a specific redshift bin.
+- `z`: The redshift grid corresponding to the nz array.
 - `Probe`: An instance of `GalaxyKernel`, in which the computed kernel values for each redshift bin will be stored.
 - `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
 - `bg`: A struct containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
 - `cosmo`: An instance of a cosmological model used to calculate the background quantities if not already provided.
 
 """
-function compute_kernel!(nz::AbstractArray{T, 2}, Probe::GalaxyKernel, 
+function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe::GalaxyKernel, 
                         grid::CosmologicalGrid, bg::BackgroundQuantities, 
                         cosmo::AbstractCosmology) where T
 
@@ -147,7 +148,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, Probe::GalaxyKernel,
     n_bins = size(Probe.Kernel, 1)
     
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], grid.z_range, extrapolate=true)
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
         Probe.Kernel[b,:] = @. (bg.Hz_array / C_LIGHT) * (nz[b,:] / nz_norm)
@@ -155,7 +156,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, Probe::GalaxyKernel,
 end
 
 """
-    compute_kernel!(nz::AbstractArray{T, 2}, Probe::ShearKernel, 
+    compute_kernel!(nz::AbstractArray{T, 2}, Probe::ShearKernel, z::AbstractArray{T, 1},
                     grid::CosmologicalGrid, bg::BackgroundQuantities, 
                     cosmo::AbstractCosmology) where T
 
@@ -167,12 +168,13 @@ W_{\\gamma}(\\chi) = \\frac{3}{2}\\frac{H_0^2}{c^2}\\Omega_m \\frac{\\chi}{a(\\c
 
 # Parameters:
 - `nz`: A 2D array of type `T` where each row corresponds to the redshift distribution for a specific shear redshift bin.
+- `z`: The redshift grid corresponding to the nz array.
 - `Probe`: An instance of `ShearKernel`, where computed kernel values for each redshift bin will be stored.
 - `grid`: A `CosmologicalGrid` object defining the redshift range and grid points for kernel computation.
 - `bg`: A struct containing precomputed Hubble parameter (`Hz_array`) and comoving distance (`χz_array`) arrays over the grid.
 - `cosmo`: An instance of a cosmological model that provides background parameters needed for lensing kernel calculations.
 """
-function compute_kernel!(nz::AbstractArray{T, 2}, Probe::ShearKernel, grid::CosmologicalGrid,
+function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe::ShearKernel, grid::CosmologicalGrid,
     bg::BackgroundQuantities, cosmo::AbstractCosmology) where T
 
     #TODO: this test will suck for autodiff, will need fixing
@@ -183,7 +185,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, Probe::ShearKernel, grid::Cosm
     n_bins = size(Probe.Kernel, 1)
 
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], grid.z_range, extrapolate=true)
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
         prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
