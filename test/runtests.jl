@@ -54,37 +54,29 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     @test test_H_array ≈ bg.Hz_array
     @test test_χ_array ≈ bg.χz_array
 
-    #testing the kernels - comparing to LimberJack 
-    blast_cl_ker = zeros(10, length(grid.z_range))
-    blast_sh_ker = zeros(3, length(grid.z_range))
-    blast_cmb_ker = zeros(length(grid.z_range))
-
     print("Computing clustering kernels...\n")
+
+    nz_interp = zeros(10, length(z_range))
     for i in 1:10
         interp = DataInterpolations.AkimaInterpolation(bins["dNdz"][i,:], bins["z"], extrapolate = true)
-        GK = Blast.GalaxyKernel(zeros(length(z_range)))
-        Blast.compute_kernel!(Array(interp.(z_range)), GK, grid, bg, cosmo)
-        blast_cl_ker[i,:] = GK.Kernel
+        nz_interp[i,:] = interp.(z_range)
     end
+
+    GK = Blast.GalaxyKernel(10, length(grid.z_range) )
+    Blast.compute_kernel!(bins["dNdz"], bins["z"], GK, grid, bg, cosmo)
+
 
     print("Computing shear kernels...\n")
-    for i in 1:3
-        interp = DataInterpolations.AkimaInterpolation(bins["dNdz"][i,:], bins["z"], extrapolate = true)
-        SHK = Blast.ShearKernel(zeros(length(z_range)))
-        Blast.compute_kernel!(Array(interp.(z_range)), SHK, grid, bg, cosmo)
-        blast_sh_ker[i,:] = SHK.Kernel
-    end
+    SHK = Blast.ShearKernel(3, length(grid.z_range))
+    Blast.compute_kernel!(bins["dNdz"][1:3,:], bins["z"], SHK, grid, bg, cosmo)
 
     print("Computing CMB kernels...\n")
-    CMBK = Blast.CMBLensingKernel(zeros(length(z_range)))
+    CMBK = Blast.CMBLensingKernel(length(grid.z_range))
     Blast.compute_kernel!(CMBK, grid, bg, cosmo)
-    blast_cmb_ker = CMBK.Kernel
 
-    @test isapprox(blast_cl_ker, LJ_clustering_kernels, rtol=1e-5)
-    @test isapprox(blast_sh_ker, LJ_shear_kernels, rtol=1e-3)
-    @test isapprox(blast_cmb_ker, LJ_cmb_kernel, rtol=1e-5)
-    
-
+    @test isapprox(GK.Kernel, LJ_clustering_kernels, rtol=1e-5)
+    @test isapprox(SHK.Kernel, LJ_shear_kernels, rtol=1e-3)
+    @test isapprox(CMBK.Kernel, LJ_cmb_kernel, rtol=1e-5)
 end
 
 @testset "Matrix product test" begin
@@ -239,11 +231,18 @@ end
     end
     true_coefs
     
-
     @test true_coefs ≈ my_coefs
 end
 
 @testset "Outer integrals tests" begin
+
+    elle = 7
+
+    a = Blast.factorial_frac(elle)
+    b = factorial(elle + 2) / factorial(elle - 2)
+
+    @test a ≈ b
+
     n = 100
     x = LinRange(0,1,n)
     Δx = ((last(x)-first(x))/(n-1))
@@ -254,14 +253,93 @@ end
     @test integral ≈ 0.5
 
     pmd = ones(1, 200, 50)
-    kernel = ones(1, 1, 200, 50)
-    χ = LinRange(10, 100, 200) 
+
+    Probe1 = Blast.GalaxyKernel(1, 200)
+    Probe1.Kernel = ones(1,200)
+    Probe2 = Blast.GalaxyKernel(1,200)
+    Probe2.Kernel = ones(1,200) 
+
+    χ = Array(LinRange(10, 100, 200))
     R = chebpoints(100,-1,1)
     R = reverse(R[R.>0])
 
-    cl_test = Blast.compute_Cℓ(pmd, kernel, χ, R)
-    cl_true = 4950*(R[end]-R[1])
+    cosmo = Blast.FlatΛCDM()
+    bg = Blast.BackgroundQuantities(Hz_array = zeros(200), χz_array=χ )
+
+    cl_test = Blast.compute_Cℓ(pmd, Probe1, Probe2, bg, R, Float64[1.0]) 
+    cl_true = 4950*(R[end]-R[1]) * 2 / π * 2 #2/pi is the ell prefactor, the other 2 comes from the window combination!
 
     @test isapprox(cl_test[1,1,1], cl_true, rtol = 1e-5) 
 
+    nχ = 200
+    z = LinRange(0.01, 4, nχ)
+    R = chebpoints(100,-1,1)
+    R = reverse(R[R.>0])
+    nR = length(R)
+
+    cosmo = Blast.FlatΛCDM()
+    bg = Blast.BackgroundQuantities(Hz_array = zeros(nχ), χz_array = zeros(nχ))
+    grid = Blast.CosmologicalGrid(z_range = z)
+    Blast.evaluate_background_quantities!(grid, bg, cosmo)
+
+    Probe1 = Blast.GalaxyKernel(1, nχ)
+    Probe1.Kernel = ones(1,nχ)
+    Probe2 = Blast.ShearKernel(1,nχ)
+    Probe2.Kernel = ones(1,nχ) 
+    nz = rand(3,nχ)
+    Blast.compute_kernel!(nz, z, Probe1, grid, bg, cosmo)
+    Blast.compute_kernel!(nz, z, Probe2, grid, bg, cosmo)
+
+    w = rand(length(Blast.ℓ), nχ, nR)
+
+    Cℓ_mod1 = Blast.compute_Cℓ(w, Probe1, Probe2, bg, R)
+
+    w_χ = Blast.simpson_weight_array(nχ)
+    w_R = Blast.get_clencurt_weights_R_integration(2*nR+1)
+    pref= Blast.get_ell_prefactor(Probe1, Probe2, Blast.ℓ)
+
+    pref_check = Blast.get_ell_prefactor(Probe2, Probe1, Blast.ℓ)
+
+    @test pref ≈ pref_check
+
+    pref_LL = Blast.get_ell_prefactor(Probe2, Probe2, Blast.ℓ)
+
+    @test pref_LL[1] ≈ 2 / π * factorial(4)/factorial(0) 
+
+    K = Blast.combine_kernels(Probe1, Probe2, bg, R)
+
+    Cℓ_mod2 = Blast.compute_Cℓ(w, K, bg, w_χ, w_R, pref)
+
+    @test Cℓ_mod1 ≈ Cℓ_mod2
+
+end
+
+@testset "Tomographic bins combination" begin
+    a = Vector([1.,2.,3.,4.,5.])
+    b = ones(8)
+
+    cosmo = Blast.FlatΛCDM()
+    bg = Blast.BackgroundQuantities(Hz_array = zeros(5), χz_array = a )
+
+    true_res = vcat(fill(a, length(b))...)
+
+    @test true_res ≈ Blast.make_grid(bg, b)
+
+    GK = Blast.GalaxyKernel(1,length(a))
+    GK.Kernel = ones(size(GK.Kernel,1), size(GK.Kernel,2))
+
+    SHK = Blast.ShearKernel(1, length(a))
+    SHK.Kernel = ones(size(SHK.Kernel,1), size(SHK.Kernel,2))
+
+    CK = Blast.CMBLensingKernel(length(a))
+    CK.Kernel = ones(size(CK.Kernel))
+
+    theory_gal = ones(1, length(a), length(b))
+    theory_sh = ones(1, length(a), length(b)) ./ reshape(a .^ 2, 1, 5, 1)
+    theory_cmb = ones(1, length(a), length(b)) ./ reshape(a .^ 2, 1, 5, 1)
+
+
+    @test theory_gal ≈ Blast.get_kernel_array(GK, bg, b)
+    @test theory_sh ≈ Blast.get_kernel_array(SHK, bg, b)
+    @test theory_cmb ≈ Blast.get_kernel_array(CK, bg, b)
 end
