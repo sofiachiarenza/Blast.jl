@@ -129,7 +129,7 @@ W_g(\\chi) = \\frac{H(z)}{c}n(z)
 
 # Parameters:
 - `nz`: A 2D array of type `T` where each row represents the redshift distribution of galaxies for a specific redshift bin.
-- `z`: The redshift grid corresponding to the nz array.
+- `z`: The redshift grid corresponding to the `nz` array.
 - `Probe`: An instance of `GalaxyKernel`, in which the computed kernel values for each redshift bin will be stored.
 - `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
 - `bg`: A struct containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
