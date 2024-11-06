@@ -1,5 +1,5 @@
-<p align="center">
-<img width="400px" src="https://raw.githubusercontent.com/sofiachiarenza/Blast.jl/Cls/docs/src/assets/logo.png"/>
+<p align="left">
+<img width="300px" src="https://github.com/user-attachments/assets/dc268ab5-7ff8-40f1-bc37-9d3a1f356d99"/>
 </p>
 
 # Blast.jl
