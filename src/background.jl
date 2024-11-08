@@ -151,7 +151,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
         nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
-        Probe.Kernel[b,:] = @. (bg.Hz_array / C_LIGHT) * (nz[b,:] / nz_norm)
+        Probe.Kernel[b,:] = @. (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
     end
 end
 

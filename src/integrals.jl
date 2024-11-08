@@ -232,7 +232,7 @@ Calculates the prefactor for the angular power spectrum when probes are `CMBLens
 - `ℓ_list::Vector`: A vector of angular multipole values.
 """
 function get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::ShearKernel, ℓ_list::Vector)
-    return @. π * ℓ_list * (ℓ_list +1) * sqrt(factorial_frac(ℓ_list)) #TODO: double check  prefactor
+    return @. 2 * ℓ_list * (ℓ_list +1) * sqrt(factorial_frac(ℓ_list)) / π #TODO: double check  prefactor
 end
 
 # Define the same prefactor for ShearKernel and GalaxyKernel order
@@ -260,7 +260,7 @@ Calculates the prefactor for the angular power spectrum when probes are `CMBLens
 - `ℓ_list::Vector`: A vector of angular multipole values.
 """
 function get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::GalaxyKernel, ℓ_list::Vector)
-    return @. - π / 2  * ℓ_list * (ℓ_list + 1) #TODO: double check prefactor
+    return @. 2 * ℓ_list * (ℓ_list + 1) / π #TODO: double check prefactor
 end
 
 # Define the same prefactor for ShearKernel and GalaxyKernel order
