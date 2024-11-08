@@ -132,11 +132,11 @@ ShearKernel(n_bins::Int, nχ::Int) = ShearKernel{Float64}(n_bins, nχ)
 Represents a CMB lensing kernel.
 
 # Parameters
-- `Kernel::AbstractArray{T, 2}`: A 2D array of type `T`, with dimensions `(n_bins, nχ)`. Note that CMB Lensing by definition only has a single tomographic bin.
+- `Kernel::AbstractArray{T, 1}`: A 1D array of type `T`, with dimension `(nχ)`. Note that CMB Lensing by definition only has a single tomographic bin.
 
 # Constructors
-- `CMBLensingKernel{T}(n_bins::Int, nχ::Int)`: Creates a `CMBLensingKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `T`.
-- `CMBLensingKernel(n_bins::Int, nχ::Int)`: Creates a `CMBLensingKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `Float64`.
+- `CMBLensingKernel{T}(nχ::Int)`: Creates a `CMBLensingKernel` with the specified `nχ` value, initializing the kernel values to zeros of type `T`.
+- `CMBLensingKernel(nχ::Int)`: Creates a `CMBLensingKernel` with the specified `nχ` value, initializing the kernel values to zeros of type `Float64`.
 """
 @kwdef mutable struct CMBLensingKernel{T} <: AbstractCosmologicalProbes{T}
     Kernel::AbstractArray{T, 1} = zeros(1)
