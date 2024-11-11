@@ -222,7 +222,7 @@ end
     dims = (2^10, 2^6)
     A = rand(Float64, dims)
 
-    plan = Blast.plan_fft(A)
+    plan = Blast.plan_fft(A, 1)
     my_coefs = Blast.fast_chebcoefs(A, plan)
 
     true_coefs = zeros(dims)
