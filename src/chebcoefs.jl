@@ -1,22 +1,24 @@
 """
-    plan_fft(vals::AbstractArray{<:Number,N})
+    plan_fft(vals::AbstractArray{<:Number, N}, axis::Int)
 
-Create an FFTW real-to-real (R2R) transformation plan for the first axis of a given multidimensional array `vals`. 
-In practise, the `vals` array is the power spectrum P(k,χ). The first axis should then contains the wavenumbers `k`, while the second axis contains the `χ` information.
+Create an FFTW real-to-real (R2R) transformation plan for a specified axis of a given multidimensional array `vals`. 
+In practice, the `vals` array is often the power spectrum P(k,χ): the specified axis should contain the wavenumbers `k`. So if the power spectrum is given in a matrix of shape (nk, nχ), axis should be `1`. Instead, axis = `2` should be used for a matrix of shape (nχ, nk).
 
 # Arguments
 - `vals::AbstractArray{<:Number, N}`: The input array of any numerical type with `N` dimensions.
+- `axis::Int`: The axis along which the FFT transformation will be applied (e.g., `1` for the first axis, `2` for the second axis, etc.).
 
 # Returns
-- `p::FFTW.rFFTWPlan`: A FFTW plan object for transforming `vals` with the appropriate real to real transformations. This plan can be applied using the `*` operator (e.g., `transformed_vals = p * vals`).
+- `p::FFTW.rFFTWPlan`: An FFTW plan object for transforming `vals` with the appropriate real-to-real transformations. This plan can be applied using the `*` operator (e.g., `transformed_vals = p * vals`).
 
 """
-function plan_fft(vals::AbstractArray{<:Number,N}) where {N}
-    kind = map(n -> n > 1 ? FFTW.REDFT00 : FFTW.DHT, size(vals)[1])
-    p = FFTW.plan_r2r(deepcopy(vals), kind, [1]; flags=FFTW.PATIENT, timelimit=Inf)   
+function plan_fft(vals::AbstractArray{<:Number, N}, axis::Int) where {N}
+    kind = map(n -> n > 1 ? FFTW.REDFT00 : FFTW.DHT, size(vals)[axis])
+    p = FFTW.plan_r2r(deepcopy(vals), kind, [axis]; flags=FFTW.PATIENT, timelimit=Inf)   
                                                                                     
     return p 
 end
+
 
 
 """
