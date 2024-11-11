@@ -1,3 +1,4 @@
+# FUNCTIONS FOR THE DECOMPOSITION OF THE POWER SPECTRUM ON THE BASIS OF THE CHEBYSHEV POLYNOMIALS, CENTRAL PART OF BLAST
 """
     plan_fft(vals::AbstractArray{<:Number, N}, axis::Int)
 
@@ -44,4 +45,37 @@ function fast_chebcoefs(vals::AbstractArray, plan::FFTW.r2rFFTWPlan)
     coefs[CartesianIndices(ntuple(i -> i == 1 ? (2:s[1]-1) : (1:s[i]), Val{N}()))] *= 2
 
     return coefs
+end
+
+# FUNCTIONS FOR THE INTERPOLATION OF THE POWER SPECTRUM GIVEN BY THE EMULATOR 
+function cheb_poly(z_cheb::AbstractArray{T,1}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, new_χ::AbstractArray{T,1}) where T
+    nz = length(z_cheb)
+    cheb_interp = FastChebInterp.ChebPoly(z_cheb, SA[minimum(z_cheb)], SA[maximum(z_cheb)])
+
+    cheb_poly = zeros(nz, length(new_χ))
+
+    for i in 1:nz
+        copy_cheb = deepcopy(cheb_interp)
+        copy_cheb.coefs .= 0
+        copy_cheb.coefs[i] = 1.0
+        cheb_poly[i,:] =  copy_cheb.(resample_redshifts(bg, grid, new_χ))
+    end
+    return cheb_poly
+end
+
+function make_grid_chebinterp(bg::BackgroundQuantities, R::Vector{T}) where T
+    return vec(reverse(bg.χz_array) * R')
+end
+
+#TODO: this works for pk in shape (nz, nχ), so axis in plan should be 1. Fix this!
+function interpolate_power_spectrum(pk::AbstractArray{T,2}, z_grid::AbstractArray{T,1}, plan::FFTW.r2rFFTWPlan, 
+    bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, R::AbstractArray{T,1}) where T
+
+    coefs = fast_chebcoefs(pk, plan)
+    χR_grid = make_grid_chebinterp(bg, R)
+    chebyshevs = cheb_poly(z_grid, bg, grid, χR_grid)
+    pk_interp = zeros(size(pk,2),length(χR_grid)) #TODO: understand how to handle pk sizes
+    @tullio pk_interp[i,j] = coefs[k,i] * chebyshevs[k,j]
+
+    return reshape(pk_interp, size(pk,2),  length(bg.χz_array), length(R))
 end
