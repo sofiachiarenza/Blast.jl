@@ -74,8 +74,6 @@ function interpolate_power_spectrum(pk::AbstractArray{T,2}, z_grid::AbstractArra
     coefs = fast_chebcoefs(pk, plan)
     χR_grid = make_grid_chebinterp(bg, R)
     chebyshevs = cheb_poly(z_grid, bg, grid, χR_grid)
-    pk_interp = zeros(size(pk,2),length(χR_grid)) #TODO: understand how to handle pk sizes
-    @tullio pk_interp[i,j] = coefs[k,i] * chebyshevs[k,j]
-
+    pk_interp = coefs' * chebyshevs  #TODO: understand how to handle pk sizes
     return reshape(pk_interp, size(pk,2),  length(bg.χz_array), length(R))
 end
