@@ -48,32 +48,37 @@ function fast_chebcoefs(vals::AbstractArray, plan::FFTW.r2rFFTWPlan)
 end
 
 # FUNCTIONS FOR THE INTERPOLATION OF THE POWER SPECTRUM GIVEN BY THE EMULATOR 
-function cheb_poly(z_cheb::AbstractArray{T,1}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, new_χ::AbstractArray{T,1}) where T
-    nz = length(z_cheb)
-    cheb_interp = FastChebInterp.ChebPoly(z_cheb, SA[minimum(z_cheb)], SA[maximum(z_cheb)])
-
-    cheb_poly = zeros(nz, length(new_χ))
-
-    for i in 1:nz
-        copy_cheb = deepcopy(cheb_interp)
-        copy_cheb.coefs .= 0
-        copy_cheb.coefs[i] = 1.0
-        cheb_poly[i,:] =  copy_cheb.(resample_redshifts(bg, grid, new_χ))
+function chebyshev_polynomials( x::AbstractArray{T,1}, n_cheb::Int, z_min::T, z_max::T) where T
+    x_scaled = 2 .* (x .- z_min) ./ (z_max - z_min) .- 1.0
+    
+    Tcheb = zeros(n_cheb, length(x_scaled))
+    
+    Tcheb[1, :] .= 1.0  # T0(x) = 1
+    if n_cheb >= 2
+        Tcheb[2, :] .= x_scaled  # T1(x) = x
     end
-    return cheb_poly
+    
+    for n in 2:n_cheb-1
+        Tcheb[n+1, :] .= 2 .* x_scaled .* Tcheb[n, :] .- Tcheb[n-1, :]
+    end
+    
+    return Tcheb
 end
 
-function make_grid_chebinterp(bg::BackgroundQuantities, R::Vector{T}) where T
-    return vec(reverse(bg.χz_array) * R')
-end
-
-#TODO: this works for pk in shape (nz, nχ), so axis in plan should be 1. Fix this!
-function interpolate_power_spectrum(pk::AbstractArray{T,2}, z_grid::AbstractArray{T,1}, plan::FFTW.r2rFFTWPlan, 
-    bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, R::AbstractArray{T,1}) where T
+#TODO: this works for pk in shape (nz, nk), so axis in plan should be 1. Fix this!
+function interpolate_power_spectrum(pk::AbstractArray{T,2}, z_nodes::AbstractArray{T,1}, R::AbstractArray{T,1},
+    plan::FFTW.r2rFFTWPlan, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid) where T
 
     coefs = fast_chebcoefs(pk, plan)
-    χR_grid = make_grid_chebinterp(bg, R)
-    chebyshevs = cheb_poly(z_grid, bg, grid, χR_grid)
+    new_χs = make_grid(bg, R)
+    x = resample_redshifts(bg, grid, new_χs)
+    chebyshevs = chebyshev_polynomials(x, length(z_nodes), minimum(z_nodes), maximum(z_nodes))
     pk_interp = coefs' * chebyshevs  #TODO: understand how to handle pk sizes
     return reshape(pk_interp, size(pk,2),  length(bg.χz_array), length(R))
+end
+
+function power_spectrum(pk::AbstractArray{T,3}) where T
+    pk_R1 = pk[:,:,end]
+    @tullio final_pk[i,c,r] := sqrt(pk_R1[i,c] * pk[i,c,r])
+    return final_pk
 end
