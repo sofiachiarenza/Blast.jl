@@ -8,13 +8,14 @@ using FFTW
 using PhysicalConstants
 using DataInterpolations
 using Tullio
+using StaticArrays
 
 import PhysicalConstants.CODATA2018: c_0
 const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
 
 input_path = pwd()
 
-run(`wget --content-disposition "https://zenodo.org/records/13997096/files/bins.npz?download=1"`)
+#=run(`wget --content-disposition "https://zenodo.org/records/13997096/files/bins.npz?download=1"`)
 bins = npzread(input_path*"/bins.npz")
 run(`bash -c "rm bins.npz"`)
 
@@ -342,4 +343,45 @@ end
     @test theory_gal ≈ Blast.get_kernel_array(GK, bg, b)
     @test theory_sh ≈ Blast.get_kernel_array(SHK, bg, b)
     @test theory_cmb ≈ Blast.get_kernel_array(CK, bg, b)
+end=#
+
+@testset "Power spectrum interpolation tests" begin
+    x = rand(1000) * 10.0 .+ 1.0  
+    n_cheb = 120  
+    #Blast evaluation of ChebPolys
+    Tcheb_test = Blast.chebyshev_polynomials(x, n_cheb, minimum(x), maximum(x))
+
+    #Standard evaluation of ChebPolys
+    x_cheb = chebpoints(n_cheb-1, minimum(x), maximum(x)) 
+    c = FastChebInterp.ChebPoly(x_cheb, SA[minimum(x)], SA[maximum(x)])
+    T_reference = zeros(n_cheb, length(x))
+    for i in 1:n_cheb
+        copy_c = deepcopy(c)
+        copy_c.coefs .= 0
+        copy_c.coefs[i] = 1.0
+        T_reference[i, :] = copy_c.(x)
+    end
+
+    @test Tcheb_test ≈ T_reference
+
+    cosmo =Blast.FlatΛCDM()
+    z_range = Array([0.0, 0.5, 1.0, 2.0])
+    grid = Blast.CosmologicalGrid(z_range = z_range)
+    bg = Blast.BackgroundQuantities(Hz_array = zeros(length(z_range)), χz_array = zeros(length(z_range)))
+    Blast.evaluate_background_quantities!(grid, bg, cosmo)
+    R = 0.5
+    new_χ = bg.χz_array .* R
+
+    z_of_χ = DataInterpolations.AkimaInterpolation(grid.z_range, bg.χz_array, extrapolate=true)
+
+    new_z = Blast.resample_redshifts(bg, grid, new_χ)
+    test_z = z_of_χ.(new_χ)
+
+    @test new_z ≈ test_z
+
+    pk = ones(3, 3, 3)
+    expected_output = ones(3, 3, 3)
+    result = Blast.correlated_power_spectrum(pk)
+    @test result == expected_output
+
 end

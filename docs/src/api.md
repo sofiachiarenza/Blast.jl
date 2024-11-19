@@ -54,7 +54,11 @@ Blast.compute_adimensional_hubble_factor(::T, ::T, ::T, ::T, ::T, ::T, ::T) wher
 Blast.compute_hubble_factor
 Blast.compute_χ
 Blast.evaluate_background_quantities!
+Blast.resample_redshifts
 Blast.compute_kernel!(::AbstractArray{T, 2}, ::AbstractArray{T, 1}, ::Blast.GalaxyKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology) where T
 Blast.compute_kernel!(::AbstractArray{T, 2}, ::AbstractArray{T, 1}, ::Blast.ShearKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology) where T
 Blast.compute_kernel!(::Blast.CMBLensingKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology)
+Blast.chebyshev_polynomials
+Blast.interpolate_power_spectrum
+Blast.correlated_power_spectrum
 ```

@@ -47,7 +47,27 @@ function fast_chebcoefs(vals::AbstractArray, plan::FFTW.r2rFFTWPlan)
     return coefs
 end
 
-# FUNCTIONS FOR THE INTERPOLATION OF THE POWER SPECTRUM GIVEN BY THE EMULATOR 
+"""
+    chebyshev_polynomials(x::AbstractArray{T,1}, n_cheb::Int, z_min::T, z_max::T) where T
+
+Computes the Chebyshev polynomials `T_n(x)` up to a specified order for a given range of `x`.
+
+# Arguments
+- `x::AbstractArray{T,1}`: An array of input values for which the Chebyshev polynomials will be evaluated.
+- `n_cheb::Int`: The maximum order of Chebyshev polynomials to compute.
+- `z_min::T`: The minimum value in the domain of `x`.
+- `z_max::T`: The maximum value in the domain of `x`.
+
+# Returns
+A 2D array where each row corresponds to a Chebyshev polynomial `T_n(x)`
+
+# Notes
+- Scales `x` to the Chebyshev domain `[-1, 1]`.
+- Recurrence relation:
+  - `T_0(x) = 1`
+  - `T_1(x) = x`
+  - ` T_{n+1}(x) = 2xT_n(x) - T_{n-1}(x)` for ` n \\geq 2`.
+"""
 function chebyshev_polynomials( x::AbstractArray{T,1}, n_cheb::Int, z_min::T, z_max::T) where T
     x_scaled = 2 .* (x .- z_min) ./ (z_max - z_min) .- 1.0
     
@@ -65,7 +85,25 @@ function chebyshev_polynomials( x::AbstractArray{T,1}, n_cheb::Int, z_min::T, z_
     return Tcheb
 end
 
-#TODO: this works for pk in shape (nz, nk), so axis in plan should be 1. Fix this!
+"""
+    interpolate_power_spectrum(pk::AbstractArray{T,2}, z_nodes::AbstractArray{T,1}, 
+                               R::AbstractArray{T,1}, plan::FFTW.r2rFFTWPlan, 
+                               bg::BackgroundQuantities, grid::AbstractCosmologicalGrid) where T
+
+Interpolates the power spectrum  `P(z,k)` to put it on the `\\chi-R` grid optimal for the algorithm.
+Returns and object `P(k, \\chi, R)`. 
+
+# Arguments
+- `pk::AbstractArray{T,2}`: A 2D array of power spectrum values. The function expects the first axis to be `z`, and the second one to be `k`.
+- `z_nodes::AbstractArray{T,1}`: Redshift values corresponding to the first axis of `pk`.
+- `R::AbstractArray{T,1}`: Values of `R \\equiv \\chi_2/\\chi_1`.
+- `plan::FFTW.r2rFFTWPlan`: FFTW plan for computing Chebyshev coefficients.
+- `bg::BackgroundQuantities`: Background cosmological quantities. Contains the comoving distance values.
+- `grid::AbstractCosmologicalGrid`: Grid of cosmological quantities. Contains the redshift grid.
+
+# Returns
+A 3D array of interpolated power spectrum values with dimensions `(k, \\chi, R)`
+"""
 function interpolate_power_spectrum(pk::AbstractArray{T,2}, z_nodes::AbstractArray{T,1}, R::AbstractArray{T,1},
     plan::FFTW.r2rFFTWPlan, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid) where T
 
@@ -77,7 +115,18 @@ function interpolate_power_spectrum(pk::AbstractArray{T,2}, z_nodes::AbstractArr
     return reshape(pk_interp, size(pk,2),  length(bg.χz_array), length(R))
 end
 
-function power_spectrum(pk::AbstractArray{T,3}) where T
+"""
+    correlated_power_spectrum(pk::AbstractArray{T,3}) where T
+
+Takes in input the power spectrum on the `(k, \\chi, R)` grid and implements the equation: ``P(k,\\chi, R\\chi_2)=\\sqrt{P(k,\\chi)P(k,R\\chi)},`` which assumes that the quantities involved are perfectly correlated at different cosmic times.
+
+# Arguments
+- `pk::AbstractArray{T,3}`: A 3D array of power spectrum values on a grid `(k, \\chi, R).`
+
+# Returns
+A 3D array with the same dimensions as `pk`.
+"""
+function correlated_power_spectrum(pk::AbstractArray{T,3}) where T
     pk_R1 = pk[:,:,end]
     @tullio final_pk[i,c,r] := sqrt(pk_R1[i,c] * pk[i,c,r])
     return final_pk

@@ -115,11 +115,25 @@ function evaluate_background_quantities!(grid::CosmologicalGrid,
     end
 end
 
+"""
+    resample_redshifts(bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, new_χ::AbstractArray{T,1}) where T
+
+Resamples redshift values corresponding to a new set of comoving distances using Akima interpolation.
+
+# Arguments
+- `bg::BackgroundQuantities`: An object containing background cosmological quantities, 
+  including the mapping between redshift (`z`) and comoving distance (`χ`).
+- `grid::AbstractCosmologicalGrid`: An object defining the range of redshifts (`z_range`) 
+  and associated cosmological grid quantities.
+- `new_χ::AbstractArray{T,1}`: A 1D array of comoving distances for which corresponding redshift values are desired.
+
+# Returns
+- `resampled_z::AbstractArray{T,1}`: A 1D array of resampled redshift values corresponding to the input comoving distances `new_χ`.
+"""
 function resample_redshifts(bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, new_χ::AbstractArray{T,1}) where T
     z_of_χ = DataInterpolations.AkimaInterpolation(grid.z_range, bg.χz_array, extrapolate=true)
     return z_of_χ.(new_χ)
 end
-
 
 """
     compute_kernel!(nz::AbstractArray{T, 2}, Probe::GalaxyKernel, z::AbstractArray{T, 1},
