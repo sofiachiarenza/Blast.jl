@@ -15,7 +15,7 @@ const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
 
 input_path = pwd()
 
-#=run(`wget --content-disposition "https://zenodo.org/records/13997096/files/bins.npz?download=1"`)
+run(`wget --content-disposition "https://zenodo.org/records/13997096/files/bins.npz?download=1"`)
 bins = npzread(input_path*"/bins.npz")
 run(`bash -c "rm bins.npz"`)
 
@@ -343,7 +343,7 @@ end
     @test theory_gal ≈ Blast.get_kernel_array(GK, bg, b)
     @test theory_sh ≈ Blast.get_kernel_array(SHK, bg, b)
     @test theory_cmb ≈ Blast.get_kernel_array(CK, bg, b)
-end=#
+end
 
 @testset "Power spectrum interpolation tests" begin
     x = rand(1000) * 10.0 .+ 1.0  
