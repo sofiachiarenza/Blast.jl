@@ -91,7 +91,7 @@ end
                                bg::BackgroundQuantities, grid::AbstractCosmologicalGrid) where T
 
 Interpolates the power spectrum  `P(z,k)` to put it on the ``\\chi-R`` grid optimal for the algorithm.
-Returns and object ``P(k, \\chi, R)``. 
+Returns the object ``P(k, \\chi, R)``. 
 
 # Arguments
 - `pk::AbstractArray{T,2}`: A 2D array of power spectrum values. The function expects the first axis to be `z`, and the second one to be `k`.
@@ -118,7 +118,11 @@ end
 """
     correlated_power_spectrum(pk::AbstractArray{T,3}) where T
 
-Takes in input the power spectrum on the ``(k, \\chi, R)`` grid and implements the equation: ``P(k,\\chi, R\\chi)=\\sqrt{P(k,\\chi)P(k,R\\chi)},`` which assumes that the quantities involved are perfectly correlated at different cosmic times.
+Takes in input the power spectrum on the ``(k, \\chi, R)`` grid and implements the equation: 
+```math
+P(k,\\chi, R\\chi)=\\sqrt{P(k,\\chi)P(k,R\\chi)},
+``` 
+which assumes that the quantities involved are perfectly correlated at different cosmic times.
 
 # Arguments
 - `pk::AbstractArray{T,3}`: A 3D array of power spectrum values on a grid ``(k, \\chi, R).``
