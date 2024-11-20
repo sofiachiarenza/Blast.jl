@@ -345,6 +345,14 @@ end
     @test theory_cmb ≈ Blast.get_kernel_array(CK, bg, b)
 end
 
+run(`wget --content-disposition "https://zenodo.org/records/14192971/files/pk_n5k_cheb.npz?download=1"`)
+pk_n5k = npzread(input_path*"/pk_n5k_cheb.npz")
+run(`bash -c "rm pk_n5k_cheb.npz"`)
+
+run(`wget --content-disposition "https://zenodo.org/records/14193379/files/n5k_zs.npz?download=1"`)
+n5k_zs = npzread(input_path*"/n5k_zs.npz")
+run(`bash -c "rm n5k_zs.npz"`)
+
 @testset "Power spectrum interpolation tests" begin
     x = rand(1000) * 10.0 .+ 1.0  
     n_cheb = 120  
@@ -378,6 +386,32 @@ end
     test_z = z_of_χ.(new_χ)
 
     @test new_z ≈ test_z
+
+    nχ = 96
+    χ = LinRange(26, 7000, nχ)
+    R = chebpoints(96, -1, 1)
+    R = reverse(R[R.>0])
+    kmax = 200/13 
+    kmin = 2.5/7000
+    n_cheb = 119
+    k_cheb = chebpoints(n_cheb, log10(kmin), log10(kmax))
+    cosmo = Blast.FlatΛCDM()
+    z_range = n5k_zs #redshifts corresponding to the χ array
+    bgrid = Blast.CosmologicalGrid(z_range = z_range)
+    bg = Blast.BackgroundQuantities(Hz_array = zeros(length(z_range)), χz_array = Array(χ))
+    z_cheb = chebpoints(7, 0, 3.5)
+    plan = Blast.plan_fft(pk_n5k, 1)
+    blast_pk = Blast.interpolate_power_spectrum(pk_n5k, z_cheb, R, plan, bg, bgrid)
+
+    fastcheb_check = zeros(n_cheb+1, length(χ), length(R))
+    newzs = Blast.resample_redshifts(bg, bgrid, Blast.make_grid(bg, R))
+   
+    for i in 1:n_cheb+1
+        rightinterp = chebinterp(pk_n5k[:,i], minimum(newzs), maximum(newzs))
+        fastcheb_check[i,:,:] = reshape(rightinterp.(newzs) , 96, 48)
+    end
+
+    @test blast_pk ≈ fastcheb_check
 
     pk = ones(3, 3, 3)
     expected_output = ones(3, 3, 3)

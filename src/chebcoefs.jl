@@ -110,7 +110,7 @@ function interpolate_power_spectrum(pk::AbstractArray{T,2}, z_nodes::AbstractArr
     coefs = fast_chebcoefs(pk, plan)
     new_χs = make_grid(bg, R)
     x = resample_redshifts(bg, grid, new_χs)
-    chebyshevs = chebyshev_polynomials(x, length(z_nodes), minimum(z_nodes), maximum(z_nodes))
+    chebyshevs = chebyshev_polynomials(x, length(z_nodes), minimum(x), maximum(x))
     pk_interp = coefs' * chebyshevs  #TODO: understand how to handle pk sizes
     return reshape(pk_interp, size(pk,2),  length(bg.χz_array), length(R))
 end
