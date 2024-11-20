@@ -45,7 +45,7 @@ abstract type AbstractCosmologicalProbes{T} end
 - `ns`: Scalar spectral index (default: 0.9645).
 """
 @kwdef mutable struct FlatΛCDM{T} <: AbstractCosmology{T}
-    #TODO: comology will need updates, A_s and sigma8 are not independent of eachother
+    #TODO: comology will need updates, A_s and sigma8 are not independent of eachother, need more classes...
     w0::T  = -1.0
     wa::T  = 0.0
     H0::T  = 67.27
