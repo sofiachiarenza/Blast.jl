@@ -4,8 +4,7 @@
 
 # Blast.jl
 
-[![Docs - Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sofiachiarenza.github.io/Blast.jl/dev)
-[![Docs - Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://sofiachiarenza.github.io/Blast.jl/stable)
-[![Code Coverage](https://codecov.io/github/sofiachiarenza/Blast.jl/graph/badge.svg?token=8QLDGERO9H)](https://codecov.io/github/sofiachiarenza/Blast.jl)
-[![Build Status](https://github.com/sofiachiarenza/Blast.jl/workflows/CI/badge.svg)](https://github.com/sofiachiarenza/Blast.jl/actions)
-[![arXiv](https://img.shields.io/badge/arXiv-2410.03632-b31b1b.svg)](https://arxiv.org/abs/2410.03632)
+| [![Docs - Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sofiachiarenza.github.io/Blast.jl/dev) | [![Docs - Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://sofiachiarenza.github.io/Blast.jl/stable) |
+|---|---|
+| [![Code Coverage](https://codecov.io/github/sofiachiarenza/Blast.jl/graph/badge.svg?token=8QLDGERO9H)](https://codecov.io/github/sofiachiarenza/Blast.jl) | [![Build Status](https://github.com/sofiachiarenza/Blast.jl/workflows/CI/badge.svg)](https://github.com/sofiachiarenza/Blast.jl/actions) |
+| [![arXiv](https://img.shields.io/badge/arXiv-2410.03632-b31b1b.svg)](https://arxiv.org/abs/2410.03632) | |
