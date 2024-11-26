@@ -3,7 +3,7 @@
     plan_fft(vals::AbstractArray{<:Number, N}, axis::Int)
 
 Create an FFTW real-to-real (R2R) transformation plan for a specified axis of a given multidimensional array `vals`. 
-In practice, the `vals` array is often the power spectrum P(k,χ): the specified axis should contain the wavenumbers `k`. So if the power spectrum is given in a matrix of shape (nk, nχ), axis should be `1`. Instead, axis = `2` should be used for a matrix of shape (nχ, nk).
+For example, if the `vals` array is the power spectrum P(k,z), one can set `axis=1` and perform the FFT in `k`, or `axis=2` if the FFT is to be performed along `z`.
 
 # Arguments
 - `vals::AbstractArray{<:Number, N}`: The input array of any numerical type with `N` dimensions.
