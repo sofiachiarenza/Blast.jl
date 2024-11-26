@@ -12,7 +12,7 @@ This repo contains the Beyond Limber Angular power Spectra Toolkit, `Blast.jl`. 
 
 ## Installation
 
-In order to install `Capse.jl`, run from the `Julia` REPL
+In order to install `Blast.jl`, run from the `Julia` REPL
 
 ```julia
 using Pkg, Pkg.add(url="https://github.com/sofiachiarenza/Blast.jl")
