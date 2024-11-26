@@ -20,7 +20,7 @@ Pkg.add(url="https://github.com/sofiachiarenza/Blast.jl")
 ```
 
 ## Usage
-After installing it, you can start instantiating the objects needed to compute the `C_\ell`'s. To begin, initialize the cosmological model and background quantities:
+After installing it, you can start instantiating the objects needed to compute the $C_\ell$'s. To begin, initialize the cosmological model and background quantities:
 
 ```julia
 cosmo = Blast.FlatΛCDM()
@@ -41,7 +41,7 @@ nz = rand(n_bins, nz)  # Example n(z), replace with actual data
 Blast.compute_kernel!(nz, grid.z_range, GK, grid, bg, cosmo) #compute clustering kernel, repeat for the other probes
 ```
 
-Load the precomputed inner integrals `\Tilde{T}^{AB}_\ell(\chi_1,\chi_2)` and evaluate the coefficients of the Chebyshev decomposition of the power spectrum:
+Load the precomputed inner integrals $\Tilde{T}^{AB}_\ell(\chi_1,\chi_2)$ and evaluate the coefficients of the Chebyshev decomposition of the power spectrum:
 
 ```julia
 T_LL = Blast.T_tilde_p2  # Lensing-Lensing
@@ -51,7 +51,7 @@ T_CC = Blast.T_tilde_m2  # Clustering-Clustering
 plan = Blast.plan_fft(Pk, 1)
 cheb_coeff = Blast.fast_chebcoefs(Pk, plan)
 ```
-Using the Chebyshev coefficients, compute the projected matter densities `w_\ell`:
+Using the Chebyshev coefficients, compute the projected matter densities $w_\ell$:
 
 ```julia
 w_LL = Blast.w_ell_tullio(cheb_coeff, T_LL)
