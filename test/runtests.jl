@@ -415,7 +415,7 @@ run(`bash -c "rm n5k_zs.npz"`)
 
     pk = ones(3, 3, 3)
     expected_output = ones(3, 3, 3)
-    result = Blast.correlated_power_spectrum(pk)
+    result = Blast.unequal_time_power_spectrum(pk)
     @test result == expected_output
 
 end
