@@ -60,5 +60,5 @@ Blast.compute_kernel!(::AbstractArray{T, 2}, ::AbstractArray{T, 1}, ::Blast.Shea
 Blast.compute_kernel!(::Blast.CMBLensingKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology)
 Blast.chebyshev_polynomials
 Blast.interpolate_power_spectrum
-Blast.correlated_power_spectrum
+Blast.unequal_time_power_spectrum
 ```
