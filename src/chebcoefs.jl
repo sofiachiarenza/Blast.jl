@@ -116,7 +116,7 @@ function interpolate_power_spectrum(pk::AbstractArray{T,2}, z_nodes::AbstractArr
 end
 
 """
-    correlated_power_spectrum(pk::AbstractArray{T,3}) where T
+    unequal_time_power_spectrum(pk::AbstractArray{T,3}) where T
 
 Takes in input the power spectrum on the ``(k, \\chi, R)`` grid and implements the equation: 
 ```math
@@ -130,7 +130,7 @@ which assumes that the quantities involved are perfectly correlated at different
 # Returns
 A 3D array with the same dimensions as `pk`.
 """
-function correlated_power_spectrum(pk::AbstractArray{T,3}) where T
+function unequal_time_power_spectrum(pk::AbstractArray{T,3}) where T
     pk_R1 = pk[:,:,end]
     @tullio final_pk[i,c,r] := sqrt(pk_R1[i,c] * pk[i,c,r])
     return final_pk
