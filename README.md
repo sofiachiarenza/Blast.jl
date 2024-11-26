@@ -41,7 +41,7 @@ nz = rand(n_bins, nz)  # Example n(z), replace with actual data
 Blast.compute_kernel!(nz, grid.z_range, GK, grid, bg, cosmo) #compute clustering kernel, repeat for the other probes
 ```
 
-Load the precomputed inner integrals $\Tilde{T}^{AB}_\ell(\chi_1,\chi_2)$ and evaluate the coefficients of the Chebyshev decomposition of the power spectrum:
+Load the precomputed inner integrals $\tilde{T}^{AB}_\ell(\chi_1,\chi_2)$ and evaluate the coefficients of the Chebyshev decomposition of the power spectrum:
 
 ```julia
 T_LL = Blast.T_tilde_p2  # Lensing-Lensing
