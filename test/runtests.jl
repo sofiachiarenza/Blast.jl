@@ -64,7 +64,7 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     end
 
     GK = Blast.GalaxyKernel(10, length(grid.z_range) )
-    Blast.compute_kernel!(bins["dNdz"], bins["z"], GK, grid, bg, cosmo)
+    Blast.compute_kernel!(bins["dNdz"], bins["z"], GK, ones(10), grid, bg, cosmo)
 
 
     print("Computing shear kernels...\n")
@@ -288,7 +288,7 @@ end
     Probe2 = Blast.ShearKernel(1,nχ)
     Probe2.Kernel = ones(1,nχ) 
     nz = rand(3,nχ)
-    Blast.compute_kernel!(nz, z, Probe1, grid, bg, cosmo)
+    Blast.compute_kernel!(nz, z, Probe1, ones(1), grid, bg, cosmo)
     Blast.compute_kernel!(nz, z, Probe2, grid, bg, cosmo)
 
     w = rand(length(Blast.ℓ), nχ, nR)

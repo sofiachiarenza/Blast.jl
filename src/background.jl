@@ -137,26 +137,27 @@ end
 
 """
     compute_kernel!(nz::AbstractArray{T, 2}, Probe::GalaxyKernel, z::AbstractArray{T, 1},
-                    grid::CosmologicalGrid, bg::BackgroundQuantities, 
+                    bias::AbstractArray{T,1}, grid::CosmologicalGrid, bg::BackgroundQuantities, 
                     cosmo::AbstractCosmology) where T
 
 Computes the galaxy clustering kernel based on a redshift distribution `nz` and stores it in the `GalaxyKernel` struct. 
 The kernel is defined as: 
 ```math
-W_g(\\chi) = \\frac{H(z)}{c}n(z)
+W_g(\\chi) = \\frac{H(z)}{c}n(z)b(z)
 ```
 
 # Parameters:
 - `nz`: A 2D array of type `T` where each row represents the redshift distribution of galaxies for a specific redshift bin.
 - `z`: The redshift grid corresponding to the `nz` array.
 - `Probe`: An instance of `GalaxyKernel`, in which the computed kernel values for each redshift bin will be stored.
+- `bias`: A vector of size n_bins containing the **constant** value of the bias in each tomographic bin.
 - `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
 - `bg`: A struct containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
 - `cosmo`: An instance of a cosmological model used to calculate the background quantities if not already provided.
 
 """
 function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe::GalaxyKernel, 
-                        grid::CosmologicalGrid, bg::BackgroundQuantities, 
+                        bias::AbstractArray{T,1}, grid::CosmologicalGrid, bg::BackgroundQuantities, 
                         cosmo::AbstractCosmology) where T
 
     #TODO: this test will suck for autodiff, will need fixing
@@ -170,7 +171,47 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
         nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
-        Probe.Kernel[b,:] = @. (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
+        Probe.Kernel[b,:] = @. bias[b] * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
+    end
+end
+
+"""
+    compute_kernel!(nz::AbstractArray{T, 2}, Probe::GalaxyKernel, z::AbstractArray{T, 1},
+                    bias::AbstractArray{T,2}, grid::CosmologicalGrid, bg::BackgroundQuantities, 
+                    cosmo::AbstractCosmology) where T
+
+Computes the galaxy clustering kernel based on a redshift distribution `nz` and stores it in the `GalaxyKernel` struct. 
+The kernel is defined as: 
+```math
+W_g(\\chi) = \\frac{H(z)}{c}n(z)b(z)
+```
+
+# Parameters:
+- `nz`: A 2D array of type `T` where each row represents the redshift distribution of galaxies for a specific redshift bin.
+- `z`: The redshift grid corresponding to the `nz` array.
+- `Probe`: An instance of `GalaxyKernel`, in which the computed kernel values for each redshift bin will be stored.
+- `bias`: A 2D array of type `T` where each row represents the value of the b(z) in each tomographic bin.
+- `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
+- `bg`: A struct containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
+- `cosmo`: An instance of a cosmological model used to calculate the background quantities if not already provided.
+
+"""
+function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe::GalaxyKernel, 
+                        bias::AbstractArray{T,2}, grid::CosmologicalGrid, bg::BackgroundQuantities, 
+                        cosmo::AbstractCosmology) where T
+
+    #TODO: this test will suck for autodiff, will need fixing
+    if all(iszero, bg.Hz_array) || all(iszero, bg.χz_array)
+        evaluate_background_quantities!(grid, bg, cosmo)
+    end
+
+    n_bins = size(Probe.Kernel, 1)
+    
+    for b in 1:n_bins
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
+        nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
+
+        Probe.Kernel[b,:] = @. bias[b, :] * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
     end
 end
 
