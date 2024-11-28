@@ -8,6 +8,7 @@ using FFTW
 using PhysicalConstants
 using DataInterpolations
 using Tullio
+using StaticArrays
 
 import PhysicalConstants.CODATA2018: c_0
 const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
@@ -63,7 +64,7 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     end
 
     GK = Blast.GalaxyKernel(10, length(grid.z_range) )
-    Blast.compute_kernel!(bins["dNdz"], bins["z"], GK, grid, bg, cosmo)
+    Blast.compute_kernel!(bins["dNdz"], bins["z"], GK, ones(10), grid, bg, cosmo)
 
 
     print("Computing shear kernels...\n")
@@ -222,7 +223,7 @@ end
     dims = (2^10, 2^6)
     A = rand(Float64, dims)
 
-    plan = Blast.plan_fft(A)
+    plan = Blast.plan_fft(A, 1)
     my_coefs = Blast.fast_chebcoefs(A, plan)
 
     true_coefs = zeros(dims)
@@ -287,7 +288,7 @@ end
     Probe2 = Blast.ShearKernel(1,nχ)
     Probe2.Kernel = ones(1,nχ) 
     nz = rand(3,nχ)
-    Blast.compute_kernel!(nz, z, Probe1, grid, bg, cosmo)
+    Blast.compute_kernel!(nz, z, Probe1, ones(1), grid, bg, cosmo)
     Blast.compute_kernel!(nz, z, Probe2, grid, bg, cosmo)
 
     w = rand(length(Blast.ℓ), nχ, nR)
@@ -342,4 +343,79 @@ end
     @test theory_gal ≈ Blast.get_kernel_array(GK, bg, b)
     @test theory_sh ≈ Blast.get_kernel_array(SHK, bg, b)
     @test theory_cmb ≈ Blast.get_kernel_array(CK, bg, b)
+end
+
+run(`wget --content-disposition "https://zenodo.org/records/14192971/files/pk_n5k_cheb.npz?download=1"`)
+pk_n5k = npzread(input_path*"/pk_n5k_cheb.npz")
+run(`bash -c "rm pk_n5k_cheb.npz"`)
+
+run(`wget --content-disposition "https://zenodo.org/records/14193379/files/n5k_zs.npz?download=1"`)
+n5k_zs = npzread(input_path*"/n5k_zs.npz")
+run(`bash -c "rm n5k_zs.npz"`)
+
+@testset "Power spectrum interpolation tests" begin
+    x = rand(1000) * 10.0 .+ 1.0  
+    n_cheb = 120  
+    #Blast evaluation of ChebPolys
+    Tcheb_test = Blast.chebyshev_polynomials(x, n_cheb, minimum(x), maximum(x))
+
+    #Standard evaluation of ChebPolys
+    x_cheb = chebpoints(n_cheb-1, minimum(x), maximum(x)) 
+    c = FastChebInterp.ChebPoly(x_cheb, SA[minimum(x)], SA[maximum(x)])
+    T_reference = zeros(n_cheb, length(x))
+    for i in 1:n_cheb
+        copy_c = deepcopy(c)
+        copy_c.coefs .= 0
+        copy_c.coefs[i] = 1.0
+        T_reference[i, :] = copy_c.(x)
+    end
+
+    @test Tcheb_test ≈ T_reference
+
+    cosmo =Blast.FlatΛCDM()
+    z_range = Array([0.0, 0.5, 1.0, 2.0])
+    grid = Blast.CosmologicalGrid(z_range = z_range)
+    bg = Blast.BackgroundQuantities(Hz_array = zeros(length(z_range)), χz_array = zeros(length(z_range)))
+    Blast.evaluate_background_quantities!(grid, bg, cosmo)
+    R = 0.5
+    new_χ = bg.χz_array .* R
+
+    z_of_χ = DataInterpolations.AkimaInterpolation(grid.z_range, bg.χz_array, extrapolate=true)
+
+    new_z = Blast.resample_redshifts(bg, grid, new_χ)
+    test_z = z_of_χ.(new_χ)
+
+    @test new_z ≈ test_z
+
+    nχ = 96
+    χ = LinRange(26, 7000, nχ)
+    R = chebpoints(96, -1, 1)
+    R = reverse(R[R.>0])
+    kmax = 200/13 
+    kmin = 2.5/7000
+    n_cheb = 119
+    k_cheb = chebpoints(n_cheb, log10(kmin), log10(kmax))
+    cosmo = Blast.FlatΛCDM()
+    z_range = n5k_zs #redshifts corresponding to the χ array
+    bgrid = Blast.CosmologicalGrid(z_range = z_range)
+    bg = Blast.BackgroundQuantities(Hz_array = zeros(length(z_range)), χz_array = Array(χ))
+    z_cheb = chebpoints(7, 0, 3.5)
+    plan = Blast.plan_fft(pk_n5k, 1)
+    blast_pk = Blast.interpolate_power_spectrum(pk_n5k, z_cheb, R, plan, bg, bgrid)
+
+    fastcheb_check = zeros(n_cheb+1, length(χ), length(R))
+    newzs = Blast.resample_redshifts(bg, bgrid, Blast.make_grid(bg, R))
+   
+    for i in 1:n_cheb+1
+        rightinterp = chebinterp(pk_n5k[:,i], minimum(newzs), maximum(newzs))
+        fastcheb_check[i,:,:] = reshape(rightinterp.(newzs) , 96, 48)
+    end
+
+    @test blast_pk ≈ fastcheb_check
+
+    pk = ones(3, 3, 3)
+    expected_output = ones(3, 3, 3)
+    result = Blast.unequal_time_power_spectrum(pk)
+    @test result == expected_output
+
 end
