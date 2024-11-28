@@ -41,13 +41,43 @@ nz = rand(n_bins, nz)  # Example n(z), replace with actual data
 Blast.compute_kernel!(nz, grid.z_range, GK, grid, bg, cosmo) #compute clustering kernel, repeat for the other probes
 ```
 
-Load the precomputed inner integrals $\tilde{T}^{AB}_\ell(\chi_1,\chi_2)$ and evaluate the coefficients of the Chebyshev decomposition of the power spectrum:
+Load the precomputed inner integrals $\tilde{T}^{AB}_\ell(\chi_1,\chi_2)$:
 
 ```julia
 T_LL = Blast.T_tilde_p2  # Lensing-Lensing
 T_CL = Blast.T_tilde_0   # Clustering-Lensing
 T_CC = Blast.T_tilde_m2  # Clustering-Clustering
+```
 
+Those objects have shape `(n_ℓ, nχ, nR, nk)`. They are defined on the following grids: 
+
+- Multipoles:
+```julia
+ℓ = Blast.ℓ
+```
+
+- Comoving distance:
+```julia
+nχ = 96
+χ = LinRange(26, 7000, nχ)
+```
+
+- $R = \chi_2/\chi_1$:
+```julia
+R = chebpoints(96, -1, 1)
+R = reverse(R[R.>0])
+nR = length(R)
+```
+
+- Wavenumbers:
+```julia
+kmax = 200/13 
+kmin = 2.5/7000
+n_cheb = 119
+k_cheb = chebpoints(n_cheb, log10(kmin), log10(kmax))
+```
+Evaluate the coefficients of the Chebyshev decomposition of the power spectrum:
+```julia
 plan = Blast.plan_fft(Pk, 1)
 cheb_coeff = Blast.fast_chebcoefs(Pk, plan)
 ```
