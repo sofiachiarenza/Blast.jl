@@ -35,11 +35,16 @@ function get_clencurt_weights(kmin::Number, kmax::Number, N::Number)
     return w
 end
 
+#TODO: missing documentation
+function bessel_second_derivative(ℓ::Number, x::Number)
+    return @views @. 2/x * SpecialFunctions.sphericalbesselj.(ℓ+1, x) + (ℓ^2-ℓ-x^2)/x^2 * SpecialFunctions.sphericalbesselj.(ℓ, x)
+end
+
 """
     bessel_cheb_eval(ℓ::Number, kmin::Number, kmax::Number, χ::AbstractArray, n_cheb::Int, N::Number)
 Return the Chebyshev polynomials up to order 'n_cheb+1' and the Bessel function of order 'ℓ' evaluated on the grid of 'N' Chebyshev points in the interval ['kmin', 'kmax'] and on the specified 'χ' points. 
 """
-function bessel_cheb_eval(ℓ::Number, kmin::Number, kmax::Number, χ::AbstractArray, n_cheb::Int, N::Number)
+function bessel_cheb_eval(ℓ::Number, kmin::Number, kmax::Number, χ::AbstractArray, n_cheb::Int, N::Number, deriv_order::Int)
 
     nχ = length(χ)
     x = get_clencurt_grid(kmin, kmax, N)
@@ -57,12 +62,20 @@ function bessel_cheb_eval(ℓ::Number, kmin::Number, kmax::Number, χ::AbstractA
 
     Bessel = zeros(nχ, N)
     Threads.@threads for i in 1:nχ
-            Bessel[i,:] = @views SpecialFunctions.sphericalbesselj.(ℓ, χ[i] * x)
+        if deriv_order == 0
+            Bessel[i, :] = @views SpecialFunctions.sphericalbesselj.(ℓ, χ[i] * x)
+        elseif deriv_order == 2
+            Bessel[i, :] = @views bessel_second_derivative(ℓ, χ[i] * x)
+        else
+            error("Invalid derivative order: $deriv_order. Expected 0 or 2.")
+        end
     end
 
     return T, Bessel
 
 end
+
+
 
 """
     compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb::Int = 119, N::Int = 2^(15)+1)
@@ -83,7 +96,7 @@ Compute integrals of the Bessels function and the Chebyshev polynomials. This is
 
 - `N::Int`: Number of integration points in k.
 """
-function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb::Int = 119, N::Int = 2^(15)+1)
+function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number, der_A::Int, der_B::Int; n_cheb::Int = 119, N::Int = 2^(15)+1)
     if kmin >= kmax 
         throw(DomainError("The integration range is unphysical. Make sure kmin < kmax.")) 
     end
@@ -93,15 +106,23 @@ function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Num
 
     x = get_clencurt_grid(kmin, kmax, N)
     w = get_clencurt_weights(kmin, kmax, N)
-    T, Bessel1 = bessel_cheb_eval(ℓ, kmin, kmax, χ, n_cheb, N)
+
+    T, Bessel1 = bessel_cheb_eval(ℓ, kmin, kmax, χ, n_cheb, N, der_A)
+
 
     T_tilde = zeros(1, nχ, nR, n_cheb+1)
     
     for (ridx, r) in enumerate(R)
         Bessel2 = zeros(nχ, N)
         
-        Threads.@threads for i in 1:nχ
-            Bessel2[i,:] = @views SpecialFunctions.sphericalbesselj.(ℓ, r*χ[i] * x)
+        if der_B == 0
+            Threads.@threads for i in 1:nχ
+                Bessel2[i,:] = @views SpecialFunctions.sphericalbesselj.(ℓ, r*χ[i] * x)
+            end
+        elseif der_B == 2
+            Threads.@threads for i in 1:nχ
+                Bessel2[i,:] = bessel_second_derivative(ℓ, r*χ[i] * x)
+            end
         end
 
         α = w .* (x .^ β) #β = 2 for CC, -2 for LL and 0 for CL.
