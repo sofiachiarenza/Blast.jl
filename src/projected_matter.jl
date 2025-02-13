@@ -36,7 +36,7 @@ function get_clencurt_weights(kmin::Number, kmax::Number, N::Number)
 end
 
 #TODO: missing documentation
-function bessel_second_derivative(ℓ::Number, x::Number)
+function bessel_second_derivative(ℓ::Number, x::AbstractArray)
     return @views @. 2/x * SpecialFunctions.sphericalbesselj.(ℓ+1, x) + (ℓ^2-ℓ-x^2)/x^2 * SpecialFunctions.sphericalbesselj.(ℓ, x)
 end
 
