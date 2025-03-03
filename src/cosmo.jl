@@ -146,6 +146,15 @@ CMBLensingKernel{T}(nχ::Int) where T = CMBLensingKernel{T}(Kernel = zeros(T, n�
 
 CMBLensingKernel(nχ::Int) = CMBLensingKernel{Float64}(nχ)
 
+#TODO: missing docs
+@kwdef mutable struct RSDKernel{T} <: AbstractCosmologicalProbes{T}
+    Kernel::AbstractArray{T, 2} = zeros(1, 1)
+end
+
+RSDKernel{T}(n_bins::Int, nχ::Int) where T = RSDKernel{T}(Kernel = zeros(T, n_bins, nχ))
+
+RSDKernel(n_bins::Int, nχ::Int) = RSDKernel{Float64}(n_bins, nχ)
+
 
 
 

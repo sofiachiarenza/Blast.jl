@@ -293,3 +293,16 @@ function compute_kernel!(Probe::CMBLensingKernel, grid::CosmologicalGrid,
 
     Probe.Kernel = @. prefac * bg.χz_array * (1. + grid.z_range) * (1 - bg.χz_array/χ_CMB)
 end
+
+function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe::RSDKernel, 
+    growth_factor::AbstractArray{T,1}, grid::CosmologicalGrid,  bg::BackgroundQuantities) where T
+
+    n_bins = size(Probe.Kernel, 1)
+
+    for b in 1:n_bins
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
+        nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
+
+        Probe.Kernel[b,:] = @. growth_factor * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm) #TODO: might be missing C factors
+    end
+end

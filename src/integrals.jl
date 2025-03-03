@@ -23,7 +23,7 @@ Returns a 2D array of interpolated kernel values, where rows correspond to the n
 - `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
 - `grid::Vector{T}`: A vector of values where the interpolated kernel values will be evaluated.
 """
-function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel}, 
+function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel, RSDKernel}, 
     bg::BackgroundQuantities, grid::Vector{T}) where T
 
     n_bins = size(Probe.Kernel, 1)
@@ -73,6 +73,18 @@ Obtains the kernel array for the `GalaxyKernel` probe, with dimensions (bins, n�
 - `R::Vector{T}`: A vector of values for which the kernel array is to be computed.
 """
 function get_kernel_array(Probe::GalaxyKernel, 
+    bg::BackgroundQuantities, R::Vector{T}) where T
+
+    n_bins = size(Probe.Kernel, 1)
+    nχ = size(Probe.Kernel, 2)
+    nR = length(R)
+    
+    W_array = reshape(grid_interpolator(Probe, bg, make_grid(bg, R)), n_bins, nχ, nR)
+
+    return W_array
+end
+
+function get_kernel_array(Probe::RSDKernel, 
     bg::BackgroundQuantities, R::Vector{T}) where T
 
     n_bins = size(Probe.Kernel, 1)
@@ -156,8 +168,8 @@ This is needed to perform the integration in the χ-R coordinates.
 - `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
 - `R::Vector{T}`: A vector of values used in the combination.
 """
-function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
-    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel},
+function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel}, 
+    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel},
     bg::BackgroundQuantities, R::Vector{T}) where T
 
     W_A = get_kernel_array(ProbeA, bg, R)
@@ -192,6 +204,10 @@ Calculates the prefactor for the angular power spectrum when both probes are `Ga
 - `ℓ_list::Vector`: A vector of angular multipole values.
 """
 function get_ell_prefactor(ProbeA::GalaxyKernel, ProbeB::GalaxyKernel, ℓ_list::Vector)
+    return 2 / π * ones(length(ℓ_list))
+end
+
+function get_ell_prefactor(ProbeA::RSDKernel, ProbeB::RSDKernel, ℓ_list::Vector)
     return 2 / π * ones(length(ℓ_list))
 end
 
@@ -265,6 +281,27 @@ end
 
 # Define the same prefactor for ShearKernel and GalaxyKernel order
 get_ell_prefactor(ProbeA::GalaxyKernel, ProbeB::CMBLensingKernel, ℓ_list::Vector) = 
+    get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
+
+function get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::RSDKernel, ℓ_list::Vector)
+    return @. 2 * ℓ_list * (ℓ_list + 1) / π 
+end
+
+get_ell_prefactor(ProbeA::RSDKernel, ProbeB::CMBLensingKernel, ℓ_list::Vector) = 
+    get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
+
+function get_ell_prefactor(ProbeA::GalaxyKernel, ProbeB::RSDKernel, ℓ_list::Vector)
+    return  2 / π * ones(length(ℓ_list)) 
+end
+    
+get_ell_prefactor(ProbeA::RSDKernel, ProbeB::GalaxyKernel, ℓ_list::Vector) = 
+    get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
+
+function get_ell_prefactor(ProbeA::ShearKernel, ProbeB::RSDKernel, ℓ_list::Vector)
+    return  2 / π * sqrt.(factorial_frac(ℓ_list)) 
+end
+        
+get_ell_prefactor(ProbeA::RSDKernel, ProbeB::ShearKernel, ℓ_list::Vector) = 
     get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
 
 """
@@ -352,8 +389,8 @@ The Simpson quadrature rule is used for integration over `χ`, while Clenshaw-Cu
 # Returns
 - A 3D array `Cℓ` with dimensions (ℓ, i, j), where `i` and `j` represent the tomographic bins. The array contains the computed angular power spectrum coefficients for each combination of `ℓ` values and tomographic bins.
 """
-function compute_Cℓ(w::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, 
-    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel}, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
+function compute_Cℓ(w::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel}, 
+    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel}, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
 
     nχ = length(bkgq.χz_array)
     nR = length(R)
@@ -404,4 +441,31 @@ function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, bkgq::Back
     @tullio Cℓ[l,i,j] := ell_prefactor[l]*bkgq.χz_array[n]*K[i,j,n,m]*w[l,n,m]*weights_χ[n]*weights_R[m]*Δχ
 
     return Cℓ 
+end
+
+#TODO: this is not nice, need to think of a better way to use multiple dispatch or someting like that here
+function compute_Cℓ_rsd(w_02::AbstractArray{T, 3}, w_20::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel}, 
+    ProbeB::RSDKernel, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
+
+    nχ = length(bkgq.χz_array)
+    nR = length(R)
+
+    W_A = get_kernel_array(ProbeA, bkgq, R)
+    W_A_r1 = W_A[:,:,end]
+
+    W_B = get_kernel_array(ProbeB, bkgq, R)
+    W_B_r1 = W_B[:,:,end]
+
+    @tullio K[l,i,j,c,r] := W_A_r1[i,c] * W_B[j,c,r] * w_02[l,c,r] + W_A[i,c,r] * W_B_r1[j,c] * w_20[l,c,r]
+
+    #Integration in χ is performed using the Simpson quadrature rule
+    Δχ = ((last(bkgq.χz_array)-first(bkgq.χz_array))/(nχ-1))
+    w_χ = simpson_weight_array(nχ)
+
+    #Integration in R is performed using the Clenshaw-Curtis quadrature rule
+    w_R = get_clencurt_weights_R_integration(2*nR+1)
+
+    ell_prefactor = get_ell_prefactor(ProbeA, ProbeB, ℓ_list)
+
+    @tullio Cℓ[l,i,j] := ell_prefactor[l]*bkgq.χz_array[n]*K[l,i,j,n,m]*w_χ[n]*w_R[m]*Δχ
 end
