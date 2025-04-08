@@ -66,7 +66,7 @@ end
 - `k_range`: Array of wavenumbers for evaluating power spectra or other k-dependent quantities (default: LogSpaced(1e-5, 50, 1000)).
 """
 @kwdef mutable struct CosmologicalGrid{T} <: AbstractCosmologicalGrid{T}
-    z_range::AbstractArray{T} = LinRange(0.001, 2.5, 300)
+    z_range::AbstractArray{T} = LinRange(0, 5, 300)
     k_range::AbstractArray{T} = LinRange(1e-5, 50., 1000) # TODO: Switch to Chebyshev points for better interpolation.
 end
 
@@ -154,6 +154,14 @@ end
 RSDKernel{T}(n_bins::Int, nχ::Int) where T = RSDKernel{T}(Kernel = zeros(T, n_bins, nχ))
 
 RSDKernel(n_bins::Int, nχ::Int) = RSDKernel{Float64}(n_bins, nχ)
+
+@kwdef mutable struct LensMagKernel{T} <: AbstractCosmologicalProbes{T}
+    Kernel::AbstractArray{T, 2} = zeros(1, 1)
+end
+
+LensMagKernel{T}(n_bins::Int, nχ::Int) where T = LensMagKernel{T}(Kernel = zeros(T, n_bins, nχ))
+
+LensMagKernel(n_bins::Int, nχ::Int) = LensMagKernel{Float64}(n_bins, nχ)
 
 
 

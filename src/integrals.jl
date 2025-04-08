@@ -23,7 +23,7 @@ Returns a 2D array of interpolated kernel values, where rows correspond to the n
 - `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
 - `grid::Vector{T}`: A vector of values where the interpolated kernel values will be evaluated.
 """
-function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel, RSDKernel}, 
+function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel, RSDKernel, LensMagKernel}, 
     bg::BackgroundQuantities, grid::Vector{T}) where T
 
     n_bins = size(Probe.Kernel, 1)
@@ -108,7 +108,7 @@ The difference with respect to the galaxy case is that these kernels are divided
 - `bg::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
 - `R::Vector{T}`: A vector of values for which the kernel array is to be computed.
 """
-function get_kernel_array(Probe::ShearKernel, 
+function get_kernel_array(Probe::Union{ShearKernel, LensMagKernel}, 
     bg::BackgroundQuantities, R::Vector{T}) where T
 
     n_bins = size(Probe.Kernel, 1)
@@ -168,8 +168,8 @@ This is needed to perform the integration in the χ-R coordinates.
 - `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type.
 - `R::Vector{T}`: A vector of values used in the combination.
 """
-function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel}, 
-    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel},
+function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel, LensMagKernel}, 
+    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel, LensMagKernel},
     bg::BackgroundQuantities, R::Vector{T}) where T
 
     W_A = get_kernel_array(ProbeA, bg, R)
@@ -304,6 +304,32 @@ end
 get_ell_prefactor(ProbeA::RSDKernel, ProbeB::ShearKernel, ℓ_list::Vector) = 
     get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
 
+function get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::LensMagKernel, ℓ_list::Vector)
+    return @.  2 * (ℓ_list * (ℓ_list + 1))^2 / π 
+end
+
+get_ell_prefactor(ProbeA::LensMagKernel, ProbeB::CMBLensingKernel, ℓ_list::Vector) = 
+    get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
+
+function get_ell_prefactor(ProbeA::RSDKernel, ProbeB::LensMagKernel, ℓ_list::Vector)
+    return @. 2 / π * ℓ_list * (ℓ_list + 1)
+end
+    
+get_ell_prefactor(ProbeA::LensMagKernel, ProbeB::RSDKernel, ℓ_list::Vector) = 
+    get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
+
+function get_ell_prefactor(ProbeA::GalaxyKernel, ProbeB::LensMagKernel, ℓ_list::Vector)
+    return @. 2 / π * ℓ_list * (ℓ_list + 1) 
+end
+        
+get_ell_prefactor(ProbeA::LensMagKernel, ProbeB::GalaxyKernel, ℓ_list::Vector) = 
+    get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
+
+
+function get_ell_prefactor(ProbeA::LensMagKernel, ProbeB::LensMagKernel, ℓ_list::Vector)
+    return @. 2 / π * (ℓ_list * (ℓ_list + 1))^2  
+end
+
 """
     simpson_weight_array(n::Int; T=Float64)
 
@@ -389,8 +415,8 @@ The Simpson quadrature rule is used for integration over `χ`, while Clenshaw-Cu
 # Returns
 - A 3D array `Cℓ` with dimensions (ℓ, i, j), where `i` and `j` represent the tomographic bins. The array contains the computed angular power spectrum coefficients for each combination of `ℓ` values and tomographic bins.
 """
-function compute_Cℓ(w::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel}, 
-    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel}, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
+function compute_Cℓ(w::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel, LensMagKernel}, 
+    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel, LensMagKernel}, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
 
     nχ = length(bkgq.χz_array)
     nR = length(R)
@@ -444,7 +470,7 @@ function compute_Cℓ(w::AbstractArray{T, 3}, K::AbstractArray{T, 4}, bkgq::Back
 end
 
 #TODO: this is not nice, need to think of a better way to use multiple dispatch or someting like that here
-function compute_Cℓ_rsd(w_02::AbstractArray{T, 3}, w_20::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel}, 
+function compute_Cℓ_rsd(w_02::AbstractArray{T, 3}, w_20::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel, LensMagKernel}, 
     ProbeB::RSDKernel, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
 
     nχ = length(bkgq.χz_array)
