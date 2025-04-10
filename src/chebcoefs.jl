@@ -69,7 +69,8 @@ A 2D array where each row corresponds to a Chebyshev polynomial ``T_n(x)``
   - `` T_{n+1}(x) = 2xT_n(x) - T_{n-1}(x)`` for `` n \\geq 2``.
 """
 function chebyshev_polynomials( x::AbstractArray{T,1}, n_cheb::Int, z_min::T, z_max::T) where T
-    x_scaled = 2 .* (x .- z_min) ./ (z_max - z_min) .- 1.0
+    x_scaled = 2 .* (x .- z_min) ./ (z_max - z_min) .- 1
+    all(abs.(x_scaled) .≤ 1)
     
     Tcheb = zeros(n_cheb, length(x_scaled))
     
@@ -80,6 +81,54 @@ function chebyshev_polynomials( x::AbstractArray{T,1}, n_cheb::Int, z_min::T, z_
     
     for n in 2:n_cheb-1
         Tcheb[n+1, :] .= 2 .* x_scaled .* Tcheb[n, :] .- Tcheb[n-1, :]
+    end
+    
+    return Tcheb
+end
+
+function chebyshev_polynomials( x::AbstractArray, cheb_nodes::AbstractArray )
+    
+    n_cheb = length(cheb_nodes)
+    z_min = minimum(cheb_nodes)
+    z_max = maximum(cheb_nodes)
+    #AssertionError(maximum(x)<=z_max)
+
+    app = LinRange(-1, 1, 1000)
+
+    Tcheb = zeros(n_cheb, length(app))
+    
+    Tcheb[1, :] .= 1.0  # T0(x) = 1
+    if n_cheb >= 2
+        Tcheb[2, :] .= app  # T1(x) = x
+    end
+    
+    for n in 2:n_cheb-1
+        Tcheb[n+1, :] .= 2 .* app .* Tcheb[n, :] .- Tcheb[n-1, :]
+    end
+
+    T_cheb_return = zeros(n_cheb, length(x))
+    x_scaled = 2 .* (x .-z_min) ./ (z_max - z_min) .- 1
+
+    for i in 1:n_cheb
+        interp = AkimaInterpolation(Tcheb[i,:], app)
+        T_cheb_return[i,:] = interp.(x_scaled)
+    end
+    
+    return T_cheb_return
+end
+
+function chebyshev_frigo( x::AbstractArray, cheb_nodes::AbstractArray)
+
+    n_cheb = length(cheb_nodes)
+    Tcheb = zeros(n_cheb, length(x))
+
+    c = FastChebInterp.ChebPoly(cheb_nodes, SA[minimum(cheb_nodes)], SA[maximum(cheb_nodes)])
+
+    for i in 1:n_cheb
+        copy_c = deepcopy(c) 
+        copy_c.coefs .*= 0 
+        copy_c.coefs[i] = 1.
+        Tcheb[i,:] = copy_c.(x)
     end
     
     return Tcheb
@@ -110,7 +159,7 @@ function interpolate_power_spectrum(pk::AbstractArray{T,2}, z_nodes::AbstractArr
     coefs = fast_chebcoefs(pk, plan)
     new_χs = make_grid(bg, R)
     x = resample_redshifts(bg, grid, new_χs)
-    chebyshevs = chebyshev_polynomials(x, length(z_nodes), minimum(x), maximum(x))
+    chebyshevs = chebyshev_polynomials(x, z_nodes)
     pk_interp = coefs' * chebyshevs  #TODO: understand how to handle pk sizes
     return reshape(pk_interp, size(pk,2),  length(bg.χz_array), length(R))
 end

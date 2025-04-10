@@ -6,6 +6,7 @@ using FastTransforms
 using FastChebInterp
 using SpecialFunctions
 using DataInterpolations
+using Interpolations
 using StaticArrays
 using FFTW
 using NPZ
@@ -18,6 +19,7 @@ include("background.jl")
 include("projected_matter.jl")
 include("chebcoefs.jl")
 include("integrals.jl")
+include("utils.jl")
 
 import PhysicalConstants.CODATA2018: c_0
 
