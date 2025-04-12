@@ -20,6 +20,7 @@ include("projected_matter.jl")
 include("chebcoefs.jl")
 include("integrals.jl")
 include("utils.jl")
+include("limber.jl")
 
 import PhysicalConstants.CODATA2018: c_0
 
