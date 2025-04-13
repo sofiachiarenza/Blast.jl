@@ -1,3 +1,21 @@
+function Cℓ_limber(pk, ℓ, bg::BackgroundQuantities, ProbeA::Blast.GalaxyKernel, ProbeB::Blast.GalaxyKernel )
+    χ = bg.χz_array
+    n = length(χ)
+    
+    F = 1
+
+    Δχ = ((χ[n]-χ[1])/(n-1))
+    pesi = Blast.simpson_weight_array(n)
+
+    pk_over_chi = pk ./ (χ .^ 2)
+
+    KA = ProbeA.Kernel
+    KB = ProbeB.Kernel
+
+    @tullio Cℓ[i,j] := Δχ*pk_over_chi[m]*KA[i,m]*KB[j,m]*pesi[m]*F
+    return Cℓ
+end
+
 function Cℓ_limber(pk, ℓ, bg::BackgroundQuantities, ProbeA::Blast.GalaxyKernel, ProbeB::Blast.ShearKernel )
     χ = bg.χz_array
     n = length(χ)
@@ -99,42 +117,6 @@ function Cℓ_limber(pk, ℓ, bg::BackgroundQuantities, ProbeA::Blast.CMBLensing
     pk_over_chi = pk ./ (χ .^ 2)
 
     KA = reshape(ProbeA.Kernel, 1, length(χ))
-    KB = ProbeB.Kernel
-
-    @tullio Cℓ[i,j] := Δχ*pk_over_chi[m]*KA[i,m]*KB[j,m]*pesi[m]*F
-    return Cℓ
-end
-
-function Cℓ_limber(pk, ℓ, bg::BackgroundQuantities, ProbeA::Blast.CMBLensingKernel, ProbeB::Blast.RSDKernel )
-    χ = bg.χz_array
-    n = length(χ)
-    
-    F = @. ℓ * (ℓ + 1) / (ℓ+0.5)^2
-
-    Δχ = ((χ[n]-χ[1])/(n-1))
-    pesi = Blast.simpson_weight_array(n)
-
-    pk_over_chi = pk ./ (χ .^ 2)
-
-    KA = reshape(ProbeA.Kernel, 1, length(χ))
-    KB = reshape(limber_rsd_kernel(ℓ, bg, ProbeB), 1, n)
-
-    @tullio Cℓ[i,j] := Δχ*pk_over_chi[m]*KA[i,m]*KB[j,m]*pesi[m]*F
-    return Cℓ
-end
-
-function Cℓ_limber(pk, ℓ, bg::BackgroundQuantities, ProbeA::Blast.GalaxyKernel, ProbeB::Blast.GalaxyKernel )
-    χ = bg.χz_array
-    n = length(χ)
-    
-    F = 1
-
-    Δχ = ((χ[n]-χ[1])/(n-1))
-    pesi = Blast.simpson_weight_array(n)
-
-    pk_over_chi = pk ./ (χ .^ 2)
-
-    KA = ProbeA.Kernel
     KB = ProbeB.Kernel
 
     @tullio Cℓ[i,j] := Δχ*pk_over_chi[m]*KA[i,m]*KB[j,m]*pesi[m]*F

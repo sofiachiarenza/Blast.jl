@@ -50,7 +50,7 @@ function limber_rsd_kernel(ℓ::Number, bg::BackgroundQuantities, RSDK::Blast.RS
     rds_kernels = zeros( nbins, length(χ) )
 
     for b in 1:nbins
-        kernel_interp = AkimaInterpolation(RSDK.Kernel[b, :], χ, extrapolate=true)
+        kernel_interp = AkimaInterpolation(RSDK.Kernel[b, :], χ, extrapolation=ExtrapolationType.Extension)
         piece1 = @. (2*ℓ^2 + 2*ℓ - 1) / ((2*ℓ - 1)*(2*ℓ + 3)) * RSDK.Kernel[b, :]
         piece2 = @. (ℓ - 1)*ℓ / ((2*ℓ - 1) * sqrt(2*ℓ - 3)*(2*ℓ + 1)) * kernel_interp.((2*ℓ - 3)/(2*ℓ + 1) * χ)
         piece3 = @. (ℓ + 1)*(ℓ + 2) / ((2*ℓ + 3) * sqrt((2*ℓ + 1)*(2*ℓ + 5))) * kernel_interp.((2*ℓ + 5)/(2*ℓ + 1) * χ)

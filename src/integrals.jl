@@ -30,7 +30,7 @@ function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel, RSDKernel, Le
     kernel_interpolated = zeros(n_bins, length(grid))
 
     for b in 1:n_bins
-        interp = AkimaInterpolation(Probe.Kernel[b,:], bg.χz_array, extrapolate=true)
+        interp = AkimaInterpolation(Probe.Kernel[b,:], bg.χz_array, extrapolation=ExtrapolationType.Extension)
         kernel_interpolated[b, :] = interp.(grid)
     end
 
@@ -54,7 +54,7 @@ function grid_interpolator(Probe::CMBLensingKernel,
 
     kernel_interpolated = zeros(1, length(grid))
 
-    interp = AkimaInterpolation(Probe.Kernel, bg.χz_array, extrapolate=true)
+    interp = AkimaInterpolation(Probe.Kernel, bg.χz_array, extrapolation=ExtrapolationType.Extension)
     kernel_interpolated[1, :] = interp.(grid)
 
     return kernel_interpolated

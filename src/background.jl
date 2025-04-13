@@ -131,7 +131,7 @@ Resamples redshift values corresponding to a new set of comoving distances using
 - `resampled_z::AbstractArray{T,1}`: A 1D array of resampled redshift values corresponding to the input comoving distances `new_χ`.
 """
 function resample_redshifts(bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, new_χ::AbstractArray{T,1}) where T
-    z_of_χ = DataInterpolations.AkimaInterpolation(grid.z_range, bg.χz_array, extrapolate = true)
+    z_of_χ = DataInterpolations.AkimaInterpolation(grid.z_range, bg.χz_array, extrapolation=ExtrapolationType.Extension)
     return z_of_χ.(new_χ)
 end
 
@@ -168,7 +168,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
     n_bins = size(Probe.Kernel, 1)
     
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
         Probe.Kernel[b,:] = @. bias[b] * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
@@ -208,7 +208,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
     n_bins = size(Probe.Kernel, 1)
     
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
         Probe.Kernel[b,:] = @. bias[b, :] * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
@@ -300,7 +300,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
     n_bins = size(Probe.Kernel, 1)
 
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
         Probe.Kernel[b,:] = @. growth_factor * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm) #TODO: might be missing C factors
@@ -318,10 +318,10 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
     n_bins = size(Probe.Kernel, 1)
 
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
-        s_z = DataInterpolations.AkimaInterpolation(s[b,:], z, extrapolate=true)
+        s_z = DataInterpolations.AkimaInterpolation(s[b,:], z, extrapolation=ExtrapolationType.Extension)
 
         prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
 
