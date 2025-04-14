@@ -330,6 +330,13 @@ function get_ell_prefactor(ProbeA::LensMagKernel, ProbeB::LensMagKernel, ℓ_lis
     return @. 2 / π * (ℓ_list * (ℓ_list + 1))^2  
 end
 
+function get_ell_prefactor(ProbeA::ShearKernel, ProbeB::LensMagKernel, ℓ_list::Vector)
+    return @. 2 / π * ℓ_list * (ℓ_list + 1) * sqrt(factorial_frac(ℓ_list))
+end
+
+get_ell_prefactor(ProbeA::LensMagKernel, ProbeB::ShearKernel, ℓ_list::Vector) = 
+    get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
+
 """
     simpson_weight_array(n::Int; T=Float64)
 

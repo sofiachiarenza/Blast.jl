@@ -245,7 +245,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
     n_bins = size(Probe.Kernel, 1)
 
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolate=true)
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
         prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
