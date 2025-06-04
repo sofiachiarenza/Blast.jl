@@ -157,7 +157,7 @@ W_g(\\chi) = \\frac{H(z)}{c}n(z)b(z)
 
 """
 function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe::GalaxyKernel, 
-                        bias::AbstractArray{T,1}, grid::CosmologicalGrid, bg::BackgroundQuantities, 
+                        grid::CosmologicalGrid, bg::BackgroundQuantities, 
                         cosmo::AbstractCosmology) where T
 
     #TODO: this test will suck for autodiff, will need fixing
@@ -171,7 +171,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
         nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
-        Probe.Kernel[b,:] = @. bias[b] * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
+        Probe.Kernel[b,:] = @. (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
     end
 end
 
@@ -197,21 +197,21 @@ W_g(\\chi) = \\frac{H(z)}{c}n(z)b(z)
 
 """
 function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe::GalaxyKernel, 
-                        bias::AbstractArray{T,2}, grid::CosmologicalGrid, bg::BackgroundQuantities, 
-                        cosmo::AbstractCosmology) where T
+    bias::AbstractArray{T,2}, grid::CosmologicalGrid, bg::BackgroundQuantities, 
+    cosmo::AbstractCosmology) where T
 
     #TODO: this test will suck for autodiff, will need fixing
     if all(iszero, bg.Hz_array) || all(iszero, bg.χz_array)
-        evaluate_background_quantities!(grid, bg, cosmo)
+    evaluate_background_quantities!(grid, bg, cosmo)
     end
 
     n_bins = size(Probe.Kernel, 1)
-    
+
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
+        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation = ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
-        Probe.Kernel[b,:] = @. bias[b, :] * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
+        Probe.Kernel[b,:] = @. bias[b,:] * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
     end
 end
 

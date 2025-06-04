@@ -59,3 +59,12 @@ function limber_rsd_kernel(ℓ::Number, bg::BackgroundQuantities, RSDK::Blast.RS
 
     return rds_kernels
 end
+
+function P_phi(k::AbstractArray{T,1}, cosmo::AbstractCosmology) where T
+    return @. 9/25 * 2 * π^2 * cosmo.As / (k^3) * (k/0.05)^(cosmo.ns - 1.)
+end
+
+function extract_transfer_function(pk::AbstractArray{T,2}, k::AbstractArray{T,1}, cosmo::AbstractCosmology) where T
+    prim_pk = P_phi(k, cosmo)
+    return sqrt.(pk ./ reshape(prim_pk, 1, :))
+end

@@ -110,7 +110,7 @@ function chebyshev_polynomials( x::AbstractArray, cheb_nodes::AbstractArray )
     x_scaled = 2 .* (x .-z_min) ./ (z_max - z_min) .- 1
 
     for i in 1:n_cheb
-        interp = AkimaInterpolation(Tcheb[i,:], app)
+        interp = AkimaInterpolation(Tcheb[i,:], app, extrapolation=ExtrapolationType.Extension)
         T_cheb_return[i,:] = interp.(x_scaled)
     end
     
