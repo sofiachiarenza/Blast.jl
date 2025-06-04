@@ -184,3 +184,44 @@ function unequal_time_power_spectrum(pk::AbstractArray{T,3}) where T
     @tullio final_pk[i,c,r] := sqrt(pk_R1[i,c] * pk[i,c,r])
     return final_pk
 end
+
+function Pmm_unequaltime(pk::AbstractArray{T,2}, k::AbstractArray{T,1}, z::AbstractArray{T,1}, R::AbstractArray{T,1}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology) where T
+    primordial_pk = Blast.P_phi(k, cosmo)
+    T_m = Blast.extract_transfer_function(pk, k, cosmo)
+    plan = Blast.plan_fft(log10.(T_m), 1)
+    T_m_interp = 10 .^ (Blast.interpolate_power_spectrum(log10.(T_m), z, R, plan, bg, grid))
+
+    T_m_interp_R1 = T_m_interp[:,:,end]
+    @tullio Pmm_unequaltime[k, i, j] := primordial_pk[k] * T_m_interp_R1[k,i] * T_m_interp[k, i, j]
+
+    return Pmm_unequaltime
+end
+
+function Pgg_unequaltime(bias_kz::AbstractArray{T,2}, pk::AbstractArray{T,2}, k::AbstractArray{T,1}, z::AbstractArray{T,1}, R::AbstractArray{T,1}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology) where T
+    primordial_pk = Blast.P_phi(k, cosmo)
+    T_m = Blast.extract_transfer_function(pk, k, cosmo)
+    plan = Blast.plan_fft(log10.(T_m), 1)
+    T_m_interp = 10 .^ (Blast.interpolate_power_spectrum(log10.(T_m), z, R, plan, bg, grid))
+    plan = Blast.plan_fft(bias_kz, 1)
+    bias_interp = Blast.interpolate_power_spectrum(bias_kz, z, R, plan, bg, grid)
+
+    T_m_interp_R1 = T_m_interp[:,:,end]
+    bias_interp_R1 = bias_interp[:,:,end]
+
+    return @tullio Pgg_unequaltime[k, i, j] := primordial_pk[k] * bias_interp_R1[k,i] * T_m_interp_R1[k,i] * bias_interp[k,i,j] * T_m_interp[k,i,j]
+end
+
+
+function Pgm_unequaltime(bias_kz::AbstractArray{T,2}, pk::AbstractArray{T,2}, k::AbstractArray{T,1}, z::AbstractArray{T,1}, R::AbstractArray{T,1}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology) where T
+    primordial_pk = Blast.P_phi(k, cosmo)
+    T_m = Blast.extract_transfer_function(pk, k, cosmo)
+    plan = Blast.plan_fft(log10.(T_m), 1)
+    T_m_interp = 10 .^ (Blast.interpolate_power_spectrum(log10.(T_m), z, R, plan, bg, grid))
+    plan = Blast.plan_fft(bias_kz, 1)
+    bias_interp = Blast.interpolate_power_spectrum(bias_kz, z, R, plan, bg, grid)
+
+    T_m_interp_R1 = T_m_interp[:,:,end]
+    bias_interp_R1 = bias_interp[:,:,end]
+
+    return @tullio Pgm_unequaltime[k, i, j] := primordial_pk[k] * bias_interp_R1[k,i] * T_m_interp_R1[k,i] * T_m_interp[k,i,j]
+end
