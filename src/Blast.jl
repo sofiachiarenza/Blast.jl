@@ -15,11 +15,12 @@ using Artifacts
 using PhysicalConstants
 
 include("cosmo.jl")
-include("background.jl")
+include("deprecated.jl")
 include("projected_matter.jl")
 include("chebcoefs.jl")
 include("integrals.jl")
 include("utils.jl")
+include("probes.jl")
 include("limber.jl")
 
 import PhysicalConstants.CODATA2018: c_0

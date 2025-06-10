@@ -17,12 +17,6 @@ and the growth factor (`D`).
 """
 abstract type AbstractBackgroundQuantities{T} end
 
-"""
-    AbstractCosmologicalProbes{T}
-An abstract type for the shear, clustering and CMB lensing kernels.
-"""
-abstract type AbstractCosmologicalProbes{T} end
-
 
 # Define the flat ΛCDM cosmological model with default parameters based on the fiducial N5K cosmology.
 
@@ -84,85 +78,140 @@ end
     # Dz_array::Vector{T} = zeros(500)  # Growth factor array (could be added when power spectrum information is available).
 end
 
+
 """
-    GalaxyKernel{T} <: AbstractCosmologicalProbes{T}
+    compute_adimensional_hubble_factor(z::T, cosmo::FlatΛCDM) -> T
 
-Represents a galaxy kernel in cosmological calculations, where kernel values are provided for multiple tomographic bins.
+Computes the adimensional Hubble factor `E(z)` for a given redshift `z`, using the 
+cosmological parameters from a `FlatΛCDM` model.
+The analitycal expression is given by:
+```math
+E(z)=\\sqrt{\\Omega_m(1+z)^3+\\Omega_r(1+z)^4+
+\\Omega_{de}(1+z)^{3(1+w_0+w_a)}\\exp(-3w_a \\frac{z}{1+z})+\\Omega_k(1+z)^2}
+```
 
-# Parameters
-- `Kernel::AbstractArray{T, 2}`: A 2D array of type `T`, with dimensions `(n_bins, nχ)`. This stores kernel values for each tomographic bin and a grid of χ values.
+# Parameters:
+- `z`: Redshift at which to evaluate the Hubble factor.
+- `cosmo`: A `FlatΛCDM` cosmological model containing parameters like Ωm, Ωr, Ωde, etc.
 
-# Constructors
-- `GalaxyKernel{T}(n_bins::Int, nχ::Int)`: Creates a `GalaxyKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `T`.
-- `GalaxyKernel(n_bins::Int, nχ::Int)`: Creates a `GalaxyKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `Float64`.
+# Returns:
+- `E_z`: The adimensional Hubble factor at redshift `z`.
 """
-@kwdef mutable struct GalaxyKernel{T} <: AbstractCosmologicalProbes{T}
-    Kernel::AbstractArray{T, 2} = zeros(1, 1)
+function compute_adimensional_hubble_factor(z::T, cosmo::FlatΛCDM) where T
+    E_z = compute_adimensional_hubble_factor(z, cosmo.Ωm, cosmo.Ωr,
+        cosmo.Ωde, cosmo.Ωk, cosmo.w0, cosmo.wa)
+    return E_z
 end
 
-GalaxyKernel{T}(n_bins::Int, nχ::Int) where T = GalaxyKernel{T}(Kernel = zeros(T, n_bins, nχ))
-
-GalaxyKernel(n_bins::Int, nχ::Int) = GalaxyKernel{Float64}(n_bins, nχ)
-
-
 """
-    ShearKernel{T} <: AbstractCosmologicalProbes{T}
+    compute_adimensional_hubble_factor(z::T, Ωm::T, Ωr::T, Ωde::T, Ωk::T, w0::T, wa::T) -> T
 
-Represents a shear kernel used in cosmological lensing calculations. The kernel is defined over multiple tomographic bins.
+Computes the adimensional Hubble factor `E(z)` given the redshift `z` and individual cosmological parameters.
+The analitycal expression is given by:
+```math
+E(z)=\\sqrt{\\Omega_m(1+z)^3+\\Omega_r(1+z)^4+
+\\Omega_{de}(1+z)^{3(1+w_0+w_a)}\\exp(-3w_a \\frac{z}{1+z})+\\Omega_k(1+z)^2}
+```
 
-# Parameters
-- `Kernel::AbstractArray{T, 2}`: A 2D array of type `T`, with dimensions `(n_bins, nχ)`. Stores the kernel values for each tomographic bin and a grid of χ values.
+# Parameters:
+- `z`: Redshift at which to evaluate the Hubble factor.
+- `Ωm`: Matter density parameter.
+- `Ωr`: Radiation density parameter.
+- `Ωde`: Dark energy density parameter.
+- `Ωk`: Curvature density parameter.
+- `w0`: Dark energy equation of state parameter at the present time.
+- `wa`: Time evolution of the dark energy equation of state.
 
-# Constructors
-- `ShearKernel{T}(n_bins::Int, nχ::Int)`: Creates a `ShearKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `T`.
-- `ShearKernel(n_bins::Int, nχ::Int)`: Creates a `ShearKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `Float64`.
+# Returns:
+- `E_z`: The adimensional Hubble factor at redshift `z`.
 """
-@kwdef mutable struct ShearKernel{T} <: AbstractCosmologicalProbes{T}
-    Kernel::AbstractArray{T, 2} = zeros(1, 1)
+function compute_adimensional_hubble_factor(z::T, Ωm::T, Ωr::T, Ωde::T, Ωk::T, w0::T, wa::T) where T
+    E_z = sqrt(Ωm*(1+z)^3 + Ωr*(1+z)^4 + Ωk*(1+z)^2 +
+        Ωde*(1+z)^(3*(1+w0+wa))*exp(-3*wa*z/(1+z)))
+    return E_z
 end
 
-ShearKernel{T}(n_bins::Int, nχ::Int) where T = ShearKernel{T}(Kernel = zeros(T, n_bins, nχ))
+"""
+    compute_hubble_factor(z::T, cosmo::AbstractCosmology) -> T
 
-ShearKernel(n_bins::Int, nχ::Int) = ShearKernel{Float64}(n_bins, nχ)
+Computes the Hubble parameter `H(z)` at a given redshift `z` using the Hubble constant `H0` and the adimensional 
+Hubble factor `E(z)`.
 
+# Parameters:
+- `z`: Redshift at which to compute the Hubble parameter.
+- `cosmo`: A cosmological model that contains `H0` and other necessary parameters.
+
+# Returns:
+- `H_z`: The Hubble parameter at redshift `z`.
+"""
+function compute_hubble_factor(z::T, cosmo::AbstractCosmology) where T
+    H_z = cosmo.H0 * compute_adimensional_hubble_factor(z, cosmo)
+    return H_z
+end
 
 """
-    CMBLensingKernel{T} <: AbstractCosmologicalProbes{T}
+    compute_χ(z::T, cosmo::AbstractCosmology) -> T
 
-Represents a CMB lensing kernel.
+Computes the comoving distance `χ(z)` to a given redshift `z` by numerically integrating 
+the inverse of the adimensional Hubble factor `E(z)`:
+```math
+\\chi(z)=\\frac{c}{H_0}\\int_0^z \\frac{dz'}{E(z')}
+```
 
-# Parameters
-- `Kernel::AbstractArray{T, 1}`: A 1D array of type `T`, with dimension `(nχ)`. Note that CMB Lensing by definition only has a single tomographic bin.
+# Parameters:
+- `z`: Redshift up to which the comoving distance is computed.
+- `cosmo`: A cosmological model containing the necessary parameters (e.g., Ωm, H0).
 
-# Constructors
-- `CMBLensingKernel{T}(nχ::Int)`: Creates a `CMBLensingKernel` with the specified `nχ` value, initializing the kernel values to zeros of type `T`.
-- `CMBLensingKernel(nχ::Int)`: Creates a `CMBLensingKernel` with the specified `nχ` value, initializing the kernel values to zeros of type `Float64`.
+# Returns:
+- `χ_z`: The comoving distance at redshift `z` in units of Mpc.
 """
-@kwdef mutable struct CMBLensingKernel{T} <: AbstractCosmologicalProbes{T}
-    Kernel::AbstractArray{T, 1} = zeros(1)
+function compute_χ(z::T, cosmo::AbstractCosmology) where T
+    integral, err = quadgk(x -> 1. / compute_adimensional_hubble_factor(x, cosmo), 0., z, rtol=1e-12)
+    return integral * C_LIGHT / cosmo.H0
 end
 
-CMBLensingKernel{T}(nχ::Int) where T = CMBLensingKernel{T}(Kernel = zeros(T, nχ))
+"""
+    evaluate_background_quantities!(grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
 
-CMBLensingKernel(nχ::Int) = CMBLensingKernel{Float64}(nχ)
+Populates the `BackgroundQuantities` struct with values for the Hubble parameter `H(z)` and comoving distance `χ(z)` 
+over the redshift range specified by the `CosmologicalGrid`.
 
-#TODO: missing docs
-@kwdef mutable struct RSDKernel{T} <: AbstractCosmologicalProbes{T}
-    Kernel::AbstractArray{T, 2} = zeros(1, 1)
+# Parameters:
+- `grid`: A grid specifying the redshift range over which to evaluate the background quantities.
+- `bg`: A mutable struct where the computed `H(z)` and `χ(z)` values will be stored.
+- `cosmo`: A cosmological model containing the necessary parameters (e.g., H0, Ωm).
+
+# Notes:
+This function modifies the `BackgroundQuantities` struct in place by filling the arrays with the computed values.
+"""
+function evaluate_background_quantities!(grid::CosmologicalGrid,
+    #TODO: works for now, will need vectorization and rethinking in the future.
+    bg::BackgroundQuantities, cosmo::AbstractCosmology)
+    for z_idx in 1:length(grid.z_range)
+        # Compute the Hubble parameter H(z)
+        bg.Hz_array[z_idx] = compute_hubble_factor(grid.z_range[z_idx], cosmo)
+        
+        # Compute the comoving distance χ(z)
+        bg.χz_array[z_idx] = compute_χ(grid.z_range[z_idx], cosmo)
+    end
 end
 
-RSDKernel{T}(n_bins::Int, nχ::Int) where T = RSDKernel{T}(Kernel = zeros(T, n_bins, nχ))
+"""
+    resample_redshifts(bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, new_χ::AbstractArray{T,1}) where T
 
-RSDKernel(n_bins::Int, nχ::Int) = RSDKernel{Float64}(n_bins, nχ)
+Resamples redshift values corresponding to a new set of comoving distances using Akima interpolation.
 
-@kwdef mutable struct LensMagKernel{T} <: AbstractCosmologicalProbes{T}
-    Kernel::AbstractArray{T, 2} = zeros(1, 1)
+# Arguments
+- `bg::BackgroundQuantities`: An object containing background cosmological quantities, 
+  including the mapping between redshift (`z`) and comoving distance (`χ`).
+- `grid::AbstractCosmologicalGrid`: An object defining the range of redshifts (`z_range`) 
+  and associated cosmological grid quantities.
+- `new_χ::AbstractArray{T,1}`: A 1D array of comoving distances for which corresponding redshift values are desired.
+
+# Returns
+- `resampled_z::AbstractArray{T,1}`: A 1D array of resampled redshift values corresponding to the input comoving distances `new_χ`.
+"""
+function resample_redshifts(bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, new_χ::AbstractArray{T,1}) where T
+    z_of_χ = AkimaInterpolation(grid.z_range, bg.χz_array, extrapolation=ExtrapolationType.Extension)
+    return z_of_χ.(new_χ)
 end
-
-LensMagKernel{T}(n_bins::Int, nχ::Int) where T = LensMagKernel{T}(Kernel = zeros(T, n_bins, nχ))
-
-LensMagKernel(n_bins::Int, nχ::Int) = LensMagKernel{Float64}(n_bins, nχ)
-
-
-
-

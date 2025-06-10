@@ -69,11 +69,15 @@ function extract_transfer_function(pk::AbstractArray{T,2}, k::AbstractArray{T,1}
     return sqrt.(pk ./ reshape(prim_pk, 1, :))
 end
 
-function bΦ(z, bias_model, p)
-    return  2 * 1.686 * (bias_model(z) .- p)
+function bΦ(bias::AbstractVector{T}, p::Number) where T
+    return 2 * 1.686 * (bias .- p)
+end
+
+function bΦ(z, bias_model, p::Number)
+    return 2 * 1.686 * (bias_model(z) .- p)
 end
 
 function scale_dependent_bias(f_NL::Number, pk::AbstractArray{T,2}, k::AbstractArray{T,1}, z::AbstractArray{T,1}, bias_model, p::Number, cosmo::AbstractCosmology) where T
     transfer_func = Blast.extract_transfer_function(pk, k, cosmo)
-    return (Blast.bΦ(z, bias_model, p) .* f_NL) ./ transfer_func
+    return (bΦ(z, bias_model, p) .* f_NL) ./ transfer_func
 end
