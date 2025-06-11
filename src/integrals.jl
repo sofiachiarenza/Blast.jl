@@ -183,17 +183,6 @@ function combine_kernels(ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKern
     return K
 end
 
-"""
-    factorial_frac(ℓ::Union{Number,Vector{T}}}) where T
-
-Computes the ratio (ℓ+2)!/(ℓ-2)!, needed in the pre-factors of the the angular power spectra.
-
-# Arguments
-- `ℓ::Vector{T}`: vectors of ℓ values.
-"""
-function factorial_frac(ℓ::Union{Number,Vector{T}}) where T
-    return @. (ℓ-1)*ℓ*(ℓ+1)*(ℓ+2)
-end
 
 """
     get_ell_prefactor(ProbeA::GalaxyKernel, ProbeB::GalaxyKernel, ℓ_list::Vector)
@@ -276,7 +265,7 @@ Calculates the prefactor for the angular power spectrum when probes are `CMBLens
 - `ℓ_list::Vector`: A vector of angular multipole values.
 """
 function get_ell_prefactor(ProbeA::CMBLensingKernel, ProbeB::GalaxyKernel, ℓ_list::Vector)
-    return @. 2 * ℓ_list * (ℓ_list + 1) / π #TODO: double check prefactor
+    return @. 2/π * ℓ_list * (ℓ_list + 1)  #TODO: double check prefactor
 end
 
 # Define the same prefactor for ShearKernel and GalaxyKernel order
@@ -337,68 +326,6 @@ end
 get_ell_prefactor(ProbeA::LensMagKernel, ProbeB::ShearKernel, ℓ_list::Vector) = 
     get_ell_prefactor(ProbeB, ProbeA, ℓ_list)
 
-"""
-    simpson_weight_array(n::Int; T=Float64)
-
-Computes the weights for the Simpson quadrature rule for numerical integration based on the input number of points `n`.
-
-# Arguments
-- `n::Int`: The number of points (must be at least 2).
-- `T`: (optional) The type of the output array. Defaults to `Float64`.
-
-# Returns
-- An array of length `n` with the weights of type `T` for the Simpson quadrature rule.
-"""
-function simpson_weight_array(n::Int; T=Float64)
-    @assert n > 1 "You cannot integrate with only 1 sampling point."
-    number_intervals = floor((n-1)/2)
-    weight_array = zeros(n)
-    if n == number_intervals*2+1
-        for i in 1:number_intervals
-            weight_array[Int((i-1)*2+1)] += 1/3
-            weight_array[Int((i-1)*2+2)] += 4/3
-            weight_array[Int((i-1)*2+3)] += 1/3
-        end
-    else
-        weight_array[1] += 0.5
-        weight_array[2] += 0.5
-        for i in 1:number_intervals
-            weight_array[Int((i-1)*2+1)+1] += 1/3
-            weight_array[Int((i-1)*2+2)+1] += 4/3
-            weight_array[Int((i-1)*2+3)+1] += 1/3
-        end
-        weight_array[length(weight_array)]   += 0.5
-        weight_array[length(weight_array)-1] += 0.5
-        for i in 1:number_intervals
-            weight_array[Int((i-1)*2+1)] += 1/3
-            weight_array[Int((i-1)*2+2)] += 4/3
-            weight_array[Int((i-1)*2+3)] += 1/3
-        end
-        weight_array ./= 2
-    end
-    return T.(weight_array)
-end
-
-"""
-    get_clencurt_weights_R_integration(N::Int)
-
-Calculate Clenshaw-Curtis quadrature weights for numerical integration over a given interval.
-The weights are computed for the second half of the Chebyshev points, omitting the zero element. 
-The first weight is halved, although this is an approximation and may benefit from further optimization.
-
-# Arguments
-- `N::Int`: The number of quadrature points.
-"""
-function get_clencurt_weights_R_integration(N::Int)
-
-    w = get_clencurt_weights(-1, 1, N)
-
-    index = div(N + 3, 2) 
-    w = w[index:end]
-    w[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
-
-    return w
-end
 
 """
     compute_Cℓ(w::AbstractArray{T, 3}, 

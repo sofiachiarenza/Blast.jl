@@ -16,11 +16,12 @@ using PhysicalConstants
 
 include("cosmo.jl")
 include("deprecated.jl")
+include("probes.jl")
 include("chebcoefs.jl")
 include("projected_matter.jl")
 include("integrals.jl")
+include("cls.jl")
 include("utils.jl")
-include("probes.jl")
 include("limber.jl")
 
 import PhysicalConstants.CODATA2018: c_0
@@ -51,7 +52,7 @@ function __init__()
     global ℓ, T_tilde_p2 = load_precomputed_Ts(artifact"T_tilde_-2")
 
     nχ = 200
-    global χ = LinRange(26, 7000, nχ)
+    global χ = Array(LinRange(26, 7000, nχ))
     R = chebpoints(200, -1, 1)
     global R = reverse(R[R.>0])
     nR = length(R)

@@ -81,3 +81,56 @@ function scale_dependent_bias(f_NL::Number, pk::AbstractArray{T,2}, k::AbstractA
     transfer_func = Blast.extract_transfer_function(pk, k, cosmo)
     return (bΦ(z, bias_model, p) .* f_NL) ./ transfer_func
 end
+
+function simpson_weight_array(n::Int; T=Float64)
+    @assert n > 1 "You cannot integrate with only 1 sampling point."
+    number_intervals = floor((n-1)/2)
+    weight_array = zeros(n)
+    if n == number_intervals*2+1
+        for i in 1:number_intervals
+            weight_array[Int((i-1)*2+1)] += 1/3
+            weight_array[Int((i-1)*2+2)] += 4/3
+            weight_array[Int((i-1)*2+3)] += 1/3
+        end
+    else
+        weight_array[1] += 0.5
+        weight_array[2] += 0.5
+        for i in 1:number_intervals
+            weight_array[Int((i-1)*2+1)+1] += 1/3
+            weight_array[Int((i-1)*2+2)+1] += 4/3
+            weight_array[Int((i-1)*2+3)+1] += 1/3
+        end
+        weight_array[length(weight_array)]   += 0.5
+        weight_array[length(weight_array)-1] += 0.5
+        for i in 1:number_intervals
+            weight_array[Int((i-1)*2+1)] += 1/3
+            weight_array[Int((i-1)*2+2)] += 4/3
+            weight_array[Int((i-1)*2+3)] += 1/3
+        end
+        weight_array ./= 2
+    end
+    return T.(weight_array)
+end
+
+function get_clencurt_weights_R_integration(N::Int)
+
+    w = get_clencurt_weights(-1, 1, N)
+
+    index = div(N + 3, 2) 
+    w = w[index:end]
+    w[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
+
+    return w
+end
+
+"""
+    factorial_frac(ℓ::Union{Number,Vector}}) 
+
+Computes the ratio (ℓ+2)!/(ℓ-2)!, needed in the pre-factors of the the angular power spectra.
+
+# Arguments
+- `ℓ::Vector{T}`: vectors of ℓ values.
+"""
+function factorial_frac(ℓ::Union{Number,Vector})
+    return @. (ℓ-1)*ℓ*(ℓ+1)*(ℓ+2)
+end

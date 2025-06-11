@@ -132,140 +132,185 @@ function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Num
 end
 
 ## Handling of the various combinations of T̃
+#TODO: the field "active and the handling of the computation of only the necessary coefficients and w is a later problem
 
 function w_ell_tullio(c::AbstractCoeffComponents, T::AbstractArray{<:Any, 4})
     cheb_coeffs = c.coefs
     return @tullio w[i,j,k] := cheb_coeffs[j,k,l] * T[i,j,k,l]
 end
 
-abstract type AbstractProjectedMatterDensity end
+function w_ell_tullio(c::NullCoeff, T::AbstractArray{<:Any, 4})
+    return NullProjectedMatterDensity()
+end
 
-@kwdef mutable struct w_2_00_ϕTT <: AbstractProjectedMatterDensity
-    active::Bool = false
+abstract type AbstractProjectedMatterDensity end
+abstract type ProjectedMatterDensityComponent end
+
+@kwdef mutable struct NullProjectedMatterDensity <: ProjectedMatterDensityComponent
+    w::AbstractArray{<:Any, 3} = zeros(size(Blast.ℓ), size(Blast.χ), size(Blast.R))
+end
+
+@kwdef mutable struct w_2_00_ϕTT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_2_00
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_2_00_ϕTT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕTT, w.T̃)
 end
 
-@kwdef mutable struct w_minus2_00_ϕTT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_minus2_00_ϕTT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_minus2_00
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_minus2_00_ϕTT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕTT, w.T̃)
 end
 
-@kwdef mutable struct w_0_00_ϕTT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_0_00_ϕTT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_0_00
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_0_00_ϕTT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕTT, w.T̃)
 end
 
-@kwdef mutable struct w_0_02_ϕTT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_0_02_ϕTT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_0_02
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_0_02_ϕTT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕTT, w.T̃)
 end
 
-@kwdef mutable struct w_0_20_ϕTT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_0_20_ϕTT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_0_20
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_0_20_ϕTT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕTT, w.T̃)
 end
 
-@kwdef mutable struct w_2_02_ϕTT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_2_02_ϕTT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_2_02
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_2_02_ϕTT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕTT, w.T̃)
 end
 
-@kwdef mutable struct w_2_20_ϕTT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_2_20_ϕTT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_2_20
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_2_20_ϕTT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕTT, w.T̃)
 end
 
-@kwdef mutable struct w_2_22_ϕTT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_2_22_ϕTT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_2_22
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_2_22_ϕTT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕTT, w.T̃)
 end
 
-@kwdef mutable struct w_2_00_ϕT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_2_00_ϕT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_2_00
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_2_00_ϕT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕT, w.T̃)
 end
 
-@kwdef mutable struct w_0_00_ϕT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_0_00_ϕT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_0_00
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_0_00_ϕT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕT, w.T̃)
 end
 
-@kwdef mutable struct w_2_02_ϕT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_2_02_ϕT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_2_02
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_2_02_ϕT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕT, w.T̃)
 end
 
-@kwdef mutable struct w_2_20_ϕT <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_2_20_ϕT <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_2_20
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_2_20_ϕT, c::ChebCoefs)
     w.w = w_ell_tullio(c.cϕT, w.T̃)
 end
 
-@kwdef mutable struct w_2_00_ϕ <: AbstractProjectedMatterDensity
-    active::Bool = false
+@kwdef mutable struct w_2_00_ϕ <: ProjectedMatterDensityComponent
+    active::Bool = true
     T̃ = T_tildes.T_2_00
-    w::AbstractArray{<:Any, 3}
+    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
 function compute_w!(w::w_2_00_ϕ, c::ChebCoefs)
-    w.w = w_ell_tullio(c.cϕ, w.T̃)
+    coefs = c.cϕ.coefs
+    T = w.T̃
+    @tullio pmj[i,j,k] := coefs[l] * T[i,j,k,l]
+    w.w = pmj
+end
+
+@kwdef mutable struct ProjectedMatterDensity <: AbstractProjectedMatterDensity
+    w_2_00_ϕTT::w_2_00_ϕTT = w_2_00_ϕTT()
+    w_minus2_00_ϕTT::w_minus2_00_ϕTT = w_minus2_00_ϕTT()
+    w_0_00_ϕTT::w_0_00_ϕTT = w_0_00_ϕTT()
+    w_0_02_ϕTT::w_0_02_ϕTT = w_0_02_ϕTT()
+    w_0_20_ϕTT::w_0_20_ϕTT = w_0_20_ϕTT()
+    w_2_02_ϕTT::w_2_02_ϕTT = w_2_02_ϕTT()
+    w_2_20_ϕTT::w_2_20_ϕTT = w_2_20_ϕTT()
+    w_2_22_ϕTT::w_2_22_ϕTT = w_2_22_ϕTT()
+    w_2_00_ϕT::w_2_00_ϕT = w_2_00_ϕT()
+    w_0_00_ϕT::w_0_00_ϕT = w_0_00_ϕT()
+    w_2_02_ϕT::w_2_02_ϕT = w_2_02_ϕT()
+    w_2_20_ϕT::w_2_20_ϕT =  w_2_20_ϕT()
+    w_2_00_ϕ::w_2_00_ϕ = w_2_00_ϕ()
+end 
+
+function compute_w!(W::ProjectedMatterDensity, c::ChebCoefs)
+    compute_w!(W.w_2_00_ϕTT, c)
+    compute_w!(W.w_minus2_00_ϕTT, c)
+    compute_w!(W.w_0_00_ϕTT, c)
+    compute_w!(W.w_0_02_ϕTT, c)
+    compute_w!(W.w_0_20_ϕTT, c)
+    compute_w!(W.w_2_02_ϕTT, c)
+    compute_w!(W.w_2_20_ϕTT, c)
+    compute_w!(W.w_2_22_ϕTT, c)
+    compute_w!(W.w_2_00_ϕT, c)
+    compute_w!(W.w_0_00_ϕT, c)
+    compute_w!(W.w_2_02_ϕT, c)
+    compute_w!(W.w_2_20_ϕT, c)
+    compute_w!(W.w_2_00_ϕ, c)
 end

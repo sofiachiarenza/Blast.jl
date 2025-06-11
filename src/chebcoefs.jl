@@ -226,11 +226,11 @@ function Pgm_unequaltime(bias_kz::AbstractArray{T,2}, pk::AbstractArray{T,2}, k:
     return @tullio Pgm_unequaltime[k, i, j] := primordial_pk[k] * bias_interp_R1[k,i] * T_m_interp_R1[k,i] * T_m_interp[k,i,j]
 end
 
-abstract type AbstractCoefficients end
+abstract type AbstractCoeff end
 abstract type AbstractCoeffComponents end
 
 @kwdef mutable struct NullCoeff <: AbstractCoeffComponents
-    coefs::AbstractArray{3} = zeros(1, 1, 1)
+    coefs::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
 end
 
 @kwdef mutable struct cϕTT <: AbstractCoeffComponents
@@ -242,11 +242,11 @@ end
 end
 
 @kwdef mutable struct cϕ <: AbstractCoeffComponents
-    coefs::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    coefs::AbstractArray{<:Any, 1} = zeros(1)
 end
 
-@kwdef mutable struct ChebCoefs <: AbstractCoefficients
-    cϕTT::cϕTT
+@kwdef mutable struct ChebCoefs <: AbstractCoeff
+    cϕTT::cϕTT = cϕTT()
     cϕT::Union{cϕT, NullCoeff} = NullCoeff()
     cϕ::Union{cϕ, NullCoeff} = NullCoeff()
 end
@@ -285,7 +285,7 @@ function evaluate_coefs!(c::cϕ, pk::AbstractArray{<:Any, 2}, bg::BackgroundQuan
     
     plan = Blast.plan_fft(primordial_pk,1)
     cheb_coeff = Blast.fast_chebcoefs(primordial_pk, plan)
-    c.coefs = permutedims(cheb_coeff, (2,3,1))
+    c.coefs = cheb_coeff
 end
 
 function evaluate_coefs!(c::NullCoeff, pk::AbstractArray{<:Any, 2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology)

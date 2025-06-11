@@ -14,67 +14,32 @@ function compute_kernel!(Component::NullComponent, grid::CosmologicalGrid, bg::B
     return Component.Kernel = zeros(1, length(grid.z_range))
 end
 
-"""
-    GalaxyKernel{T} <: AbstractCosmologicalProbes{T}
-
-Represents a galaxy kernel in cosmological calculations, where kernel values are provided for multiple tomographic bins.
-
-# Parameters
-- `Kernel::AbstractArray{T, 2}`: A 2D array of type `T`, with dimensions `(n_bins, nχ)`. This stores kernel values for each tomographic bin and a grid of χ values.
-
-# Constructors
-- `GalaxyKernel{T}(n_bins::Int, nχ::Int)`: Creates a `GalaxyKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `T`.
-- `GalaxyKernel(n_bins::Int, nχ::Int)`: Creates a `GalaxyKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `Float64`.
-"""
 @kwdef mutable struct NumberCounts <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1, 1)
     z::Array{<:Any, 1} = zeros(1)
     bias::Array{<:Any, 2} = zeros(1, 1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
+    ell_prefactor = sqrt(2/π) * ones(size(Blast.ℓ, 1))
 end
 
-
-"""
-    ShearKernel{T} <: AbstractCosmologicalProbes{T}
-
-Represents a shear kernel used in cosmological lensing calculations. The kernel is defined over multiple tomographic bins.
-
-# Parameters
-- `Kernel::AbstractArray{T, 2}`: A 2D array of type `T`, with dimensions `(n_bins, nχ)`. Stores the kernel values for each tomographic bin and a grid of χ values.
-
-# Constructors
-- `ShearKernel{T}(n_bins::Int, nχ::Int)`: Creates a `ShearKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `T`.
-- `ShearKernel(n_bins::Int, nχ::Int)`: Creates a `ShearKernel` with the specified `n_bins` and `nχ` values, initializing the kernel values to zeros of type `Float64`.
-"""
 @kwdef mutable struct CosmicShear <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1, 1)
     z::Array{<:Any, 1} = zeros(1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
+    ell_prefactor = @. sqrt(2/π) * sqrt(factorial_frac(Blast.ℓ))
 end
 
-
-"""
-    CMBLensingKernel{T} <: AbstractCosmologicalProbes{T}
-
-Represents a CMB lensing kernel.
-
-# Parameters
-- `Kernel::AbstractArray{T, 1}`: A 1D array of type `T`, with dimension `(nχ)`. Note that CMB Lensing by definition only has a single tomographic bin.
-
-# Constructors
-- `CMBLensingKernel{T}(nχ::Int)`: Creates a `CMBLensingKernel` with the specified `nχ` value, initializing the kernel values to zeros of type `T`.
-- `CMBLensingKernel(nχ::Int)`: Creates a `CMBLensingKernel` with the specified `nχ` value, initializing the kernel values to zeros of type `Float64`.
-"""
 @kwdef mutable struct CMBLensing <: AbstractComponents
     Kernel::Array{<:Any, 2} = zeros(1, 1)
+    ell_prefactor = @. sqrt(2/π) * Blast.ℓ * (Blast.ℓ + 1)
 end
-
 
 @kwdef mutable struct RedshiftSpaceDistortions <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1,1)
     z::Array{<:Any, 1} = zeros(1)
     growth_rate::Array{<:Any, 1} = zeros(1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
+    ell_prefactor = sqrt(2/π) * ones(size(Blast.ℓ, 1))
 end
 
 @kwdef mutable struct MagnificationBias <: AbstractComponents
@@ -82,6 +47,7 @@ end
     z::Array{<:Any, 1} = zeros(1)
     s::Array{<:Any, 2} = zeros(1,1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
+    ell_prefactor = @. sqrt(2/π) * Blast.ℓ * (Blast.ℓ + 1)
 end
 
 @kwdef mutable struct IntrinsicAlignment <: AbstractComponents
@@ -89,11 +55,13 @@ end
     z::Array{<:Any, 1} = zeros(1)
     A_IA::Array{<:Any, 2} = zeros(1, 1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
+    ell_prefactor = @. sqrt(2/π) * sqrt(factorial_frac(Blast.ℓ))
 end
 
 @kwdef mutable struct IntegratedSachsWolfe <: AbstractComponents
     growth_rate::Array{<:Any, 1} = zeros(1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
+    ell_prefactor = sqrt(2/π) * ones(size(Blast.ℓ, 1))
 end
 
 @kwdef mutable struct PrimordialNonGaussianity <: AbstractComponents
@@ -103,6 +71,7 @@ end
     f_NL::Number = 0
     p::Number = 0
     Kernel::Array{<:Any, 2} = zeros(1, 1)
+    ell_prefactor = sqrt(2/π) * ones(size(Blast.ℓ, 1))
 end
 
 @kwdef mutable struct GalaxyClustering <: AbstractCosmologicalProbes
@@ -123,27 +92,6 @@ end
 end
 
 
-"""
-    compute_kernel!(nz::AbstractArray{T, 2}, Probe::GalaxyKernel, z::AbstractArray{T, 1},
-                    bias::AbstractArray{T,2}, grid::CosmologicalGrid, bg::BackgroundQuantities, 
-                    cosmo::AbstractCosmology) where T
-
-Computes the galaxy clustering kernel based on a redshift distribution `nz` and stores it in the `GalaxyKernel` struct. 
-The kernel is defined as: 
-```math
-W_g(\\chi) = \\frac{H(z)}{c}n(z)b(z)
-```
-
-# Parameters:
-- `nz`: A 2D array of type `T` where each row represents the redshift distribution of galaxies for a specific redshift bin.
-- `z`: The redshift grid corresponding to the `nz` array.
-- `Probe`: An instance of `GalaxyKernel`, in which the computed kernel values for each redshift bin will be stored.
-- `bias`: A 2D array of type `T` where each row represents the value of the b(z) in each tomographic bin.
-- `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
-- `bg`: A struct containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
-- `cosmo`: An instance of a cosmological model used to calculate the background quantities if not already provided.
-
-"""
 function compute_kernel!(Component::NumberCounts, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
 
     n_bins = size(Component.nz, 1)
@@ -158,25 +106,6 @@ function compute_kernel!(Component::NumberCounts, grid::CosmologicalGrid, bg::Ba
     Component.Kernel = kernel
 end
 
-"""
-    compute_kernel!(nz::AbstractArray{T, 2}, Probe::ShearKernel, z::AbstractArray{T, 1},
-                    grid::CosmologicalGrid, bg::BackgroundQuantities, 
-                    cosmo::AbstractCosmology) where T
-
-Computes the weak lensing shear kernel based on a redshift distribution `nz` and stores it in the `ShearKernel` struct. 
-The kernel is defined as: 
-```math
-W_{\\gamma}(\\chi) = \\frac{3}{2}\\frac{H_0^2}{c^2}\\Omega_m \\frac{\\chi}{a(\\chi)}\\int_{z(\\chi)}^{\\infty}dz'n(z')\\frac{\\chi(z')-\\chi}{\\chi(z')}
-```
-
-# Parameters:
-- `nz`: A 2D array of type `T` where each row corresponds to the redshift distribution for a specific shear redshift bin.
-- `z`: The redshift grid corresponding to the nz array.
-- `Probe`: An instance of `ShearKernel`, where computed kernel values for each redshift bin will be stored.
-- `grid`: A `CosmologicalGrid` object defining the redshift range and grid points for kernel computation.
-- `bg`: A struct containing precomputed Hubble parameter (`Hz_array`) and comoving distance (`χz_array`) arrays over the grid.
-- `cosmo`: An instance of a cosmological model that provides background parameters needed for lensing kernel calculations.
-"""
 function compute_kernel!(Component::CosmicShear, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
 
     n_bins = size(Component.nz, 1)
@@ -200,25 +129,6 @@ function compute_kernel!(Component::CosmicShear, grid::CosmologicalGrid, bg::Bac
     Component.Kernel = kernel
 end
 
-"""
-    compute_kernel!(Probe::CMBLensingKernel, 
-                    grid::CosmologicalGrid, bg::BackgroundQuantities, 
-                    cosmo::AbstractCosmology)
-
-Computes the CMB lensing kernel and stores it in the `CMBLensingKernel` struct.
-The kernel is defined as: 
-```math
-W_{\\kappa}(\\chi) = \\frac{3}{2}\\frac{H_0^2}{c^2}\\Omega_m \\frac{\\chi}{a(\\chi)}\\frac{\\chi^*-\\chi}{\\chi^*},
-```
-where ``\\chi^* = \\chi(z_{\\mathrm{CMB}} = 1100)``
-
-
-# Parameters:
-- `Probe`: An instance of `CMBLensingKernel` to store the computed kernel values.
-- `grid`: A grid specifying the redshift range over which the kernel is computed.
-- `bg`: A struct containing precomputed Hubble parameter and comoving distance values.
-- `cosmo`: A cosmological model.
-"""
 function compute_kernel!(Component::CMBLensing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
 
     prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
