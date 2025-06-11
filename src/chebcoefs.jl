@@ -225,3 +225,75 @@ function Pgm_unequaltime(bias_kz::AbstractArray{T,2}, pk::AbstractArray{T,2}, k:
 
     return @tullio Pgm_unequaltime[k, i, j] := primordial_pk[k] * bias_interp_R1[k,i] * T_m_interp_R1[k,i] * T_m_interp[k,i,j]
 end
+
+abstract type AbstractCoefficients end
+abstract type AbstractCoeffComponents end
+
+@kwdef mutable struct NullCoeff <: AbstractCoeffComponents
+    coefs::AbstractArray{3} = zeros(1, 1, 1)
+end
+
+@kwdef mutable struct cϕTT <: AbstractCoeffComponents
+    coefs::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+end
+
+@kwdef mutable struct cϕT <: AbstractCoeffComponents
+    coefs::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+end
+
+@kwdef mutable struct cϕ <: AbstractCoeffComponents
+    coefs::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+end
+
+@kwdef mutable struct ChebCoefs <: AbstractCoefficients
+    cϕTT::cϕTT
+    cϕT::Union{cϕT, NullCoeff} = NullCoeff()
+    cϕ::Union{cϕ, NullCoeff} = NullCoeff()
+end
+
+#TODO: power spectrum should be treated differently, i'm repeating the operations here!! 
+
+function evaluate_coefs!(c::cϕTT, pk::AbstractArray{<:Any, 2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology)
+    primordial_pk = Blast.P_phi( 10 .^ (k_cheb), cosmo)
+    T_m = Blast.extract_transfer_function(pk, 10 .^ (k_cheb), cosmo)
+    plan = Blast.plan_fft(log10.(T_m), 1)
+    T_m_interp = 10 .^ (Blast.interpolate_power_spectrum(log10.(T_m), Blast.z_cheb, Blast.R, plan, bg, grid))
+
+    T_m_interp_R1 = T_m_interp[:,:,end]
+    @tullio P_ϕTT[k, i, j] := primordial_pk[k] * T_m_interp_R1[k,i] * T_m_interp[k, i, j]
+
+    plan = Blast.plan_fft(P_ϕTT,1)
+    cheb_coeff = Blast.fast_chebcoefs(P_ϕTT, plan)
+    c.coefs = permutedims(cheb_coeff, (2,3,1))
+end
+
+function evaluate_coefs!(c::cϕT, pk::AbstractArray{<:Any, 2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology)
+    primordial_pk = Blast.P_phi( 10 .^ (k_cheb), cosmo)
+    T_m = Blast.extract_transfer_function(pk, 10 .^ (k_cheb), cosmo)
+    plan = Blast.plan_fft(log10.(T_m), 1)
+    T_m_interp = 10 .^ (Blast.interpolate_power_spectrum(log10.(T_m), Blast.z_cheb, Blast.R, plan, bg, grid))
+
+    @tullio P_ϕT[k, i, j] := primordial_pk[k]* T_m_interp[k, i, j]
+
+    plan = Blast.plan_fft(P_ϕT,1)
+    cheb_coeff = Blast.fast_chebcoefs(P_ϕT, plan)
+    c.coefs = permutedims(cheb_coeff, (2,3,1))
+end
+
+function evaluate_coefs!(c::cϕ, pk::AbstractArray{<:Any, 2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology)
+    primordial_pk = Blast.P_phi( 10 .^ (k_cheb), cosmo)
+    
+    plan = Blast.plan_fft(primordial_pk,1)
+    cheb_coeff = Blast.fast_chebcoefs(primordial_pk, plan)
+    c.coefs = permutedims(cheb_coeff, (2,3,1))
+end
+
+function evaluate_coefs!(c::NullCoeff, pk::AbstractArray{<:Any, 2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology)
+    c.coefs = zeros(size(k_cheb), size(χ), size(R))
+end
+
+function evaluate_coefs!(c::ChebCoefs, pk::AbstractArray{<:Any, 2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology)
+    evaluate_coefs!(c.cϕTT, pk, bg, grid, cosmo)
+    evaluate_coefs!(c.cϕT, pk, bg, grid, cosmo)
+    evaluate_coefs!(c.cϕ, pk, bg, grid, cosmo)
+end

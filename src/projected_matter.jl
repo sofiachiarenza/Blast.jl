@@ -1,13 +1,4 @@
 """
-    w_ell_tullio(c::AbstractArray,T::AbstractArray)
-Compute the tensor contraction of the chebyshev coefficients of the power spectrum 'c' and the precomputed
-integrals 'T' to obtain the projected matter densities.
-"""
-function w_ell_tullio(c::AbstractArray, T::AbstractArray)
-    return @tullio w[i,j,k] := c[j,k,l] * T[i,j,k,l]
-end
-
-"""
     get_clencurt_grid(kmin::Number, kmax::Number, N::Number)
 Return the integration points in k. They are a set of 'N' Chebyshev points rescaled between 'kmin' and 'kmax'.
 """
@@ -138,4 +129,143 @@ function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Num
 
     return T_tilde
 
+end
+
+## Handling of the various combinations of T̃
+
+function w_ell_tullio(c::AbstractCoeffComponents, T::AbstractArray{<:Any, 4})
+    cheb_coeffs = c.coefs
+    return @tullio w[i,j,k] := cheb_coeffs[j,k,l] * T[i,j,k,l]
+end
+
+abstract type AbstractProjectedMatterDensity end
+
+@kwdef mutable struct w_2_00_ϕTT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_2_00
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_2_00_ϕTT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕTT, w.T̃)
+end
+
+@kwdef mutable struct w_minus2_00_ϕTT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_minus2_00
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_minus2_00_ϕTT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕTT, w.T̃)
+end
+
+@kwdef mutable struct w_0_00_ϕTT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_0_00
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_0_00_ϕTT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕTT, w.T̃)
+end
+
+@kwdef mutable struct w_0_02_ϕTT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_0_02
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_0_02_ϕTT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕTT, w.T̃)
+end
+
+@kwdef mutable struct w_0_20_ϕTT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_0_20
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_0_20_ϕTT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕTT, w.T̃)
+end
+
+@kwdef mutable struct w_2_02_ϕTT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_2_02
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_2_02_ϕTT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕTT, w.T̃)
+end
+
+@kwdef mutable struct w_2_20_ϕTT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_2_20
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_2_20_ϕTT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕTT, w.T̃)
+end
+
+@kwdef mutable struct w_2_22_ϕTT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_2_22
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_2_22_ϕTT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕTT, w.T̃)
+end
+
+@kwdef mutable struct w_2_00_ϕT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_2_00
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_2_00_ϕT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕT, w.T̃)
+end
+
+@kwdef mutable struct w_0_00_ϕT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_0_00
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_0_00_ϕT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕT, w.T̃)
+end
+
+@kwdef mutable struct w_2_02_ϕT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_2_02
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_2_02_ϕT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕT, w.T̃)
+end
+
+@kwdef mutable struct w_2_20_ϕT <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_2_20
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_2_20_ϕT, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕT, w.T̃)
+end
+
+@kwdef mutable struct w_2_00_ϕ <: AbstractProjectedMatterDensity
+    active::Bool = false
+    T̃ = T_tildes.T_2_00
+    w::AbstractArray{<:Any, 3}
+end
+
+function compute_w!(w::w_2_00_ϕ, c::ChebCoefs)
+    w.w = w_ell_tullio(c.cϕ, w.T̃)
 end

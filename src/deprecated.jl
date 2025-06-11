@@ -189,3 +189,12 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
         end
     end
 end
+
+"""
+    w_ell_tullio(c::AbstractArray,T::AbstractArray)
+Compute the tensor contraction of the chebyshev coefficients of the power spectrum 'c' and the precomputed
+integrals 'T' to obtain the projected matter densities.
+"""
+function w_ell_tullio(c::AbstractArray, T::AbstractArray)
+    return @tullio w[i,j,k] := c[j,k,l] * T[i,j,k,l]
+end

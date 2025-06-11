@@ -7,7 +7,7 @@ abstract type AbstractCosmologicalProbes end
 abstract type AbstractComponents end
 
 @kwdef mutable struct NullComponent <: AbstractComponents
-    Kernel::AbstractArray{2} = zeros(1, 1)
+    Kernel::AbstractArray{<:Any, 2} = zeros(1, 1)
 end
 
 function compute_kernel!(Component::NullComponent, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
