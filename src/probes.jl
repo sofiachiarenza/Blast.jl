@@ -169,7 +169,7 @@ function compute_kernel!(Component::MagnificationBias, grid::CosmologicalGrid, b
             integrand(x) = nz_func(x) * (1. - bg.χz_array[z_idx]/compute_χ(x, cosmo)) * (5 .* s_z(x) .- 2)
             z_low = grid.z_range[z_idx]
             z_top =  grid.z_range[end]*1.1 #TODO: this is horrible.
-            int, err = quadgk(x -> integrand(x), z_low, z_top) 
+            int, _ = quadgk(x -> integrand(x), z_low, z_top) 
 
             kernel[b, z_idx] = prefac * bg.χz_array[z_idx] * (1. + grid.z_range[z_idx]) * int / nz_norm
         end
@@ -208,7 +208,7 @@ function compute_kernel!(Component::PrimordialNonGaussianity, grid::Cosmological
         nz_func = DataInterpolations.AkimaInterpolation(Component.nz[b,:], Component.z, extrapolation = ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
-        kernel[b,:] = Component.f_NL .* bΦ(Component.bias[b,:], Component.p) .* (nz_func.(grid.z_range) ./ nz_norm)
+        kernel[b,:] = (bg.Hz_array / C_LIGHT) .* Component.f_NL .* bΦ(Component.bias[b,:], Component.p) .* (nz_func.(grid.z_range) ./ nz_norm)
     end
     Component.Kernel = kernel
 end

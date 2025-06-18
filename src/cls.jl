@@ -150,7 +150,7 @@ function get_Cℓ(Component1::RedshiftSpaceDistortions, Component2::Magnificatio
 end
 
 function get_Cℓ(Component1::NumberCounts, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity)
-    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT)
+    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT_R1)
 end
 
 function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::NumberCounts, W::ProjectedMatterDensity)
@@ -162,11 +162,11 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::RedshiftSpac
 end
 
 function get_Cℓ(Component1::RedshiftSpaceDistortions, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity)
-    return compute_Cℓ(Component1, Component2, W.w_2_20_ϕT, W.w_2_02_ϕT)
+    return compute_Cℓ(Component1, Component2, W.w_2_20_ϕT_R1, W.w_2_02_ϕT_R1)
 end
 
 function get_Cℓ(Component1::MagnificationBias, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity)
-    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1)
 end
 
 function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::MagnificationBias, W::ProjectedMatterDensity)
@@ -198,3 +198,154 @@ function get_Cℓ(G::GalaxyClustering, W::ProjectedMatterDensity)
     return @. Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD + Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ + Cℓ_δfNL + Cℓ_fNLδ - Cℓ_fNLRSD - Cℓ_RSDfNL + Cℓ_μfNL + Cℓ_fNLμ + Cℓ_fNLfNL
 end
 
+function get_Cℓ(Component1::CosmicShear, Component2::CosmicShear, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(Component1::CosmicShear, Component2::IntrinsicAlignment, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(Component1::IntrinsicAlignment, Component2::CosmicShear, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(Component1::IntrinsicAlignment, Component2::IntrinsicAlignment, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(L::WeakLensing, W::ProjectedMatterDensity)
+    Cℓ_γγ = get_Cℓ(L.γ, L.γ, W)
+    Cℓ_γI = get_Cℓ(L.γ, L.IA, W)
+    Cℓ_Iγ = get_Cℓ(L.IA, L.γ, W)
+    Cℓ_II = get_Cℓ(L.IA, L.IA, W)
+
+    return @. Cℓ_γγ + Cℓ_γI + Cℓ_Iγ + Cℓ_II
+end
+
+function get_Cℓ(Component1::NumberCounts, Component2::CosmicShear, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕTT)
+end
+
+function get_Cℓ(Component1::NumberCounts, Component2::IntrinsicAlignment, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕTT)
+end
+
+function get_Cℓ(Component1::RedshiftSpaceDistortions, Component2::CosmicShear, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_20_ϕTT, W.w_0_02_ϕTT)
+end
+
+function get_Cℓ(Component1::RedshiftSpaceDistortions, Component2::IntrinsicAlignment, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_20_ϕTT, W.w_0_02_ϕTT)
+end
+
+function get_Cℓ(Component1::MagnificationBias, Component2::CosmicShear, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(Component1::MagnificationBias, Component2::IntrinsicAlignment, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::CosmicShear, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT)
+end
+
+function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::IntrinsicAlignment, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT)
+end
+
+function get_Cℓ(G::GalaxyClustering, L::WeakLensing, W::ProjectedMatterDensity)
+    Cℓ_δγ = get_Cℓ(G.δ, L.γ, W)
+    Cℓ_δI = get_Cℓ(G.δ, L.IA, W)
+    Cℓ_RSDγ = get_Cℓ(G.RSD, L.γ, W)
+    Cℓ_RSDI = get_Cℓ(G.RSD, L.IA, W)
+    Cℓ_μγ = get_Cℓ(G.μ, L.γ, W)
+    Cℓ_μI = get_Cℓ(G.μ, L.IA, W)
+    Cℓ_fNLγ = get_Cℓ(G.PNG, L.γ, W)
+    Cℓ_fNLI = get_Cℓ(G.PNG, L.IA, W)
+
+    return @. Cℓ_δγ + Cℓ_δI - Cℓ_RSDγ - Cℓ_RSDI + Cℓ_μγ + Cℓ_μI + Cℓ_fNLγ + Cℓ_fNLI
+end
+
+function get_Cℓ(L::WeakLensing, G::GalaxyClustering, W::ProjectedMatterDensity)
+    return get_Cℓ(G, L, W)
+end
+
+function get_Cℓ(Component1::CMBLensing, Component2::NumberCounts, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕTT)
+end
+
+function get_Cℓ(Component1::CMBLensing, Component2::RedshiftSpaceDistortions, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_02_ϕTT, W.w_0_20_ϕTT)
+end
+
+function get_Cℓ(Component1::CMBLensing, Component2::MagnificationBias, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(Component1::CMBLensing, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1)
+end
+
+function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::NumberCounts, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕTT)
+end
+
+function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::RedshiftSpaceDistortions, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_02_ϕTT, W.w_0_20_ϕTT)
+end
+
+function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::MagnificationBias, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1)
+end
+
+function get_Cℓ(K::CMB, G::GalaxyClustering, W::ProjectedMatterDensity)
+    Cℓ_κδ = get_Cℓ(K.κ, G.δ, W)
+    Cℓ_κRSD = get_Cℓ(K.κ, G.RSD, W)
+    Cℓ_κμ = get_Cℓ(K.κ, G.μ, W)
+    Cℓ_κfNL = get_Cℓ(K.κ, G.PNG, W)
+    Cℓ_Tδ = get_Cℓ(K.ISW, G.δ, W)
+    Cℓ_TRSD = get_Cℓ(K.ISW, G.RSD, W)
+    Cℓ_Tμ = get_Cℓ(K.ISW, G.μ, W)
+    Cℓ_TfNL = get_Cℓ(K.ISW, G.PNG, W)
+
+    return @. Cℓ_κδ - Cℓ_κRSD + Cℓ_κμ + Cℓ_κfNL + Cℓ_Tδ - Cℓ_TRSD + Cℓ_Tμ + Cℓ_TfNL
+end
+
+function get_Cℓ(G::GalaxyClustering, K::CMB, W::ProjectedMatterDensity)
+    return get_Cℓ(K, G, W)
+end
+
+function get_Cℓ(Component1::CMBLensing, Component2::CosmicShear, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(Component1::CMBLensing, Component2::IntrinsicAlignment, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::CosmicShear, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::IntrinsicAlignment, W::ProjectedMatterDensity)
+    return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
+end
+
+function get_Cℓ(K::CMB, S::WeakLensing, W::ProjectedMatterDensity)
+    Cℓ_κγ = get_Cℓ(K.κ, S.γ, W)
+    Cℓ_κI = get_Cℓ(K.κ, S.IA, W)
+    Cℓ_Tγ = get_Cℓ(K.ISW, S.γ, W)
+    Cℓ_TI = get_Cℓ(K.ISW, S.IA, W)
+
+    return @. Cℓ_κγ + Cℓ_κI + Cℓ_Tγ + Cℓ_TI
+end
+
+function get_Cℓ(S::WeakLensing, K::CMB, W::ProjectedMatterDensity)
+    return get_Cℓ(K, S, W)
+end

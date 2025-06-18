@@ -289,7 +289,7 @@ function evaluate_coefs!(c::cϕ, pk::AbstractArray{<:Any, 2}, bg::BackgroundQuan
 end
 
 function evaluate_coefs!(c::NullCoeff, pk::AbstractArray{<:Any, 2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology)
-    c.coefs = zeros(size(k_cheb), size(χ), size(R))
+    c.coefs = zeros(size(k_cheb, 1), size(χ, 1), size(R, 1))
 end
 
 function evaluate_coefs!(c::ChebCoefs, pk::AbstractArray{<:Any, 2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology)
