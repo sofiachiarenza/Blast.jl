@@ -245,7 +245,9 @@ end
     coefs::AbstractArray{<:Any, 1} = zeros(1)
 end
 
-@kwdef mutable struct ChebCoefs <: AbstractCoeff
+#This is now done more efficiently in power_spectrum.jl. Results are identical, i've checked :)
+#Not deleting it for now just to be sure.
+"""@kwdef mutable struct ChebCoefs <: AbstractCoeff
     cϕTT::cϕTT = cϕTT()
     cϕT::Union{cϕT, NullCoeff} = NullCoeff()
     cϕ::Union{cϕ, NullCoeff} = NullCoeff()
@@ -296,4 +298,4 @@ function evaluate_coefs!(c::ChebCoefs, pk::AbstractArray{<:Any, 2}, bg::Backgrou
     evaluate_coefs!(c.cϕTT, pk, bg, grid, cosmo)
     evaluate_coefs!(c.cϕT, pk, bg, grid, cosmo)
     evaluate_coefs!(c.cϕ, pk, bg, grid, cosmo)
-end
+end"""

@@ -75,7 +75,7 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
     #Integration in R is performed using the Clenshaw-Curtis quadrature rule
     w_R = get_clencurt_weights_R_integration(2*nR+1)
 
-    prefactor = Component1.ell_prefactor .* Component2.ell_prefactor
+    prefactor = 2/π .* Component1.ell_prefactor[1:length(ℓ_nonlimber)] .* Component2.ell_prefactor[1:length(ℓ_nonlimber)]
     pmj = w.w
 
     @tullio Cℓ[l,i,j] := prefactor[l]*Blast.χ[n]*K[i,j,n,m]*pmj[l,n,m]*w_χ[n]*w_R[m]*Δχ
@@ -107,7 +107,7 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
     #Integration in R is performed using the Clenshaw-Curtis quadrature rule
     w_R = get_clencurt_weights_R_integration(2*nR+1)
 
-    prefactor = Component1.ell_prefactor .* Component2.ell_prefactor
+    prefactor = 2/π .* Component1.ell_prefactor[1:length(ℓ_nonlimber)] .* Component2.ell_prefactor[1:length(ℓ_nonlimber)]
 
     @tullio Cℓ[l,i,j] := prefactor[l]*Blast.χ[n]*K[l,i,j,n,m]*w_χ[n]*w_R[m]*Δχ
 end
@@ -177,7 +177,7 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::PrimordialNo
     return compute_Cℓ(Component1, Component2, W.w_2_00_ϕ)
 end
 
-function get_Cℓ(G::GalaxyClustering, W::ProjectedMatterDensity)
+function get_Cℓ(G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
     Cℓ_δδ = get_Cℓ(G.δ, G.δ, W)
     Cℓ_δRSD = get_Cℓ(G.δ, G.RSD, W)
     Cℓ_RSDδ = get_Cℓ(G.RSD, G.δ, W)
@@ -195,7 +195,10 @@ function get_Cℓ(G::GalaxyClustering, W::ProjectedMatterDensity)
     Cℓ_fNLμ =get_Cℓ(G.PNG, G.μ, W)
     Cℓ_fNLfNL =get_Cℓ(G.PNG, G.PNG, W)
 
-    return @. Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD + Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ + Cℓ_δfNL + Cℓ_fNLδ - Cℓ_fNLRSD - Cℓ_RSDfNL + Cℓ_μfNL + Cℓ_fNLμ + Cℓ_fNLfNL
+    Cℓ_nonlimber = @. Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD + Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ + Cℓ_δfNL + Cℓ_fNLδ - Cℓ_fNLRSD - Cℓ_RSDfNL + Cℓ_μfNL + Cℓ_fNLμ + Cℓ_fNLfNL
+    Cℓ_correction = get_limber_correction(G, Pk)
+
+    return Cℓ_nonlimber .+ Cℓ_correction
 end
 
 function get_Cℓ(Component1::CosmicShear, Component2::CosmicShear, W::ProjectedMatterDensity)
@@ -214,13 +217,16 @@ function get_Cℓ(Component1::IntrinsicAlignment, Component2::IntrinsicAlignment
     return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
 end
 
-function get_Cℓ(L::WeakLensing, W::ProjectedMatterDensity)
+function get_Cℓ(L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
     Cℓ_γγ = get_Cℓ(L.γ, L.γ, W)
     Cℓ_γI = get_Cℓ(L.γ, L.IA, W)
     Cℓ_Iγ = get_Cℓ(L.IA, L.γ, W)
     Cℓ_II = get_Cℓ(L.IA, L.IA, W)
 
-    return @. Cℓ_γγ + Cℓ_γI + Cℓ_Iγ + Cℓ_II
+    Cℓ_nonlimber = @. Cℓ_γγ + Cℓ_γI + Cℓ_Iγ + Cℓ_II
+    Cℓ_correction = get_limber_correction(L, Pk)
+
+    return Cℓ_nonlimber .+ Cℓ_correction 
 end
 
 function get_Cℓ(Component1::NumberCounts, Component2::CosmicShear, W::ProjectedMatterDensity)
@@ -255,7 +261,7 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::IntrinsicAli
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT)
 end
 
-function get_Cℓ(G::GalaxyClustering, L::WeakLensing, W::ProjectedMatterDensity)
+function get_Cℓ(G::GalaxyClustering, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
     Cℓ_δγ = get_Cℓ(G.δ, L.γ, W)
     Cℓ_δI = get_Cℓ(G.δ, L.IA, W)
     Cℓ_RSDγ = get_Cℓ(G.RSD, L.γ, W)
@@ -265,11 +271,14 @@ function get_Cℓ(G::GalaxyClustering, L::WeakLensing, W::ProjectedMatterDensity
     Cℓ_fNLγ = get_Cℓ(G.PNG, L.γ, W)
     Cℓ_fNLI = get_Cℓ(G.PNG, L.IA, W)
 
-    return @. Cℓ_δγ + Cℓ_δI - Cℓ_RSDγ - Cℓ_RSDI + Cℓ_μγ + Cℓ_μI + Cℓ_fNLγ + Cℓ_fNLI
+    Cℓ_nonlimber = @. Cℓ_δγ + Cℓ_δI - Cℓ_RSDγ - Cℓ_RSDI + Cℓ_μγ + Cℓ_μI + Cℓ_fNLγ + Cℓ_fNLI
+    Cℓ_correction = get_limber_correction(G, L, Pk)
+
+    return Cℓ_nonlimber .+ Cℓ_correction
 end
 
-function get_Cℓ(L::WeakLensing, G::GalaxyClustering, W::ProjectedMatterDensity)
-    return get_Cℓ(G, L, W)
+function get_Cℓ(L::WeakLensing, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+    return get_Cℓ(G, L, Pk, W)
 end
 
 function get_Cℓ(Component1::CMBLensing, Component2::NumberCounts, W::ProjectedMatterDensity)
@@ -304,7 +313,7 @@ function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::PrimordialNonGau
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1)
 end
 
-function get_Cℓ(K::CMB, G::GalaxyClustering, W::ProjectedMatterDensity)
+function get_Cℓ(K::CMB, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
     Cℓ_κδ = get_Cℓ(K.κ, G.δ, W)
     Cℓ_κRSD = get_Cℓ(K.κ, G.RSD, W)
     Cℓ_κμ = get_Cℓ(K.κ, G.μ, W)
@@ -314,11 +323,14 @@ function get_Cℓ(K::CMB, G::GalaxyClustering, W::ProjectedMatterDensity)
     Cℓ_Tμ = get_Cℓ(K.ISW, G.μ, W)
     Cℓ_TfNL = get_Cℓ(K.ISW, G.PNG, W)
 
-    return @. Cℓ_κδ - Cℓ_κRSD + Cℓ_κμ + Cℓ_κfNL + Cℓ_Tδ - Cℓ_TRSD + Cℓ_Tμ + Cℓ_TfNL
+    Cℓ_nonlimber = @. Cℓ_κδ - Cℓ_κRSD + Cℓ_κμ + Cℓ_κfNL + Cℓ_Tδ - Cℓ_TRSD + Cℓ_Tμ + Cℓ_TfNL
+    Cℓ_correction = get_limber_correction(K, G, Pk)
+
+    return Cℓ_nonlimber .+ Cℓ_correction
 end
 
-function get_Cℓ(G::GalaxyClustering, K::CMB, W::ProjectedMatterDensity)
-    return get_Cℓ(K, G, W)
+function get_Cℓ(G::GalaxyClustering, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+    return get_Cℓ(K, G, Pk, W)
 end
 
 function get_Cℓ(Component1::CMBLensing, Component2::CosmicShear, W::ProjectedMatterDensity)
@@ -337,15 +349,18 @@ function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::IntrinsicAlignme
     return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
 end
 
-function get_Cℓ(K::CMB, S::WeakLensing, W::ProjectedMatterDensity)
+function get_Cℓ(K::CMB, S::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
     Cℓ_κγ = get_Cℓ(K.κ, S.γ, W)
     Cℓ_κI = get_Cℓ(K.κ, S.IA, W)
     Cℓ_Tγ = get_Cℓ(K.ISW, S.γ, W)
     Cℓ_TI = get_Cℓ(K.ISW, S.IA, W)
 
-    return @. Cℓ_κγ + Cℓ_κI + Cℓ_Tγ + Cℓ_TI
+    Cℓ_nonlimber = @. Cℓ_κγ + Cℓ_κI + Cℓ_Tγ + Cℓ_TI
+    Cℓ_correction = get_limber_correction(K, S, Pk)
+
+    return Cℓ_nonlimber .+ Cℓ_correction
 end
 
-function get_Cℓ(S::WeakLensing, K::CMB, W::ProjectedMatterDensity)
-    return get_Cℓ(K, S, W)
+function get_Cℓ(S::WeakLensing, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+    return get_Cℓ(K, S, Pk, W)
 end

@@ -19,19 +19,22 @@ end
     z::Array{<:Any, 1} = zeros(1)
     bias::Array{<:Any, 2} = zeros(1, 1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor = sqrt(2/π) * ones(size(Blast.ℓ, 1))
+    ell_prefactor = ones(size(Blast.full_ℓ_range, 1))
+    limber_factor = ones(size(Blast.full_ℓ_range, 1))
 end
 
 @kwdef mutable struct CosmicShear <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1, 1)
     z::Array{<:Any, 1} = zeros(1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor = @. sqrt(2/π) * sqrt(factorial_frac(Blast.ℓ))
+    ell_prefactor = @. sqrt(factorial_frac(Blast.full_ℓ_range))
+    limber_factor = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
 
 @kwdef mutable struct CMBLensing <: AbstractComponents
     Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor = @. sqrt(2/π) * Blast.ℓ * (Blast.ℓ + 1)
+    ell_prefactor = @. Blast.full_ℓ_range * (Blast.full_ℓ_range + 1)
+    limber_factor = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
 
 @kwdef mutable struct RedshiftSpaceDistortions <: AbstractComponents
@@ -39,7 +42,8 @@ end
     z::Array{<:Any, 1} = zeros(1)
     growth_rate::Array{<:Any, 1} = zeros(1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor = sqrt(2/π) * ones(size(Blast.ℓ, 1))
+    ell_prefactor = ones(size(Blast.full_ℓ_range, 1))
+    limber_factor = ones(size(Blast.full_ℓ_range, 1))
 end
 
 @kwdef mutable struct MagnificationBias <: AbstractComponents
@@ -47,7 +51,8 @@ end
     z::Array{<:Any, 1} = zeros(1)
     s::Array{<:Any, 2} = zeros(1,1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor = @. sqrt(2/π) * Blast.ℓ * (Blast.ℓ + 1)
+    ell_prefactor = @. Blast.full_ℓ_range * (Blast.full_ℓ_range + 1)
+    limber_factor = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
 
 @kwdef mutable struct IntrinsicAlignment <: AbstractComponents
@@ -55,13 +60,15 @@ end
     z::Array{<:Any, 1} = zeros(1)
     A_IA::Array{<:Any, 2} = zeros(1, 1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor = @. sqrt(2/π) * sqrt(factorial_frac(Blast.ℓ))
+    ell_prefactor = @. sqrt(factorial_frac(Blast.full_ℓ_range))
+    limber_factor = ones(size(Blast.full_ℓ_range, 1)) #TODO: check that this is correct
 end
 
 @kwdef mutable struct IntegratedSachsWolfe <: AbstractComponents
     growth_rate::Array{<:Any, 1} = zeros(1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor = sqrt(2/π) * ones(size(Blast.ℓ, 1))
+    ell_prefactor = ones(size(Blast.full_ℓ_range, 1))
+    limber_factor = ones(size(Blast.full_ℓ_range, 1)) #TODO: check that this is correct
 end
 
 @kwdef mutable struct PrimordialNonGaussianity <: AbstractComponents
@@ -71,7 +78,8 @@ end
     f_NL::Number = 0
     p::Number = 0
     Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor = sqrt(2/π) * ones(size(Blast.ℓ, 1))
+    ell_prefactor = ones(size(Blast.full_ℓ_range, 1))
+    limber_factor = ones(size(Blast.full_ℓ_range, 1)) #TODO: check that this is correct
 end
 
 @kwdef mutable struct GalaxyClustering <: AbstractCosmologicalProbes

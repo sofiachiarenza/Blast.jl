@@ -158,7 +158,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_2_00_ϕTT, c::ChebCoefs)
+function compute_w!(w::w_2_00_ϕTT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
 end
 
@@ -167,7 +167,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_minus2_00_ϕTT, c::ChebCoefs)
+function compute_w!(w::w_minus2_00_ϕTT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
 end
 
@@ -176,7 +176,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_0_00_ϕTT, c::ChebCoefs)
+function compute_w!(w::w_0_00_ϕTT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
 end
 
@@ -185,7 +185,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_0_02_ϕTT, c::ChebCoefs)
+function compute_w!(w::w_0_02_ϕTT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
 end
 
@@ -194,7 +194,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_0_20_ϕTT, c::ChebCoefs)
+function compute_w!(w::w_0_20_ϕTT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
 end
 
@@ -203,7 +203,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_2_02_ϕTT, c::ChebCoefs)
+function compute_w!(w::w_2_02_ϕTT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
 end
 
@@ -212,7 +212,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_2_20_ϕTT, c::ChebCoefs)
+function compute_w!(w::w_2_20_ϕTT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
 end
 
@@ -221,35 +221,35 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_2_22_ϕTT, c::ChebCoefs)
+function compute_w!(w::w_2_22_ϕTT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
 end
 
 @kwdef mutable struct w_2_00_ϕT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_00
-    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
+    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
 end
 
-function compute_w!(w::w_2_00_ϕT, c::ChebCoefs)
+function compute_w!(w::w_2_00_ϕT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕT.coefs, w.T̃)
 end
 
 @kwdef mutable struct w_2_00_ϕT_R1 <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_00
-    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
+    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
 end
 
-function compute_w!(w::w_2_00_ϕT_R1, c::ChebCoefs)
+function compute_w!(w::w_2_00_ϕT_R1, c::PowerSpectrum)
     coefs_R1 = c.cϕT.coefs[:,end,:]
     w.w = w_ell_tullio(coefs_R1, w.T̃)
 end
 
 @kwdef mutable struct w_0_00_ϕT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_0_00
-    w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
+    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
 end
 
-function compute_w!(w::w_0_00_ϕT, c::ChebCoefs)
+function compute_w!(w::w_0_00_ϕT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕT.coefs, w.T̃)
 end
 
@@ -258,7 +258,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_0_00_ϕT_R1, c::ChebCoefs)
+function compute_w!(w::w_0_00_ϕT_R1, c::PowerSpectrum)
     coefs_R1 = c.cϕT.coefs[:,end,:]
     w.w = w_ell_tullio(coefs_R1, w.T̃)
 end
@@ -268,7 +268,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_2_02_ϕT, c::ChebCoefs)
+function compute_w!(w::w_2_02_ϕT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕT.coefs, w.T̃)
 end
 
@@ -277,7 +277,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_2_02_ϕT_R1, c::ChebCoefs)
+function compute_w!(w::w_2_02_ϕT_R1, c::PowerSpectrum)
     coefs_R1 = c.cϕT.coefs[:,end,:]
     w.w = w_ell_tullio(coefs_R1, w.T̃)
 end
@@ -287,7 +287,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_2_20_ϕT, c::ChebCoefs)
+function compute_w!(w::w_2_20_ϕT, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕT.coefs, w.T̃)
 end
 
@@ -296,7 +296,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_2_20_ϕT_R1, c::ChebCoefs)
+function compute_w!(w::w_2_20_ϕT_R1, c::PowerSpectrum)
     coefs_R1 = c.cϕT.coefs[:,end,:]
     w.w = w_ell_tullio(coefs_R1, w.T̃)
 end
@@ -306,7 +306,7 @@ end
     w::AbstractArray{<:Any, 3} = zeros(1 , 1, 1)
 end
 
-function compute_w!(w::w_2_00_ϕ, c::ChebCoefs)
+function compute_w!(w::w_2_00_ϕ, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕ.coefs, w.T̃)
 end
 
@@ -330,7 +330,7 @@ end
     w_2_00_ϕ::w_2_00_ϕ = w_2_00_ϕ()
 end 
 
-function compute_w!(W::ProjectedMatterDensity, c::ChebCoefs)
+function compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
     compute_w!(W.w_2_00_ϕTT, c)
     compute_w!(W.w_minus2_00_ϕTT, c)
     compute_w!(W.w_0_00_ϕTT, c)

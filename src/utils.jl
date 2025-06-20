@@ -1,5 +1,5 @@
 function load_Ts(folder, nχ, nR, nk)
-    ell_vector = Blast.ℓ
+    ell_vector = Blast.ℓ_nonlimber
     full_T = zeros(length(ell_vector), nχ, nR, nk)
     for i in 1:length(ell_vector)
         l_string = string(round(ell_vector[i]; digits=1))
@@ -58,15 +58,6 @@ function limber_rsd_kernel(ℓ::Number, bg::BackgroundQuantities, RSDK::Blast.RS
     end
 
     return rds_kernels
-end
-
-function P_phi(k::AbstractArray{T,1}, cosmo::AbstractCosmology) where T
-    return @. 9/25 * 2 * π^2 * cosmo.As / (k^3) * (k/0.05)^(cosmo.ns - 1.)
-end
-
-function extract_transfer_function(pk::AbstractArray{T,2}, k::AbstractArray{T,1}, cosmo::AbstractCosmology) where T
-    prim_pk = P_phi(k, cosmo)
-    return sqrt.(pk ./ reshape(prim_pk, 1, :))
 end
 
 function bΦ(bias::AbstractVector{T}, p::Number) where T

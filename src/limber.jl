@@ -247,3 +247,45 @@ function Cℓ_limber(pk, ℓ, bg::BackgroundQuantities, ProbeA::Blast.ShearKerne
     return Cℓ
 end
 
+
+#Limber Inclusion in the new code. All the above will be deprecated. 
+
+function get_limber_kernel(G::GalaxyClustering)
+    #TODO: in the correction i'm currently excluding RSDs. The limber implementation still doesn't work, but also the contribution at the scales of interest is null basically.
+    return G.δ.Kernel  .* reshape(G.δ.ell_prefactor, :,1,1) .* reshape(G.δ.limber_factor, :,1,1)  .+ G.μ.Kernel  .* reshape(G.μ.ell_prefactor, :,1,1) .* reshape(G.μ.limber_factor, :,1,1) #.+ G.PNG.Kernel  .* reshape(G.PNG.ell_prefactor, :,1,1) .* reshape(G.PNG.limber_factor, :,1,1)
+end
+
+function get_limber_kernel(L::WeakLensing)
+    return L.γ.Kernel .* reshape(L.γ.ell_prefactor, :, 1, 1) .* reshape(L.γ.limber_factor, :, 1, 1) #.+ L.IA.Kernel .* reshape(L.IA.ell_prefactor, :, 1, 1) .* reshape(L.IA.limber_factor, :, 1, 1)
+end
+
+function get_limber_kernel(C::CMB)
+    return C.κ.Kernel .* reshape(C.κ.ell_prefactor, :, 1, 1) .* reshape(C.κ.limber_factor, :, 1, 1) .+ C.ISW.Kernel .* reshape(C.ISW.ell_prefactor, :, 1, 1) .* reshape(C.ISW.limber_factor, :, 1, 1)
+end
+
+function get_limber_correction(Probe::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
+    ΔP_over_χ2 = pk.ΔP_limber[1:size(Blast.ℓ_nonlimber, 1), :] ./ reshape(Blast.χ, 1, :) .^ 2
+
+    n = size(Blast.χ, 1)
+    Δχ = ((χ[n]-χ[1])/(n-1))
+    weights = Blast.simpson_weight_array(n)
+
+    K = get_limber_kernel(Probe)[1:size(Blast.ℓ_nonlimber, 1), :, :]
+
+    @tullio Cℓ[l,i,j] := ΔP_over_χ2[l,m]*K[l,m,i]*K[l,m,j]*weights[m]*Δχ
+end
+
+function get_limber_correction(ProbeA::Union{GalaxyClustering, WeakLensing, CMB}, ProbeB::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
+    ΔP_over_χ2 = pk.ΔP_limber[1:size(Blast.ℓ_nonlimber, 1), :] ./ reshape(Blast.χ, 1, :) .^ 2
+
+    n = size(Blast.χ, 1)
+    Δχ = ((χ[n]-χ[1])/(n-1))
+    weights = Blast.simpson_weight_array(n)
+
+    KA = get_limber_kernel(ProbeA)[1:size(Blast.ℓ_nonlimber, 1), :, :]
+    KB = get_limber_kernel(ProbeB)[1:size(Blast.ℓ_nonlimber, 1), :, :]
+
+    @tullio Cℓ[l,i,j] := ΔP_over_χ2[l,m]*KA[l,m,i]*KB[l,m,j]*weights[m]*Δχ
+end
+
+
