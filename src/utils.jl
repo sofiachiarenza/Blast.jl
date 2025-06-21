@@ -155,7 +155,7 @@ function simpson_weights_array(n::Int)
     return weight_array
 end
 
-function simpson_weights_matrix(n::Int)
+@memoize function simpson_weights_matrix(n::Int)
     weight_matrix = zeros(n, n)
     for i in 1:n
         weight_matrix[i, i:n] = simpson_weights_array(n - i + 1)
