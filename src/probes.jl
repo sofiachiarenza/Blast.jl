@@ -61,7 +61,7 @@ end
     A_IA::Array{<:Any, 2} = zeros(1, 1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
     ell_prefactor = @. sqrt(factorial_frac(Blast.full_ℓ_range))
-    limber_factor = ones(size(Blast.full_ℓ_range, 1)) #TODO: check that this is correct
+    limber_factor = (Blast.full_ℓ_range .+ 0.5) .^ (-2) #TODO: check that this is correct
 end
 
 @kwdef mutable struct IntegratedSachsWolfe <: AbstractComponents

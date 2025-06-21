@@ -256,7 +256,7 @@ function get_limber_kernel(G::GalaxyClustering)
 end
 
 function get_limber_kernel(L::WeakLensing)
-    return L.γ.Kernel .* reshape(L.γ.ell_prefactor, :, 1, 1) .* reshape(L.γ.limber_factor, :, 1, 1) #.+ L.IA.Kernel .* reshape(L.IA.ell_prefactor, :, 1, 1) .* reshape(L.IA.limber_factor, :, 1, 1)
+    return L.γ.Kernel .* reshape(L.γ.ell_prefactor, :, 1, 1) .* reshape(L.γ.limber_factor, :, 1, 1) .+ L.IA.Kernel .* reshape(L.IA.ell_prefactor, :, 1, 1) .* reshape(L.IA.limber_factor, :, 1, 1)
 end
 
 function get_limber_kernel(C::CMB)
@@ -286,6 +286,32 @@ function get_limber_correction(ProbeA::Union{GalaxyClustering, WeakLensing, CMB}
     KB = get_limber_kernel(ProbeB)[1:size(Blast.ℓ_nonlimber, 1), :, :]
 
     @tullio Cℓ[l,i,j] := ΔP_over_χ2[l,m]*KA[l,m,i]*KB[l,m,j]*weights[m]*Δχ
+end
+
+#this is to compute the Cℓ's for ℓ>215
+function get_limber_Cℓ(Probe::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
+    Pδ_over_χ2 = pk.Pδ_limber[size(Blast.ℓ_nonlimber, 1)+1:end, :] ./ reshape(Blast.χ, 1, :) .^ 2
+
+    n = size(Blast.χ, 1)
+    Δχ = ((χ[n]-χ[1])/(n-1))
+    weights = Blast.simpson_weight_array(n)
+
+    K = get_limber_kernel(Probe)[size(Blast.ℓ_nonlimber, 1)+1:end, :, :]
+
+    @tullio Cℓ[l,i,j] := Pδ_over_χ2[l,m]*K[l,m,i]*K[l,m,j]*weights[m]*Δχ
+end
+
+function get_limber_Cℓ(ProbeA::Union{GalaxyClustering, WeakLensing, CMB}, ProbeB::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
+    Pδ_over_χ2 = pk.Pδ_limber[size(Blast.ℓ_nonlimber, 1)+1:end, :] ./ reshape(Blast.χ, 1, :) .^ 2
+
+    n = size(Blast.χ, 1)
+    Δχ = ((χ[n]-χ[1])/(n-1))
+    weights = Blast.simpson_weight_array(n)
+
+    KA = get_limber_kernel(ProbeA)[size(Blast.ℓ_nonlimber, 1)+1:end, :, :]
+    KB = get_limber_kernel(ProbeB)[size(Blast.ℓ_nonlimber, 1)+1:end, :, :]
+
+    @tullio Cℓ[l,i,j] := Pδ_over_χ2[l,m]*KA[l,m,i]*KB[l,m,j]*weights[m]*Δχ
 end
 
 

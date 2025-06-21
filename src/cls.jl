@@ -177,7 +177,7 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::PrimordialNo
     return compute_Cℓ(Component1, Component2, W.w_2_00_ϕ)
 end
 
-function get_Cℓ(G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
     Cℓ_δδ = get_Cℓ(G.δ, G.δ, W)
     Cℓ_δRSD = get_Cℓ(G.δ, G.RSD, W)
     Cℓ_RSDδ = get_Cℓ(G.RSD, G.δ, W)
@@ -197,8 +197,21 @@ function get_Cℓ(G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDens
 
     Cℓ_nonlimber = @. Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD + Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ + Cℓ_δfNL + Cℓ_fNLδ - Cℓ_fNLRSD - Cℓ_RSDfNL + Cℓ_μfNL + Cℓ_fNLμ + Cℓ_fNLfNL
     Cℓ_correction = get_limber_correction(G, Pk)
+    Cℓ_limber = get_limber_Cℓ(G, Pk)
+    full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
 
-    return Cℓ_nonlimber .+ Cℓ_correction
+    nbins = size(G.δ.Kernel, 1)
+
+    Cℓ_final = zeros(size(ℓ,1), nbins, nbins)
+
+    for i in 1:nbins
+        for j in 1:nbins
+            interpol = chebinterp(reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)), 2, 2000)
+            Cℓ_final[:,i,j] = interpol.(ℓ) ./ (ℓ.^2)
+        end
+    end
+
+    return Cℓ_final
 end
 
 function get_Cℓ(Component1::CosmicShear, Component2::CosmicShear, W::ProjectedMatterDensity)
@@ -217,7 +230,7 @@ function get_Cℓ(Component1::IntrinsicAlignment, Component2::IntrinsicAlignment
     return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
 end
 
-function get_Cℓ(L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
     Cℓ_γγ = get_Cℓ(L.γ, L.γ, W)
     Cℓ_γI = get_Cℓ(L.γ, L.IA, W)
     Cℓ_Iγ = get_Cℓ(L.IA, L.γ, W)
@@ -225,8 +238,21 @@ function get_Cℓ(L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
 
     Cℓ_nonlimber = @. Cℓ_γγ + Cℓ_γI + Cℓ_Iγ + Cℓ_II
     Cℓ_correction = get_limber_correction(L, Pk)
+    Cℓ_limber = get_limber_Cℓ(L, Pk)
+    full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
 
-    return Cℓ_nonlimber .+ Cℓ_correction 
+    nbins = size(L.γ.Kernel, 1)
+
+    Cℓ_final = zeros(size(ℓ,1), nbins, nbins)
+
+    for i in 1:nbins
+        for j in 1:nbins
+            interpol = chebinterp(reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)), 2, 2000)
+            Cℓ_final[:,i,j] = interpol.(ℓ) ./ (ℓ.^2)
+        end
+    end
+
+    return Cℓ_final
 end
 
 function get_Cℓ(Component1::NumberCounts, Component2::CosmicShear, W::ProjectedMatterDensity)
@@ -261,7 +287,7 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::IntrinsicAli
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT)
 end
 
-function get_Cℓ(G::GalaxyClustering, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
     Cℓ_δγ = get_Cℓ(G.δ, L.γ, W)
     Cℓ_δI = get_Cℓ(G.δ, L.IA, W)
     Cℓ_RSDγ = get_Cℓ(G.RSD, L.γ, W)
@@ -273,12 +299,27 @@ function get_Cℓ(G::GalaxyClustering, L::WeakLensing, Pk::PowerSpectrum, W::Pro
 
     Cℓ_nonlimber = @. Cℓ_δγ + Cℓ_δI - Cℓ_RSDγ - Cℓ_RSDI + Cℓ_μγ + Cℓ_μI + Cℓ_fNLγ + Cℓ_fNLI
     Cℓ_correction = get_limber_correction(G, L, Pk)
+    Cℓ_limber = get_limber_Cℓ(G, L, Pk)
 
-    return Cℓ_nonlimber .+ Cℓ_correction
+    full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
+
+    nbins_A = size(G.δ.Kernel, 1)
+    nbins_B = size(L.γ.Kernel, 1)
+
+    Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
+
+    for i in 1:nbins_A
+        for j in 1:nbins_B
+            interpol = chebinterp(reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)), 2, 2000)
+            Cℓ_final[:,i,j] = interpol.(ℓ) ./ (ℓ.^2)
+        end
+    end
+
+    return Cℓ_final
 end
 
-function get_Cℓ(L::WeakLensing, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
-    return get_Cℓ(G, L, Pk, W)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+    return get_Cℓ(ℓ, G, L, Pk, W)
 end
 
 function get_Cℓ(Component1::CMBLensing, Component2::NumberCounts, W::ProjectedMatterDensity)
@@ -313,7 +354,7 @@ function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::PrimordialNonGau
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1)
 end
 
-function get_Cℓ(K::CMB, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
     Cℓ_κδ = get_Cℓ(K.κ, G.δ, W)
     Cℓ_κRSD = get_Cℓ(K.κ, G.RSD, W)
     Cℓ_κμ = get_Cℓ(K.κ, G.μ, W)
@@ -325,12 +366,27 @@ function get_Cℓ(K::CMB, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMa
 
     Cℓ_nonlimber = @. Cℓ_κδ - Cℓ_κRSD + Cℓ_κμ + Cℓ_κfNL + Cℓ_Tδ - Cℓ_TRSD + Cℓ_Tμ + Cℓ_TfNL
     Cℓ_correction = get_limber_correction(K, G, Pk)
+    Cℓ_limber = get_limber_Cℓ(K, G, Pk)
 
-    return Cℓ_nonlimber .+ Cℓ_correction
+    full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
+
+    nbins_A = size(K.κ.Kernel, 1)
+    nbins_B = size(G.δ.Kernel, 1)
+
+    Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
+
+    for i in 1:nbins_A
+        for j in 1:nbins_B
+            interpol = chebinterp(reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)), 2, 2000)
+            Cℓ_final[:,i,j] = interpol.(ℓ) ./ (ℓ.^2)
+        end
+    end
+
+    return Cℓ_final
 end
 
-function get_Cℓ(G::GalaxyClustering, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity)
-    return get_Cℓ(K, G, Pk, W)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+    return get_Cℓ(ℓ, K, G, Pk, W)
 end
 
 function get_Cℓ(Component1::CMBLensing, Component2::CosmicShear, W::ProjectedMatterDensity)
@@ -349,18 +405,33 @@ function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::IntrinsicAlignme
     return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
 end
 
-function get_Cℓ(K::CMB, S::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
-    Cℓ_κγ = get_Cℓ(K.κ, S.γ, W)
-    Cℓ_κI = get_Cℓ(K.κ, S.IA, W)
-    Cℓ_Tγ = get_Cℓ(K.ISW, S.γ, W)
-    Cℓ_TI = get_Cℓ(K.ISW, S.IA, W)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+    Cℓ_κγ = get_Cℓ(K.κ, L.γ, W)
+    Cℓ_κI = get_Cℓ(K.κ, L.IA, W)
+    Cℓ_Tγ = get_Cℓ(K.ISW, L.γ, W)
+    Cℓ_TI = get_Cℓ(K.ISW, L.IA, W)
 
     Cℓ_nonlimber = @. Cℓ_κγ + Cℓ_κI + Cℓ_Tγ + Cℓ_TI
-    Cℓ_correction = get_limber_correction(K, S, Pk)
+    Cℓ_correction = get_limber_correction(K, L, Pk)
+    Cℓ_limber = get_limber_Cℓ(K, L, Pk)
 
-    return Cℓ_nonlimber .+ Cℓ_correction
+    full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
+
+    nbins_A = size(K.κ.Kernel, 1)
+    nbins_B = size(L.γ.Kernel, 1)
+
+    Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
+
+    for i in 1:nbins_A
+        for j in 1:nbins_B
+            interpol = chebinterp(reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)), 2, 2000)
+            Cℓ_final[:,i,j] = interpol.(ℓ) ./ (ℓ.^2)
+        end
+    end
+
+    return Cℓ_final
 end
 
-function get_Cℓ(S::WeakLensing, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity)
-    return get_Cℓ(K, S, Pk, W)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, S::WeakLensing, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+    return get_Cℓ(ℓ, K, S, Pk, W)
 end
