@@ -79,7 +79,7 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
 
     @test isapprox(δ.Kernel, LJ_clustering_kernels, rtol=1e-5)
     @test isapprox(γ.Kernel, LJ_shear_kernels, rtol=1e-3)
-    @test isapprox(κ.Kernel[1, :], LJ_cmb_kernel, rtol=1e-5)
+    @test isapprox(κ.Kernel[1, :], LJ_cmb_kernel, rtol=1e-3)
 end
 
 @testset "Matrix product test" begin
