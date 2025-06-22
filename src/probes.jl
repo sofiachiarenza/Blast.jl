@@ -137,6 +137,34 @@ function compute_kernel!(Component::CosmicShear, grid::CosmologicalGrid, bg::Bac
     Component.Kernel = kernel
 end
 
+function compute_kernel_test!(Component::CosmicShear, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
+
+    n_bins = size(Component.nz, 1)
+    kernel = zeros(n_bins, length(grid.z_range))
+
+    n_z_array = zeros(n_bins, length(grid.z_range))
+
+    χz_array = bg.χz_array
+    z_range = grid.z_range
+
+    prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
+    simpson_matrix = simpson_weights_matrix(length(grid.z_range))
+    Δχ = χz_array[2] - χz_array[1]
+
+    for b in 1:n_bins
+        nz_func = DataInterpolations.AkimaInterpolation(Component.nz[b, :], Component.z, extrapolation=ExtrapolationType.Extension)
+        nz_norm = sum(nz_func(grid.z_range) .* bg.Hz_array / C_LIGHT) * Δχ
+        for (zidx, myz) in enumerate(grid.z_range)
+            n_z_array[b, zidx] = nz_func(myz) / nz_norm
+        end
+    end
+
+    @tullio kernel[b, zidx] := Δχ * bg.Hz_array[zp] / C_LIGHT * simpson_matrix[zidx, zp] * prefac * χz_array[zidx] * (1.0 + z_range[zidx]) * n_z_array[b, zp] * (1.0 - χz_array[zidx] / χz_array[zp])
+
+    Component.Kernel = kernel
+
+end
+
 function compute_kernel!(Component::CMBLensing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
 
     prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
@@ -198,11 +226,11 @@ function compute_kernel_test!(Component::MagnificationBias, grid::CosmologicalGr
 
     prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
     simpson_matrix = simpson_weights_matrix(length(grid.z_range))
-    Δz = grid.z_range[2] - grid.z_range[1]
+    Δχ = χz_array[2] - χz_array[1]
 
     for b in 1:n_bins
         nz_func = DataInterpolations.AkimaInterpolation(Component.nz[b, :], Component.z, extrapolation=ExtrapolationType.Extension)
-        nz_norm, _ = quadgk(x -> nz_func(x), first(grid.z_range), last(grid.z_range))
+        nz_norm = sum(nz_func(grid.z_range) .* bg.Hz_array / C_LIGHT) * Δχ
         s_z = DataInterpolations.AkimaInterpolation(Component.s[b, :], grid.z_range, extrapolation=ExtrapolationType.Extension)
         for (zidx, myz) in enumerate(grid.z_range)
             s_z_array[b, zidx] = s_z(myz)
@@ -210,7 +238,7 @@ function compute_kernel_test!(Component::MagnificationBias, grid::CosmologicalGr
         end
     end
 
-    @tullio kernel[b, zidx] := Δz * simpson_matrix[zidx, zp] * prefac * χz_array[zidx] * (1.0 + z_range[zidx]) * n_z_array[b, zp] * (1.0 - χz_array[zidx] / χz_array[zp]) * (5.0 * s_z_array[zp] - 2)
+    @tullio kernel[b, zidx] := Δχ * bg.Hz_array[zp] / C_LIGHT * simpson_matrix[zidx, zp] * prefac * χz_array[zidx] * (1.0 + z_range[zidx]) * n_z_array[b, zp] * (1.0 - χz_array[zidx] / χz_array[zp]) * (5.0 * s_z_array[zp] - 2)
 
     Component.Kernel = kernel
 
