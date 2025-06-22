@@ -231,6 +231,8 @@ function compute_kernel_test!(Component::MagnificationBias, grid::CosmologicalGr
     for b in 1:n_bins
         nz_func = DataInterpolations.AkimaInterpolation(Component.nz[b, :], Component.z, extrapolation=ExtrapolationType.Extension)
         nz_norm = sum(nz_func(grid.z_range) .* bg.Hz_array / C_LIGHT) * Δχ
+        #notice that, since the normalization is in z but we assume the regular grid in chi, we integrate in χ
+        # and include the jacobian
         s_z = DataInterpolations.AkimaInterpolation(Component.s[b, :], grid.z_range, extrapolation=ExtrapolationType.Extension)
         for (zidx, myz) in enumerate(grid.z_range)
             s_z_array[b, zidx] = s_z(myz)
