@@ -77,7 +77,7 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     #CMBK = Blast.CMBLensingKernel(length(grid.z_range))
     #Blast.compute_kernel!(CMBK, grid, bg, cosmo)
 
-    @test isapprox(GK.Kernel, LJ_clustering_kernels, rtol=1e-5)
+    @test isapprox(δ.Kernel, LJ_clustering_kernels, rtol=1e-5)
     #@test isapprox(SHK.Kernel, LJ_shear_kernels, rtol=1e-3)
     #@test isapprox(CMBK.Kernel, LJ_cmb_kernel, rtol=1e-5)
 end
