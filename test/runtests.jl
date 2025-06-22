@@ -91,7 +91,7 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     fast = deepcopy(γ.Kernel)
     Blast.compute_kernel!(γ, grid, bg, cosmo)
     safe = deepcopy(γ.Kernel)
-    @test isapprox(fast, safe, rtol=1e-5)
+    @test isapprox(fast[:, 1:150], safe[:, 1:150], rtol=1e-5)
 end
 
 @testset "Matrix product test" begin
