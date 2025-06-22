@@ -70,16 +70,16 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
 
 
     #print("Computing shear kernels...\n")
-    #SHK = Blast.ShearKernel(3, length(grid.z_range))
-    #Blast.compute_kernel!(bins["dNdz"][1:3, :], bins["z"], SHK, grid, bg, cosmo)
+    γ = Blast.CosmicShear(nz=bins["dNdz"][1:3, :], z=bins["z"])
+    Blast.compute_kernel!(γ, grid, bg, cosmo)
 
     print("Computing CMB kernels...\n")
-    #CMBK = Blast.CMBLensingKernel(length(grid.z_range))
-    #Blast.compute_kernel!(CMBK, grid, bg, cosmo)
+    κ = Blast.CMBLensing()
+    Blast.compute_kernel!(κ, grid, bg, cosmo)
 
     @test isapprox(δ.Kernel, LJ_clustering_kernels, rtol=1e-5)
-    #@test isapprox(SHK.Kernel, LJ_shear_kernels, rtol=1e-3)
-    #@test isapprox(CMBK.Kernel, LJ_cmb_kernel, rtol=1e-5)
+    @test isapprox(γ.Kernel, LJ_shear_kernels, rtol=1e-3)
+    @test isapprox(κ.Kernel, LJ_cmb_kernel, rtol=1e-5)
 end
 
 @testset "Matrix product test" begin
