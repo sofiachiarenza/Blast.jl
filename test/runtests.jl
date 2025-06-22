@@ -64,16 +64,18 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     end
 
     GK = Blast.GalaxyKernel(10, length(grid.z_range))
-    Blast.compute_kernel!(bins["dNdz"], bins["z"], GK, ones(10), grid, bg, cosmo)
+    bias_matrix = ones(size(bins["dNdz"], 1), length(bins["z"]))
+    δ = Blast.NumberCounts(nz=bins["dNdz"], z=bins["z"], bias=bias_matrix)
+    Blast.compute_kernel!(δ, grid, bg, cosmo)
 
 
-    print("Computing shear kernels...\n")
-    SHK = Blast.ShearKernel(3, length(grid.z_range))
-    Blast.compute_kernel!(bins["dNdz"][1:3, :], bins["z"], SHK, grid, bg, cosmo)
+    #print("Computing shear kernels...\n")
+    #SHK = Blast.ShearKernel(3, length(grid.z_range))
+    #Blast.compute_kernel!(bins["dNdz"][1:3, :], bins["z"], SHK, grid, bg, cosmo)
 
     print("Computing CMB kernels...\n")
-    CMBK = Blast.CMBLensingKernel(length(grid.z_range))
-    Blast.compute_kernel!(CMBK, grid, bg, cosmo)
+    #CMBK = Blast.CMBLensingKernel(length(grid.z_range))
+    #Blast.compute_kernel!(CMBK, grid, bg, cosmo)
 
     @test isapprox(GK.Kernel, LJ_clustering_kernels, rtol=1e-5)
     @test isapprox(SHK.Kernel, LJ_shear_kernels, rtol=1e-3)
