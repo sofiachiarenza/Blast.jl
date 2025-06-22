@@ -80,6 +80,18 @@ run(`bash -c "rm LJ_cmb_kernel.npz"`)
     @test isapprox(δ.Kernel, LJ_clustering_kernels, rtol=1e-5)
     @test isapprox(γ.Kernel, LJ_shear_kernels, rtol=1e-3)
     @test isapprox(κ.Kernel[1, :], LJ_cmb_kernel, rtol=1e-3)
+
+    z_of_χ = DataInterpolations.AkimaInterpolation(z_range, bg.χz_array, extrapolation=ExtrapolationType.Extension)
+    χ = Array(LinRange(10.0, 7000.0, 200))
+    z_range = z_of_χ.(χ)
+    grid = Blast.CosmologicalGrid(z_range=z_range)
+    bg = Blast.BackgroundQuantities(Hz_array=zeros(length(z_range)), χz_array=zeros(length(z_range)))
+    Blast.evaluate_background_quantities!(grid, bg, cosmo)
+    Blast.compute_kernel_test!(γ, grid, bg, cosmo)
+    fast = deepcopy(γ.Kernel)
+    Blast.compute_kernel!(γ, grid, bg, cosmo)
+    safe = deepcopy(γ.Kernel)
+    @test isapprox(fast, safe, rtol=1e-5)
 end
 
 @testset "Matrix product test" begin
