@@ -47,6 +47,10 @@ function fast_chebcoefs(vals::AbstractArray, plan::FFTW.r2rFFTWPlan)
     return coefs
 end
 
+function fast_chebcoefs(vals::AbstractArray, plan::Nothing)
+    return nothing
+end
+
 """
     chebyshev_polynomials(x::AbstractArray{T,1}, n_cheb::Int, z_min::T, z_max::T) where T
 
@@ -227,22 +231,17 @@ function Pgm_unequaltime(bias_kz::AbstractArray{T,2}, pk::AbstractArray{T,2}, k:
 end
 
 abstract type AbstractCoeff end
-abstract type AbstractCoeffComponents end
 
-@kwdef mutable struct NullCoeff <: AbstractCoeffComponents
+@kwdef mutable struct cϕTT <: AbstractCoeff
     coefs::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
 end
 
-@kwdef mutable struct cϕTT <: AbstractCoeffComponents
-    coefs::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+@kwdef mutable struct cϕT <: AbstractCoeff
+    coefs::Union{AbstractArray{<:Any, 3}, Nothing} = nothing
 end
 
-@kwdef mutable struct cϕT <: AbstractCoeffComponents
-    coefs::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
-end
-
-@kwdef mutable struct cϕ <: AbstractCoeffComponents
-    coefs::AbstractArray{<:Any, 1} = zeros(1)
+@kwdef mutable struct cϕ <: AbstractCoeff
+    coefs::Union{AbstractArray{<:Any, 1}, Nothing} = nothing
 end
 
 #This is now done more efficiently in power_spectrum.jl. Results are identical, i've checked :)

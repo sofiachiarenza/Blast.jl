@@ -250,17 +250,25 @@ end
 
 #Limber Inclusion in the new code. All the above will be deprecated. 
 
+function get_limber_kernel(Component::AbstractComponents)
+    return Component.Kernel .* reshape(Component.ell_prefactor, :, 1, 1) .* reshape(Component.limber_factor, :, 1, 1)
+end
+
+function get_limber_kernel(Component::Nothing)
+    return 0.
+end
+
 function get_limber_kernel(G::GalaxyClustering)
     #TODO: in the correction i'm currently excluding RSDs. The limber implementation still doesn't work, but also the contribution at the scales of interest is null basically.
-    return G.δ.Kernel  .* reshape(G.δ.ell_prefactor, :,1,1) .* reshape(G.δ.limber_factor, :,1,1)  .+ G.μ.Kernel  .* reshape(G.μ.ell_prefactor, :,1,1) .* reshape(G.μ.limber_factor, :,1,1) #.+ G.PNG.Kernel  .* reshape(G.PNG.ell_prefactor, :,1,1) .* reshape(G.PNG.limber_factor, :,1,1)
+    return get_limber_kernel(G.δ) .+ get_limber_kernel(G.μ) # .+ get_limber_kernel(G.PNG) .+ get_limber_kernel(G.RSD)
 end
 
 function get_limber_kernel(L::WeakLensing)
-    return L.γ.Kernel .* reshape(L.γ.ell_prefactor, :, 1, 1) .* reshape(L.γ.limber_factor, :, 1, 1) .+ L.IA.Kernel .* reshape(L.IA.ell_prefactor, :, 1, 1) .* reshape(L.IA.limber_factor, :, 1, 1)
+    return get_limber_kernel(L.γ) .+ get_limber_kernel(L.IA)
 end
 
 function get_limber_kernel(C::CMB)
-    return C.κ.Kernel .* reshape(C.κ.ell_prefactor, :, 1, 1) .* reshape(C.κ.limber_factor, :, 1, 1) .+ C.ISW.Kernel .* reshape(C.ISW.ell_prefactor, :, 1, 1) .* reshape(C.ISW.limber_factor, :, 1, 1)
+    return get_limber_kernel(C.κ) .+ get_limber_kernel(C.ISW)
 end
 
 function get_limber_correction(Probe::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)

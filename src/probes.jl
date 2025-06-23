@@ -6,14 +6,6 @@ abstract type AbstractCosmologicalProbes end
 
 abstract type AbstractComponents end
 
-@kwdef mutable struct NullComponent <: AbstractComponents
-    Kernel::AbstractArray{<:Any, 2} = zeros(1, 1)
-end
-
-function compute_kernel!(Component::NullComponent, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
-    return Component.Kernel = zeros(1, length(grid.z_range))
-end
-
 @kwdef mutable struct NumberCounts <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1, 1)
     z::Array{<:Any, 1} = zeros(1)
@@ -84,19 +76,23 @@ end
 
 @kwdef mutable struct GalaxyClustering <: AbstractCosmologicalProbes
     δ::NumberCounts
-    RSD::Union{RedshiftSpaceDistortions, NullComponent} = NullComponent()
-    μ::Union{MagnificationBias, NullComponent} = NullComponent()
-    PNG::Union{PrimordialNonGaussianity, NullComponent} = NullComponent()
+    RSD::Union{RedshiftSpaceDistortions, Nothing} = nothing
+    μ::Union{MagnificationBias, Nothing} = nothing
+    PNG::Union{PrimordialNonGaussianity, Nothing} = nothing
 end
 
 @kwdef mutable struct WeakLensing <: AbstractCosmologicalProbes
     γ::CosmicShear
-    IA::Union{IntrinsicAlignment, NullComponent} = NullComponent()
+    IA::Union{IntrinsicAlignment, Nothing} = nothing
 end
 
 @kwdef mutable struct CMB <: AbstractCosmologicalProbes
     κ::CMBLensing
-    ISW::Union{IntegratedSachsWolfe, NullComponent} = NullComponent()
+    ISW::Union{IntegratedSachsWolfe, Nothing} = nothing
+end
+
+function compute_kernel!(Component::Nothing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
+    return nothing
 end
 
 

@@ -112,6 +112,9 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
     @tullio Cℓ[l,i,j] := prefactor[l]*Blast.χ[n]*K[l,i,j,n,m]*w_χ[n]*w_R[m]*Δχ
 end
 
+function get_Cℓ(Component1::Union{AbstractComponents, Nothing}, Component2::Union{AbstractComponents, Nothing}, W::ProjectedMatterDensity)
+    return 0.
+end
 
 function get_Cℓ(Component1::NumberCounts, Component2::NumberCounts, W::ProjectedMatterDensity)
     return compute_Cℓ(Component1, Component2, W.w_2_00_ϕTT)
