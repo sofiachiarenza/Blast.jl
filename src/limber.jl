@@ -249,9 +249,12 @@ end
 
 
 #Limber Inclusion in the new code. All the above will be deprecated. 
-
 function get_limber_kernel(Component::AbstractComponents)
-    return Component.Kernel .* reshape(Component.ell_prefactor, :, 1, 1) .* reshape(Component.limber_factor, :, 1, 1)
+    total_prefactor = Component.ell_prefactor .* Component.limber_factor
+    kernel = Component.Kernel'
+    kernel = reshape(kernel, 1, size(kernel, 1), size(kernel, 2))  # (1, 200, nbins)
+    prefactor = reshape(total_prefactor, :, 1, 1)  # (101, 1, 1)
+    return prefactor .* kernel  # Result: (101, 200, nbins)
 end
 
 function get_limber_kernel(Component::Nothing)

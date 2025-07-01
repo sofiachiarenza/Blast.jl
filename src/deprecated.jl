@@ -198,3 +198,12 @@ integrals 'T' to obtain the projected matter densities.
 function w_ell_tullio(c::AbstractArray, T::AbstractArray)
     return @tullio w[i,j,k] := c[j,k,l] * T[i,j,k,l]
 end
+
+function P_phi(k::AbstractArray{<:Any,1}, cosmo::AbstractCosmology)
+    return @. 9/25 * 2 * π^2 * cosmo.As / (k^3) * (k/0.05)^(cosmo.ns - 1.)
+end
+
+function extract_transfer_function(pk::AbstractArray{<:Any,2}, k::AbstractArray{<:Any, 1}, cosmo::AbstractCosmology)
+    prim_pk = get_PΦ(k , cosmo)
+    return sqrt.(pk ./ reshape(prim_pk, 1, :))
+end

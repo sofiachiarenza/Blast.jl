@@ -350,7 +350,7 @@ The Simpson quadrature rule is used for integration over `χ`, while Clenshaw-Cu
 - A 3D array `Cℓ` with dimensions (ℓ, i, j), where `i` and `j` represent the tomographic bins. The array contains the computed angular power spectrum coefficients for each combination of `ℓ` values and tomographic bins.
 """
 function compute_Cℓ(w::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel, LensMagKernel}, 
-    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel, LensMagKernel}, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
+    ProbeB::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel, LensMagKernel}, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ_nonlimber) where T
 
     nχ = length(bkgq.χz_array)
     nR = length(R)
@@ -405,7 +405,7 @@ end
 
 #TODO: this is not nice, need to think of a better way to use multiple dispatch or someting like that here
 function compute_Cℓ_rsd(w_02::AbstractArray{T, 3}, w_20::AbstractArray{T, 3}, ProbeA::Union{GalaxyKernel, ShearKernel, CMBLensingKernel, RSDKernel, LensMagKernel}, 
-    ProbeB::RSDKernel, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
+    ProbeB::RSDKernel, bkgq::BackgroundQuantities, R::AbstractVector, ℓ_list::AbstractArray{T,1} = Blast.ℓ_nonlimber) where T
 
     nχ = length(bkgq.χz_array)
     nR = length(R)

@@ -63,22 +63,24 @@ function __init__()
     R = chebpoints(200, -1, 1)
     global R = reverse(R[R.>0])
     nR = length(R)
-    kmax = 200/13 
-    kmin = 2.5/7000
+    #kmax = 200/13 
+    #kmin = 2.5/7000
+    kmin = 5e-5
+    kmax = 16
     n_cheb = 119
     global k_cheb = chebpoints(n_cheb, log10(kmin), log10(kmax))
-    global k_limber = chebpoints(599, log10(1e-4), log10(80))
+    global k_limber = chebpoints(n_cheb, log10(1e-4), log10(80))
     global z_cheb = chebpoints(49, 0, 3.6)
 
     global T_tildes = T̃_data(
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/high_precision/T_tilde_2", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/high_precision/T_tilde_0", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/high_precision/T_tilde_-2", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/high_precision/T_tilde_0_02", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/high_precision/T_tilde_0_20", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/high_precision/T_tilde_2_02", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/high_precision/T_tilde_2_20", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/high_precision/T_tilde_2_22", nχ, nR, n_cheb+1)
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/lower_k_min/T_tilde_2", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/lower_k_min/T_tilde_0", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/lower_k_min/T_tilde_-2", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/lower_k_min/T_tilde_0_02", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/lower_k_min/T_tilde_0_20", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/lower_k_min/T_tilde_2_02", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/lower_k_min/T_tilde_2_20", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD_Stuff/Blastoise/T_tildes/lower_k_min/T_tilde_2_22", nχ, nR, n_cheb+1)
     )
 
 end
