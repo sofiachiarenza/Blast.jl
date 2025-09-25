@@ -372,6 +372,7 @@ function PowerSpectrumSetUp(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_
     
     #this should be improved, i think it's avoidable  
     c = Blast.fast_chebcoefs(P_ϕT, P.plan_ϕT)
+    #c2 = pippodispatch(c, cϕT)
     if !isnothing(c)
         c2 = cϕT()
         c2.coefs = permutedims(c, (2,3,1))
@@ -385,9 +386,6 @@ function PowerSpectrumSetUp(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_
     else 
         c3 = nothing
     end
-
-
-    #Now handling the limber part in a similar way (primordial power spectrum and transfer functions)
 
     lb, ub = [minimum(Blast.z_cheb),minimum(Blast.k_limber)], [maximum(Blast.z_cheb), maximum(Blast.k_limber)] # lower and upper bounds of the domain, respectively
 
