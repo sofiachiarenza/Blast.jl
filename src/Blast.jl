@@ -13,6 +13,7 @@ using NPZ
 using QuadGK
 using Artifacts
 using PhysicalConstants
+using FastPower
 
 include("cosmo.jl")
 include("deprecated.jl")
@@ -58,29 +59,30 @@ function __init__()
     global ℓ_nonlimber = full_ℓ_range[full_ℓ_range .< 220]
     global ℓ_limber = full_ℓ_range[full_ℓ_range .> 220]
 
-    nχ = 200
+    nχ = 96
+    nR = 64
     global χ = Array(LinRange(26, 7000, nχ))
-    R = chebpoints(200, -1, 1)
+    R = chebpoints(nR*2, -1, 1)
     global R = reverse(R[R.>0])
     nR = length(R)
-    #kmax = 200/13 
-    #kmin = 2.5/7000
+
     kmin = 5e-5
     kmax = 16
-    n_cheb = 119
+    n_cheb = 150
     global k_cheb = chebpoints(n_cheb, log10(kmin), log10(kmax))
-    global k_limber = chebpoints(n_cheb, log10(1e-4), log10(80))
+    global k_limber = chebpoints(256, log10(1e-4), log10(80))
     global z_cheb = chebpoints(49, 0, 3.6)
+    global z_lin = LinRange(0,3.6, 50)
 
     global T_tildes = T̃_data(
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/T_tildes/T_tilde_2", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/T_tildes/T_tilde_0", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/T_tildes/T_tilde_-2", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/T_tildes/T_tilde_0_02", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/T_tildes/T_tilde_0_20", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/T_tildes/T_tilde_2_02", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/T_tildes/T_tilde_2_20", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/T_tildes/T_tilde_2_22", nχ, nR, n_cheb+1)
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_2_00", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_0_00", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_-2_00", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_0_02", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_0_20", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_2_02", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_2_20", nχ, nR, n_cheb+1),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_2_22", nχ, nR, n_cheb+1)
     )
 
 end
