@@ -4,6 +4,7 @@ authors = ["Sofia Chiarenza <sofia.chiarenza@studenti.unimi.it>"]
 version = "0.1.0"
 
 [deps]
+ArtifactUtils = "8b73e784-e7d8-4ea5-973d-377fed4e3bce"
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
@@ -24,4 +25,5 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
 [compat]
+ArtifactUtils = "0.2.4"
 FastPower = "1.2.0"

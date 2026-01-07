@@ -30,32 +30,35 @@ import PhysicalConstants.CODATA2018: c_0
 
 const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
 
-function load_precomputed_Ts(folder::String)
-    #ell_vector = npzread(joinpath(folder, "ell_list.npy"))
-    full_T = npzread(joinpath(folder, "T_tilde.npy"))
-    #return ell_vector, full_T
-    return full_T
-end
 
-struct T̃_data
-    T_2_00::AbstractArray{<:Any, 4}
-    T_0_00::AbstractArray{<:Any, 4}
-    T_minus2_00::AbstractArray{<:Any, 4}
-    T_0_02::AbstractArray{<:Any, 4}
-    T_0_20::AbstractArray{<:Any, 4}
-    T_2_02::AbstractArray{<:Any, 4}
-    T_2_20::AbstractArray{<:Any, 4}
-    T_2_22::AbstractArray{<:Any, 4}
+struct T̃{A<:AbstractArray{<:Any,4}}
+    T_2_00::A
+    T_0_00::A
+    T_minus2_00::A
+    T_0_02::A
+    T_0_20::A
+    T_2_02::A
+    T_2_20::A
+    T_2_22::A
 end
 
 function __init__()
 
-    global T_tilde_m2 = load_precomputed_Ts(artifact"T_tilde_2")
-    global T_tilde_0 = load_precomputed_Ts(artifact"T_tilde_0")
-    global T_tilde_p2 = load_precomputed_Ts(artifact"T_tilde_-2")
+    Tdir = artifact"T_tildes"
+
+    global T_tildes = T̃(
+        npzread(joinpath(Tdir, "T_2_00.npz")),
+        npzread(joinpath(Tdir, "T_0_00.npz")),
+        npzread(joinpath(Tdir, "T_minus2_00.npz")),
+        npzread(joinpath(Tdir, "T_0_02.npz")),
+        npzread(joinpath(Tdir, "T_0_20.npz")),
+        npzread(joinpath(Tdir, "T_2_02.npz")),
+        npzread(joinpath(Tdir, "T_2_20.npz")),
+        npzread(joinpath(Tdir, "T_2_22.npz"))
+    )
+
 
     global full_ℓ_range = reverse(chebpoints(100, 2, 2000))
-
     global ℓ_nonlimber = full_ℓ_range[full_ℓ_range .< 220]
     global ℓ_limber = full_ℓ_range[full_ℓ_range .> 220]
 
@@ -68,22 +71,12 @@ function __init__()
 
     kmin = 5e-5
     kmax = 16
-    n_cheb = 150
+    n_cheb = 160
     global k_cheb = chebpoints(n_cheb, log10(kmin), log10(kmax))
+
     global k_limber = chebpoints(256, log10(1e-4), log10(80))
     global z_cheb = chebpoints(49, 0, 3.6)
     global z_lin = LinRange(0,3.6, 50)
-
-    global T_tildes = T̃_data(
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_2_00", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_0_00", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_-2_00", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_0_02", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_0_20", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_2_02", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_2_20", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_$(nχ)_$(nR)_$(n_cheb+1)/T_tilde_2_22", nχ, nR, n_cheb+1)
-    )
 
 end
 
