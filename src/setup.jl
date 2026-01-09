@@ -240,7 +240,6 @@ function SetUp(C::CMB, L::WeakLensing)
     return SetUp(L, C)
 end
 
-
 function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
     
     plan_z = plan_fft(randn(size(Blast.z_cheb,1), size(Blast.k_cheb,1)), 1)
@@ -346,41 +345,27 @@ function get_Tm(pk::AbstractArray{<:Any,2}, k::AbstractArray{<:Any, 1}, cosmo::A
     return sqrt.(pk ./ reshape(prim_pk, 1, :))
 end
 
-function to_χR_frame(matrix::AbstractArray{<:Any,2}, plan::FFTW.r2rFFTWPlan, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
-    coefs = fast_chebcoefs(matrix, plan)
-    new_χs = make_grid(bg, R)
-    x = resample_redshifts(bg, grid, new_χs)
-    chebyshevs = chebyshev_polynomials(x, z_cheb)
-    pk_interp = coefs' * chebyshevs  
-    return reshape( pk_interp, size(k_cheb,1),  size(bg.χz_array, 1), size(R,1) )
-end
 
-function better_to_χR_frame(matrix::AbstractArray{<:Any,2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
+function to_χR_frame(matrix::AbstractArray{<:Any,2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
     new_χs = make_grid(bg, R)
     x = resample_redshifts(bg, grid, new_χs)
     interp = Blast._akima_interpolation(matrix, Blast.z_lin, x)  
     return reshape( interp,  size(bg.χz_array, 1), size(R,1), size(interp,2))
 end
 
-#this has to be repeated at every step of the monte carlo
-function PowerSpectrumSetUp(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, pk_limber_nonlin::AbstractArray{<:Any, 2}, cosmo::AbstractCosmology, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
+
+function get_Pk(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, pk_limber_nonlin::AbstractArray{<:Any, 2}, cosmo::AbstractCosmology, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
     #Treating the non-limber power spectrum
     P_ϕ = get_PΦ(10 .^ Blast.k_cheb, cosmo)
     transfer_func = get_Tm(pk, 10 .^ Blast.k_cheb, cosmo)
-    """transfer_func_χR = 10 .^ to_χR_frame(log10.(transfer_func), P.plan_z, bg, grid)
-
-    transfer_func_χ1 = transfer_func_χR[:,:,end]
-    @tullio P_ϕTT[k, i, j] := P_ϕ[k] * transfer_func_χ1[k,i] * transfer_func_χR[k, i, j] 
-    @tullio P_ϕT[k, i, j] := P_ϕ[k]* transfer_func_χR[k, i, j]"""
-
-    #transfer_func_χR = FastPower.fastpower.(10, better_to_χR_frame(log10.(transfer_func), bg, grid))
-    transfer_func_χR = better_to_χR_frame(transfer_func, bg, grid)
-
+    
+    transfer_func_χR = to_χR_frame(transfer_func, bg, grid)
     transfer_func_χ1 = transfer_func_χR[:,end,:]
+
     @tullio P_ϕTT[k, i, j] := P_ϕ[k] * transfer_func_χ1[i,k] * transfer_func_χR[i, j, k] 
     @tullio P_ϕT[k, i, j] := P_ϕ[k]* transfer_func_χR[i, j, k]
 
-    c1 = cϕTT()
+    """c1 = cϕTT()
     c = Blast.fast_chebcoefs(P_ϕTT, P.plan_ϕTT)
     c1.coefs = permutedims(c, (2,3,1)) #TODO: solve this issue of the permutation
     
@@ -398,7 +383,11 @@ function PowerSpectrumSetUp(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_
         c3.coefs = c
     else 
         c3 = nothing
-    end
+    end"""
+
+    c1 = build_coeff(cϕTT, P_ϕTT, P.plan_ϕTT)
+    c2 = build_coeff(cϕT,  P_ϕT,  P.plan_ϕT)   
+    c3 = build_coeff(cϕ,   P_ϕ,   P.plan_ϕ)    
 
     lb, ub = [minimum(Blast.z_cheb),minimum(Blast.k_limber)], [maximum(Blast.z_cheb), maximum(Blast.k_limber)] # lower and upper bounds of the domain, respectively
 

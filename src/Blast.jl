@@ -57,7 +57,6 @@ function __init__()
         npzread(joinpath(Tdir, "T_2_22.npz"))
     )
 
-
     global full_ℓ_range = reverse(chebpoints(100, 2, 2000))
     global ℓ_nonlimber = full_ℓ_range[full_ℓ_range .< 220]
     global ℓ_limber = full_ℓ_range[full_ℓ_range .> 220]

@@ -135,12 +135,13 @@ end
 #TODO: the field "active and the handling of the computation of only the necessary coefficients and w is a later problem
 
 function w_ell_tullio(c::AbstractArray{<:Any, 3}, T::AbstractArray{<:Any, 4})
-    return @tullio w[i,j,k] := c[j,k,l] * T[i,j,k,l]
+    return @tullio w[i,j,k] := c[l,j,k] * T[i,j,k,l]
 end
 
 function w_ell_tullio(c::AbstractArray{<:Any, 2}, T::AbstractArray{<:Any, 4})
-    return @tullio w[i,j,k] := c[j,l] * T[i,j,k,l]
+    return @tullio w[i,j,k] := c[l,j] * T[i,j,k,l]
 end
+
 
 function w_ell_tullio(c::AbstractArray{<:Any, 1}, T::AbstractArray{<:Any, 4})
     return @tullio w[i,j,k] := c[l] * T[i,j,k,l]
@@ -240,7 +241,7 @@ end
 end
 
 function compute_w!(w::w_2_00_ϕT_R1, c::PowerSpectrum)
-    coefs_R1 = c.cϕT.coefs[:,end,:]
+    coefs_R1 = c.cϕT.coefs[:,:, end]
     w.w = w_ell_tullio(coefs_R1, w.T̃)
 end
 
@@ -259,7 +260,7 @@ end
 end
 
 function compute_w!(w::w_0_00_ϕT_R1, c::PowerSpectrum)
-    coefs_R1 = c.cϕT.coefs[:,end,:]
+    coefs_R1 = c.cϕT.coefs[:,:, end]
     w.w = w_ell_tullio(coefs_R1, w.T̃)
 end
 
@@ -278,7 +279,7 @@ end
 end
 
 function compute_w!(w::w_2_02_ϕT_R1, c::PowerSpectrum)
-    coefs_R1 = c.cϕT.coefs[:,end,:]
+    coefs_R1 = c.cϕT.coefs[:,:, end]
     w.w = w_ell_tullio(coefs_R1, w.T̃)
 end
 
@@ -297,7 +298,7 @@ end
 end
 
 function compute_w!(w::w_2_20_ϕT_R1, c::PowerSpectrum)
-    coefs_R1 = c.cϕT.coefs[:,end,:]
+    coefs_R1 = c.cϕT.coefs[:,:,end]
     w.w = w_ell_tullio(coefs_R1, w.T̃)
 end
 
