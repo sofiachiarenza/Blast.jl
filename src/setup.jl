@@ -327,7 +327,20 @@ function SetUp(C::CMB, L::WeakLensing, G::GalaxyClustering)
     return SetUp(G,L,C)
 end
 
-#contains all that is necessary for the Cℓ measurement (chebyshev coefficients for the non limber part and power spectra for the limber integartion.)
+"""
+    PowerSpectrum
+
+A mutable struct acting as a container for all processed spectral data required for the angular power spectrum measurements.
+
+This struct caches both the Chebyshev coefficients used in the high-precision 
+non-Limber integration and the pre-interpolated power spectra used for 
+the Limber approximation.
+
+# Fields
+- `cϕTT`, `cϕT`, `cϕ`: Structs storing all the necessary Chebyshev coefficients.
+- `ΔP_limber`: A 2D array of the non-linear correction to the matter power spectrum.  
+- `Pδ_limber`: A 2D array of the total matter power spectrum.
+"""
 @kwdef mutable struct PowerSpectrum 
     cϕTT::cϕTT
     cϕT::Union{cϕT, Nothing}
@@ -336,30 +349,82 @@ end
     Pδ_limber::AbstractArray{<:Any, 2} 
 end
 
+"""
+    get_PΦ(k::AbstractArray, cosmo::AbstractCosmology)
+
+Computes the primordial power spectrum \$P_\\Phi(k)\$.
+
+The implementation follows the standard inflationary prediction:
+```math
+P_\\Phi(k) = \\frac{9}{25} \\frac{2\\pi^2 A_s}{k^3} \\left( \\frac{k}{k_{pivot}}
+```
+where the pivot scale is fixed at `0.05 Mpc^{-1}``.
+
+# Returns
+- A 1D array of the primordial potential power spectrum at the requested scales. 
+"""
 function get_PΦ(k::AbstractArray{<:Any,1}, cosmo::AbstractCosmology)
     return @. 9/25 * 2 * π^2 * cosmo.As / (k^3) * (k/0.05)^(cosmo.ns - 1.)
 end
 
+""" get_Tm(pk::AbstractArray{<:Any, 2}, k::AbstractArray, cosmo::AbstractCosmology)
+
+Extracts the matter transfer function T_m(k,z) from a matter power spectrum.
+
+The transfer function is defined as the square root of the ratio between the processed matter power spectrum and the primordial potential power spectrum:
+```math
+T_m(k, z) = \\sqrt{\\frac{P(k, z)}{P_\\Phi(k)}}
+```
+"""
 function get_Tm(pk::AbstractArray{<:Any,2}, k::AbstractArray{<:Any, 1}, cosmo::AbstractCosmology)
     prim_pk = get_PΦ(k , cosmo)
     return sqrt.(pk ./ reshape(prim_pk, 1, :))
 end
 
+"""
+    transform_to_R_frame(matrix::AbstractArray{<:Any,2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
 
-function to_χR_frame(matrix::AbstractArray{<:Any,2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
+Transforms a 2D array (typically a transfer function) from standard coordinates `(χ, k)` 
+to a ratio-based coordinate system `(χ, Rχ, k)`, where `0<R<1`. This coordinate change is a specialized optimization for the non-Limber integration.
+
+# Returns
+- A 3D array of shape to `(nχ, nR, nk)`.
+"""
+function transform_to_R_frame(matrix::AbstractArray{<:Any,2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
     new_χs = make_grid(bg, R)
     x = resample_redshifts(bg, grid, new_χs)
     interp = Blast._akima_interpolation(matrix, Blast.z_lin, x)  
     return reshape( interp,  size(bg.χz_array, 1), size(R,1), size(interp,2))
 end
 
+#TODO: this function will interface with mapse once ready.
+"""
+    prepare_pk_workspace(P::FFTPlans, 
+                         pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, 
+                         pk_limber_nonlin::AbstractArray{<:Any, 2}, 
+                         cosmo::AbstractCosmology, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
 
-function get_Pk(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, pk_limber_nonlin::AbstractArray{<:Any, 2}, cosmo::AbstractCosmology, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
+Assembles the `PowerSpectrum` struct by processing primordial, linear, and 
+non-linear power spectra into the format needed for `C_ℓ` calculation.
+
+The function performs the following operations:
+1. Decomposes the matter power spectrum into the primordial power spectrum `P_Φ`
+   and the transfer function `T_m(k, χ)`, which are used to define the unequal time power spectrum `P(k, χ1, χ2)`.
+2. Perform change of coordinates to use a more optimal integration basis.
+3. Computes 3D Chebyshev coefficients for non-Limber integration.
+4. Pre-interpolates the Limber-limit power spectra `P(k = \\frac{(ℓ+1/2)}{χ}, χ)`` on the correct grid.
+
+# Parameters:
+- `P`: Pre-allocated `FFTPlans` for Chebyshev transforms.
+- `pk`: Linear matter power spectrum for the non-Limber integration.
+- `pk_limber_lin/nonlin`: Linear and non linear matter power spectra for the Limber integration.
+"""
+function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, pk_limber_nonlin::AbstractArray{<:Any, 2}, cosmo::AbstractCosmology, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
     #Treating the non-limber power spectrum
     P_ϕ = get_PΦ(10 .^ Blast.k_cheb, cosmo)
     transfer_func = get_Tm(pk, 10 .^ Blast.k_cheb, cosmo)
     
-    transfer_func_χR = to_χR_frame(transfer_func, bg, grid)
+    transfer_func_χR = transform_to_R_frame(transfer_func, bg, grid)
     transfer_func_χ1 = transfer_func_χR[:,end,:]
 
     @tullio P_ϕTT[k, i, j] := P_ϕ[k] * transfer_func_χ1[i,k] * transfer_func_χR[i, j, k] 

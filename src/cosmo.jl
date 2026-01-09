@@ -75,7 +75,6 @@ end
 @kwdef mutable struct BackgroundQuantities{T} <: AbstractBackgroundQuantities{T}
     Hz_array::Vector{T} = zeros(500)  # TODO: How do I make it adaptable to general needs?
     χz_array::Vector{T} = zeros(500)
-    # Dz_array::Vector{T} = zeros(500)  # TODO: Growth factor array (could be added when power spectrum information is available).
 end
 
 
