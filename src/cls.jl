@@ -1,4 +1,12 @@
-#TODO: re-think background handling
+"""
+    make_grid(BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
+
+Constructs a grid by multiplying the `χz_array` from `BackgroundQuantities` with the vector `R`.
+
+# Arguments
+- `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
+- `R::Vector{T}`: A vector of values to be used in the grid construction, where `T` can be any type.
+"""
 function make_grid(χ::Array{<:Any, 1}, R::Array{<:Any, 1}) 
     return vec(χ * R') 
 end
@@ -70,7 +78,7 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
 
     #Integration in χ is performed using the Simpson quadrature rule
     Δχ = ((last(Blast.χ)-first(Blast.χ))/(nχ-1))
-    w_χ = simpson_weight_array(nχ)
+    w_χ = simpson_weights_array(nχ)
 
     #Integration in R is performed using the Clenshaw-Curtis quadrature rule
     w_R = get_clencurt_weights_R_integration(2*nR+1)
@@ -102,7 +110,7 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
 
     #Integration in χ is performed using the Simpson quadrature rule
     Δχ = ((last(Blast.χ)-first(Blast.χ))/(nχ-1))
-    w_χ = simpson_weight_array(nχ)
+    w_χ = simpson_weights_array(nχ)
 
     #Integration in R is performed using the Clenshaw-Curtis quadrature rule
     w_R = get_clencurt_weights_R_integration(2*nR+1)

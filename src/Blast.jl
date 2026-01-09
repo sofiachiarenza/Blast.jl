@@ -13,7 +13,7 @@ using NPZ
 using QuadGK
 using Artifacts
 using PhysicalConstants
-using FastPower
+using Memoization
 
 include("cosmo.jl")
 include("deprecated.jl")
@@ -21,7 +21,6 @@ include("probes.jl")
 include("chebcoefs.jl")
 include("setup.jl")
 include("projected_matter.jl")
-include("integrals.jl")
 include("cls.jl")
 include("utils.jl")
 include("limber.jl")

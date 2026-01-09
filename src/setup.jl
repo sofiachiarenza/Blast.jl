@@ -365,26 +365,6 @@ function get_Pk(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_lin::Abstrac
     @tullio P_ϕTT[k, i, j] := P_ϕ[k] * transfer_func_χ1[i,k] * transfer_func_χR[i, j, k] 
     @tullio P_ϕT[k, i, j] := P_ϕ[k]* transfer_func_χR[i, j, k]
 
-    """c1 = cϕTT()
-    c = Blast.fast_chebcoefs(P_ϕTT, P.plan_ϕTT)
-    c1.coefs = permutedims(c, (2,3,1)) #TODO: solve this issue of the permutation
-    
-    #this should be improved, i think it's avoidable  
-    c = Blast.fast_chebcoefs(P_ϕT, P.plan_ϕT)
-    if !isnothing(c)
-        c2 = cϕT()
-        c2.coefs = permutedims(c, (2,3,1))
-    else 
-        c2 = nothing
-    end
-    c = Blast.fast_chebcoefs(P_ϕ, P.plan_ϕ)
-    if !isnothing(c)
-        c3 = cϕ()
-        c3.coefs = c
-    else 
-        c3 = nothing
-    end"""
-
     c1 = build_coeff(cϕTT, P_ϕTT, P.plan_ϕTT)
     c2 = build_coeff(cϕT,  P_ϕT,  P.plan_ϕT)   
     c3 = build_coeff(cϕ,   P_ϕ,   P.plan_ϕ)    
