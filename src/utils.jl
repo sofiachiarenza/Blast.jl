@@ -1,18 +1,26 @@
-function load_Ts(folder, nχ, nR, nk)
-    ell_vector = Blast.ℓ_nonlimber
-    full_T = zeros(length(ell_vector), nχ, nR, nk)
-    for i in 1:length(ell_vector)
-        l_string = string(round(ell_vector[i]; digits=1))
-        filename = folder * "/T_tilde_l_$l_string.npy"
-        if isfile(filename)
-            full_T[i,:,:,:] = npzread(filename)
-        else
-            println("Missing file!")
-        end
-    end
-    return full_T
-end
+"""
+    get_clencurt_weights_R_integration(N::Int)
 
+Return Clenshaw–Curtis quadrature weights adapted for integration over the
+ratio variable `R = χ₁ / χ₂ ∈ (0, 1]`.
+
+The weights are obtained by:
+1. Computing standard Clenshaw–Curtis weights on `[-1, 1]`,
+2. Restricting to the positive half of the interval corresponding to `R > 0`,
+3. Applying a correction to the first weight to account for the truncated domain.
+
+This routine is used to computed the `C_\\ell`'s in the `\\chi-R` coordinate system.
+
+# Arguments
+- `N::Int`: Number of Clenshaw–Curtis nodes on `[-1, 1]`.
+
+# Returns
+A vector of quadrature weights suitable for integration over `R ∈ (0, 1]`.
+
+# Notes
+The correction applied to the first weight is a numerical workaround and is
+not the exact analytic solution. 
+"""
 function get_clencurt_weights_R_integration(N::Int)
 
     w = get_clencurt_weights(-1, 1, N)
@@ -36,6 +44,28 @@ function factorial_frac(ℓ::Union{Number,Vector})
     return @. (ℓ-1)*ℓ*(ℓ+1)*(ℓ+2)
 end
 
+"""
+    bΦ(bias::AbstractVector, p::Number)
+
+Compute the non-Gaussian bias coefficient `b_Φ` for local-type primordial
+non-Gaussianity.
+
+The coefficient is defined as
+```math
+b_\\Phi(z) = 2 \\delta_c (b(z)-p)
+```
+with `δ_c = 1.686`, where:
+- `b` is the linear bias,
+- `p` is a tracer-dependent parameter (e.g. `p = 1` for mass-selected samples, `p = 1.6` for quasars...).
+
+# Arguments
+- `bias::AbstractVector`: Linear bias as a function of redshift.
+- `p::Number`: Tracer-dependent parameter.
+
+# Returns
+An array containing the non-Gaussian bias coefficient `b_Φ`.
+"""
+#TODO: should this be here? 
 function bΦ(bias::AbstractVector{T}, p::Number) where T
     return 2 * 1.686 * (bias .- p)
 end
