@@ -26,14 +26,57 @@ function get_clencurt_weights(kmin::Number, kmax::Number, N::Number)
     return w
 end
 
-#TODO: missing documentation
+"""
+    bessel_second_derivative(ℓ::Number, x::AbstractArray)
+
+Compute the second derivative with respect to the argument of the spherical
+Bessel function of order `ℓ`.
+
+Specifically, this returns 
+```math
+\\frac{d^2 j_\\ell(x)}{dx^2}
+```
+using the analytic recurrence relation in terms of `j_ℓ(x)` and `j_{ℓ+1}(x)`.
+
+# Arguments
+- `ℓ::Number`: Multipole order.
+- `x::AbstractArray`: Array of arguments at which the derivative is evaluated.
+
+# Returns
+An array of the same shape as `x`, containing the second derivative of
+`j_ℓ(x)`.
+"""
 function bessel_second_derivative(ℓ::Number, x::AbstractArray)
     return @views @. 2/x * SpecialFunctions.sphericalbesselj.(ℓ+1, x) + (ℓ^2-ℓ-x^2)/x^2 * SpecialFunctions.sphericalbesselj.(ℓ, x)
 end
 
 """
     bessel_cheb_eval(ℓ::Number, kmin::Number, kmax::Number, χ::AbstractArray, n_cheb::Int, N::Number)
-Return the Chebyshev polynomials up to order 'n_cheb+1' and the Bessel function of order 'ℓ' evaluated on the grid of 'N' Chebyshev points in the interval ['kmin', 'kmax'] and on the specified 'χ' points. 
+
+Evaluate spherical Bessel functions and Chebyshev polynomials on a common
+Clenshaw–Curtis integration grid.
+
+This function precomputes:
+
+1. The values of Chebyshev polynomials up to order `n_cheb`,
+   evaluated at `N` Clenshaw–Curtis nodes between `kmin` and `kmax`.
+2. The spherical Bessel function `j_ℓ(kχ)` (or its second derivative)
+   evaluated at the same `k` nodes for all `χ`.
+
+These quantities are used to build the precomputed kernels `T̃` appearing
+in the projected matter integrals.
+
+# Arguments
+- `ℓ::Number`: Multipole order.
+- `kmin::Number`, `kmax::Number`: Integration range in wavenumber `k`.
+- `χ::AbstractArray`: Comoving distance grid.
+- `n_cheb::Int`: Maximum Chebyshev polynomial order.
+- `N::Number`: Number of Clenshaw–Curtis integration nodes.
+- `deriv_order::Int`: Derivative order of the Bessel function (`0` or `2`).
+
+# Returns
+- `T::Array`: Chebyshev polynomials evaluated on the `k` grid, with shape `(n_cheb+1, N)`.
+- `Bessel::Array`: Bessel function values with shape `(length(χ), N)`.
 """
 function bessel_cheb_eval(ℓ::Number, kmin::Number, kmax::Number, χ::AbstractArray, n_cheb::Int, N::Number, deriv_order::Int)
 
@@ -70,22 +113,33 @@ end
 
 """
     compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number; n_cheb::Int = 119, N::Int = 2^(15)+1)
-Compute integrals of the Bessels function and the Chebyshev polynomials. This is the precomputation part of the code.
+
+Compute the precomputed kernel `T̃` entering the projected matter density
+integrals.
+
+This function evaluates integrals of the form:
+```math
+\\tilde{T}(\\ell, \\chi, R, n) = \\int dk k^\\beta j_\\ell^{A}(k\\chi) j_\\ell^{B}(k R\\chi) T_n(k)
+```
+where `T_n` are Chebyshev polynomials and `j_ℓ^{A,B}` denote spherical
+Bessel functions or their second derivatives.
+
+These kernels are **cosmology-independent** once the global `χ` grid is fixed,
+and are therefore precomputed and stored as artifacts.
 
 # Arguments
-- `ℓ::Number`: Multipole order
+- `ℓ::Number`: Multipole order.
+- `χ::AbstractArray`: Global comoving distance grid.
+- `R::AbstractArray`: Ratio grid `R = χ₁ / χ₂`.
+- `kmin::Number`, `kmax::Number`: Integration limits in wavenumber.
+- `β::Number`: Power-law exponent of `k` in the integrand.
+- `der_A::Int`, `der_B::Int`: Derivative orders (`0` or `2`) for the two Bessel factors.
+- `n_cheb::Int`: Number of Chebyshev polynomials used to approximate the power spectrum.
+- `N::Int`: Number of Clenshaw–Curtis integration nodes.
 
-- `χ::AbstractArray`: Array containing values of the comoving distance. 
-
-- `R::AbstractArray`: Array containing values for the R=χ₁/χ₂ variable.
-
-- `kmin::Number` and `kmax::Number`: Integration range in k.
-
-- `β::Number`: Exponent of the k dependence of the integral. This parameter depends on the combination of tracers: β=2,-2,0 for clustering, cosmic shear and the cross-correlation respectively.
-
-- `n_cheb::Int`: Number of chebyshev polynomials used in the approximation of the power spectra.
-
-- `N::Int`: Number of integration points in k.
+# Returns
+A 4D array with shape `(1, length(χ), length(R), n_cheb+1)` containing the
+precomputed kernel `T̃`.
 """
 function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Number, kmax::Number, β::Number, der_A::Int, der_B::Int; n_cheb::Int = 119, N::Int = 2^(15)+1)
     if kmin >= kmax 
@@ -131,9 +185,23 @@ function compute_T̃(ℓ::Number, χ::AbstractArray, R::AbstractArray, kmin::Num
 
 end
 
-## Handling of the various combinations of T̃
-#TODO: the field "active and the handling of the computation of only the necessary coefficients and w is a later problem
+"""
+    w_ell_tullio(c, T)
 
+Contract Chebyshev coefficients of the power spectrum with the precomputed `T̃`
+to form the projected matter density `w_\ell(χ_1, χ_2)`.
+
+This performs the sum over Chebyshev indices using `Tullio` for efficient
+tensor contraction. Multiple methods are provided depending on the dimensionality
+of the coefficient array `c`.
+
+# Arguments
+- `c`: Chebyshev coefficients of the power spectrum.
+- `T`: Precomputed kernel `T̃`.
+
+# Returns
+An array containing the projected matter density `w`.
+"""
 function w_ell_tullio(c::AbstractArray{<:Any, 3}, T::AbstractArray{<:Any, 4})
     return @tullio w[i,j,k] := c[l,j,k] * T[i,j,k,l]
 end
@@ -142,12 +210,25 @@ function w_ell_tullio(c::AbstractArray{<:Any, 2}, T::AbstractArray{<:Any, 4})
     return @tullio w[i,j,k] := c[l,j] * T[i,j,k,l]
 end
 
-
 function w_ell_tullio(c::AbstractArray{<:Any, 1}, T::AbstractArray{<:Any, 4})
     return @tullio w[i,j,k] := c[l] * T[i,j,k,l]
 end
 
+
 abstract type AbstractProjectedMatterDensity end
+
+"""
+Abstract supertype for projected matter density components.
+
+Each concrete subtype represents a specific combination, which depends on:
+- The power of k in the precomputed `\\tilde{T}`.
+- The order of the derivatives of the Bessel functions in the precomputed `\\tilde{T}`.
+- The power spectrum (i.e. the full unequal time, the transfer function of the primordial power spectrum.)
+
+Each component stores:
+- A reference to the relevant `T̃`,
+- The corresponding projected weight array `w`.
+"""
 abstract type ProjectedMatterDensityComponent end
 
 function compute_w!(w::Nothing, c::PowerSpectrum)
@@ -311,6 +392,18 @@ function compute_w!(w::w_2_00_ϕ, c::PowerSpectrum)
     w.w = w_ell_tullio(c.cϕ.coefs, w.T̃)
 end
 
+"""
+    ProjectedMatterDensity
+
+Container holding all projected matter density components required for all the active observables and components.
+
+Each field corresponds to a specific kernel contribution (e.g. `w_2_00_ϕTT`,
+`w_0_02_ϕT_R1`). Fields may be set to `nothing` if the corresponding contribution
+is not required.
+
+The container is populated during setup and filled by calling `compute_w!`
+with a `PowerSpectrum` object.
+"""
 @kwdef mutable struct ProjectedMatterDensity <: AbstractProjectedMatterDensity
     w_2_00_ϕTT::Union{w_2_00_ϕTT, Nothing} = nothing
     w_minus2_00_ϕTT::Union{w_minus2_00_ϕTT, Nothing} = nothing
@@ -331,7 +424,11 @@ end
     w_2_00_ϕ::Union{w_2_00_ϕ, Nothing} = nothing
 end 
 
-#This will be done with ifs in the setup, getting there soon
+"""
+    compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
+
+Compute all active projected matter density components.
+"""
 function compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
     compute_w!(W.w_2_00_ϕTT, c)
     compute_w!(W.w_minus2_00_ϕTT, c)
