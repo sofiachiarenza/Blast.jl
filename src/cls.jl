@@ -1,17 +1,36 @@
 """
     make_grid(BackgroundQuantities::BackgroundQuantities, R::Vector{T}) where T
 
-Constructs a grid by multiplying the `χz_array` from `BackgroundQuantities` with the vector `R`.
+Construct a flattened χ–R grid corresponding to all combinations of comoving distance `χ` and ratio `R`.
+
+The grid represents the mapping `χ_2 = R χ` used in the non-Limber line-of-sight integrals.
 
 # Arguments
-- `BackgroundQuantities::BackgroundQuantities`: An instance of the `BackgroundQuantities` type that contains the `χz_array`.
-- `R::Vector{T}`: A vector of values to be used in the grid construction, where `T` can be any type.
+- `χ::AbstractVector`: Comoving distance grid.
+- `R::AbstractVector`: Ratio grid with values in (0, 1].
+
+# Returns
+A 1D array containing all χ–R combinations.
 """
 function make_grid(χ::Array{<:Any, 1}, R::Array{<:Any, 1}) 
     return vec(χ * R') 
 end
 
-#Change of coordinated to χ-R grid
+"""
+    grid_interpolator(Probe, grid)
+
+Interpolate a probe kernel from the χ grid onto a χ–R grid.
+
+For each tomographic bin, the kernel is interpolated using Akima 
+interpolation and evaluated on the flattened χ–R grid.
+
+# Arguments
+- `Probe::AbstractComponents`: An `AbstractComponents` object containing the kernels.
+- `grid::AbstractVector`: Flattened χ–R grid.
+
+# Returns
+A 2D array `(nbins, length(χ * R'))` containing the interpolated kernel.
+"""
 function grid_interpolator(Probe::AbstractComponents, grid::Array{<:Any, 1}) 
 
     n_bins = size(Probe.Kernel, 1)
@@ -25,6 +44,12 @@ function grid_interpolator(Probe::AbstractComponents, grid::Array{<:Any, 1})
     return kernel_interpolated
 end
 
+"""
+    get_kernel_array(Probe)
+
+Return the probe kernel evaluated on the χ–R grid.
+The output array has dimensions: `(n_bins, n\\chi, nR)`.
+"""
 function get_kernel_array(Probe::Union{NumberCounts, RedshiftSpaceDistortions, PrimordialNonGaussianity, IntegratedSachsWolfe})
 
     n_bins = size(Probe.Kernel, 1)
@@ -54,7 +79,14 @@ function get_kernel_array(Probe::Union{CosmicShear, IntrinsicAlignment, Magnific
     return W_array
 end
 
-#Symmetryzation of the integral
+"""
+    combine_kernels(ProbeA, ProbeB)
+
+Combine the kernels in the correct way to allow for the computation of the integral in the `χ-R` coordinate system.
+
+# Returns
+A 4D array `(nbins_A, nbins_B, χ, R)` containing the symmetrized kernel.
+"""
 function combine_kernels(ProbeA::AbstractComponents, ProbeB::AbstractComponents)
 
     W_A = get_kernel_array(ProbeA)
@@ -68,7 +100,18 @@ function combine_kernels(ProbeA::AbstractComponents, ProbeB::AbstractComponents)
     return K
 end
 
-#Now the nightmare begins
+"""
+    compute_Cℓ(Component1, Component2, w)
+
+Compute the non-Limber angular power spectrum between two components.
+
+The computation performs:
+- Simpson integration over χ,
+- Clenshaw–Curtis integration over R.
+
+# Returns
+A 3D array `Cℓ[ℓ, nbins_A, nbins_B]`.
+"""
 function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractComponents, w::ProjectedMatterDensityComponent) 
 
     nχ = size(Blast.χ, 1)
@@ -76,11 +119,8 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
 
     K = combine_kernels(Component1, Component2)
 
-    #Integration in χ is performed using the Simpson quadrature rule
     Δχ = ((last(Blast.χ)-first(Blast.χ))/(nχ-1))
     w_χ = simpson_weights_array(nχ)
-
-    #Integration in R is performed using the Clenshaw-Curtis quadrature rule
     w_R = get_clencurt_weights_R_integration(2*nR+1)
 
     prefactor = 2/π .* Component1.ell_prefactor[1:length(ℓ_nonlimber)] .* Component2.ell_prefactor[1:length(ℓ_nonlimber)]
@@ -91,6 +131,18 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
     return Cℓ 
 end
 
+"""
+    compute_Cℓ(Component1, Component2, w02, w20)
+
+Compute the non-Limber angular power spectrum when at least one component is a `RedshiftSpaceDistortions` object.
+
+The computation performs:
+- Simpson integration over χ,
+- Clenshaw–Curtis integration over R.
+
+# Returns
+A 3D array `Cℓ[ℓ, nbins_A, nbins_B]`.
+"""
 function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractComponents, 
     w02::ProjectedMatterDensityComponent, w20::ProjectedMatterDensityComponent) 
 
@@ -108,11 +160,8 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
 
     @tullio K[l,i,j,c,r] := W_A_r1[i,c] * W_B[j,c,r] * pmj02[l,c,r] + W_A[i,c,r] * W_B_r1[j,c] * pmj20[l,c,r]
 
-    #Integration in χ is performed using the Simpson quadrature rule
     Δχ = ((last(Blast.χ)-first(Blast.χ))/(nχ-1))
     w_χ = simpson_weights_array(nχ)
-
-    #Integration in R is performed using the Clenshaw-Curtis quadrature rule
     w_R = get_clencurt_weights_R_integration(2*nR+1)
 
     prefactor = 2/π .* Component1.ell_prefactor[1:length(ℓ_nonlimber)] .* Component2.ell_prefactor[1:length(ℓ_nonlimber)]
@@ -120,10 +169,29 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
     @tullio Cℓ[l,i,j] := prefactor[l]*Blast.χ[n]*K[l,i,j,n,m]*w_χ[n]*w_R[m]*Δχ
 end
 
+"""
+    get_Cℓ(...)
+
+Compute angular power spectra for all supported probe and component
+combinations using multiple dispatch.
+
+This function:
+1. Selects the correct non-Limber kernel combination,
+2. Computes the exact non-Limber result at low ℓ,
+3. Adds the Limber correction,
+4. Switches to the full Limber approximation at high ℓ,
+5. Interpolates the result to arbitrary ℓ using Chebyshev interpolation.
+
+# Notes
+- The many method definitions encode physical selection rules.
+- Users should call the high-level probe interfaces
+  (`GalaxyClustering`, `WeakLensing`, `CMB`) rather than individual components.
+"""
 function get_Cℓ(Component1::Union{AbstractComponents, Nothing}, Component2::Union{AbstractComponents, Nothing}, W::ProjectedMatterDensity)
-    return 0.
+    return nothing
 end
 
+## Galaxy clustering auto
 function get_Cℓ(Component1::NumberCounts, Component2::NumberCounts, W::ProjectedMatterDensity)
     return compute_Cℓ(Component1, Component2, W.w_2_00_ϕTT)
 end
@@ -225,6 +293,7 @@ function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpe
     return Cℓ_final
 end
 
+## Weak lensing auto
 function get_Cℓ(Component1::CosmicShear, Component2::CosmicShear, W::ProjectedMatterDensity)
     return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
 end
@@ -266,6 +335,7 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectru
     return Cℓ_final
 end
 
+## Cross clustering-lensing
 function get_Cℓ(Component1::NumberCounts, Component2::CosmicShear, W::ProjectedMatterDensity)
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕTT)
 end
@@ -333,6 +403,7 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, G::GalaxyCluster
     return get_Cℓ(ℓ, G, L, Pk, W)
 end
 
+## Cross clustering - CMB 
 function get_Cℓ(Component1::CMBLensing, Component2::NumberCounts, W::ProjectedMatterDensity)
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕTT)
 end
@@ -400,6 +471,7 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, K::CMB, Pk:
     return get_Cℓ(ℓ, K, G, Pk, W)
 end
 
+## Cross lensing - CMB
 function get_Cℓ(Component1::CMBLensing, Component2::CosmicShear, W::ProjectedMatterDensity)
     return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
 end
