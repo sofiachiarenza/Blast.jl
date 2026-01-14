@@ -15,7 +15,7 @@ abstract type AbstractCosmologicalGrid{T} end
 An abstract type for background quantities in cosmology, such as the Hubble parameter (`H`), comoving distance (`χ`), 
 and the growth factor (`D`).
 """
-abstract type AbstractBackgroundQuantities end
+abstract type AbstractBackgroundQuantities{T} end
 
 
 # Define the flat ΛCDM cosmological model with default parameters based on the fiducial N5K cosmology.
@@ -73,13 +73,13 @@ end
 - `χz_array`: Array of comoving distance values, evaluated on a grid of redshift values (default: zeros(500)).
 """
 @kwdef mutable struct BackgroundQuantities{T} <: AbstractBackgroundQuantities{T}
-    Hz_array::Vector{T} = zeros(500)  # TODO: How do I make it adaptable to general needs?
-    χz_array::Vector{T} = zeros(500)
+    Hz_array::Vector{T} = zeros(T, 500)
+    χz_array::Vector{T} = zeros(T, 500)
 end
 
 #TODO: tentatively how i would handle this better. Think about this more. 
 # The issue is z(chi) ugly interpolant I'd say.
-struct Background{T, C<:AbstractCosmology} <: AbstractBackgroundQuantities
+struct Background{T, C<:AbstractCosmology} <: AbstractBackgroundQuantities{T}
     cosmo::C
     χ::Vector{T}
     z::Vector{T}

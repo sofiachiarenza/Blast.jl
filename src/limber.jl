@@ -23,11 +23,6 @@ function get_limber_kernel(Component::AbstractComponents)
     return prefactor .* kernel  # Result: (101, 200, nbins)
 end
 
-"""
-    get_limber_kernel(::Nothing)
-
-Return `nothing` for inactive components.
-"""
 function get_limber_kernel(Component::Nothing)
     return nothing
 end

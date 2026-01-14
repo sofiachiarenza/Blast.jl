@@ -273,20 +273,6 @@ Fields:
 end
 
 """
-    compute_kernel!(component, grid, bg, cosmo)
-
-Compute and store the projection kernel for a cosmological component.
-
-This function mutates `component` by filling its `Kernel` field with the
-redshift-dependent projection kernel evaluated on the redshift grid
-`grid.z_range`.
-
-Concrete implementations exist for each subtype of `AbstractComponents`,
-corresponding to the physical equations defining that component.
-"""
-function compute_kernel! end
-
-"""
     compute_kernel!(Component::NumberCounts, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
 
 Compute and store the projection kernel for galaxy number counts across multiple redshift bins.

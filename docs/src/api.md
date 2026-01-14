@@ -28,12 +28,9 @@ global comoving distance grid.
 ```@docs
 Blast.AbstractBackgroundQuantities
 Blast.BackgroundQuantities
-
 Blast.AbstractCosmologicalGrid
 Blast.CosmologicalGrid
-
 Blast.evaluate_background_quantities!
-Blast.resample_redshifts
 ```
 
 ## Probes and Components
@@ -54,13 +51,13 @@ Blast.evaluate_components!
 Blast.GalaxyClustering
 
 Blast.NumberCounts
-Blast.compute_kernel!
+Blast.compute_kernel!(Component::Blast.NumberCounts, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
 Blast.RedshiftSpaceDistortions
-Blast.compute_kernel!
+Blast.compute_kernel!(Component::Blast.RedshiftSpaceDistortions, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
 Blast.MagnificationBias
-Blast.compute_kernel!
+Blast.compute_kernel!(Component::Blast.MagnificationBias, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
 Blast.PrimordialNonGaussianity
-Blast.compute_kernel!
+Blast.compute_kernel!(Component::Blast.PrimordialNonGaussianity, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
 ```
 
 ### Weak Lensing Probe
@@ -68,9 +65,9 @@ Blast.compute_kernel!
 Blast.WeakLensing
 
 Blast.CosmicShear
-Blast.compute_kernel!
+Blast.compute_kernel!(Component::Blast.CosmicShear, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
 Blast.IntrinsicAlignment
-Blast.compute_kernel!
+Blast.compute_kernel!(Component::Blast.IntrinsicAlignment, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
 ```
 
 ### CMB Probe
@@ -78,15 +75,24 @@ Blast.compute_kernel!
 Blast.CMB
 
 Blast.CMBLensing
-Blast.compute_kernel!
+Blast.compute_kernel!(Component::Blast.CMBLensing, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
 Blast.IntegratedSachsWolfe
-Blast.compute_kernel!
+Blast.compute_kernel!(Component::Blast.IntegratedSachsWolfe, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
 ```
 
 ## Initialization and Setup
 
 ```@docs
+Blast.FFTPlans
 Blast.SetUp
+Blast.plan_fft
+Blast.fast_chebcoefs
+Blast.AbstractCoeff
+Blast.cϕTT
+Blast.cϕT
+Blast.cϕ
+Blast.make_coeff
+Blast.build_coeff
 ```
 
 ## Power Spectrum Handling 
@@ -99,14 +105,17 @@ Blast.PowerSpectrum
 Blast.prepare_pk_workspace
 Blast.get_PΦ
 Blast.get_Tm
+Blast.transform_to_R_frame
 ```
 
 ## Projected Matter Density
 The projected matter density stores the inner k integral, whose efficient computation is at the core of the Blast algorithm.
 
 ```@docs
+Blast.ProjectedMatterDensityComponent
 Blast.ProjectedMatterDensity
 Blast.compute_w!
+Blast.w_ell_tullio
 ```
 
 ## Angular Power Spectrum Computation
@@ -128,5 +137,34 @@ Blast.make_grid
 Blast.grid_interpolator
 Blast.get_kernel_array
 Blast.combine_kernels
-Blast.compute_Cℓ
+Blast.compute_Cℓ(Component1::Blast.AbstractComponents, Component2::Blast.AbstractComponents, w::Blast.ProjectedMatterDensityComponent) 
+Blast.compute_Cℓ(Component1::Blast.AbstractComponents, Component2::Blast.AbstractComponents, w02::Blast.ProjectedMatterDensityComponent, 
+                    w20::Blast.ProjectedMatterDensityComponent) 
+Blast.get_limber_kernel(Component::Blast.AbstractComponents)
+Blast.get_limber_kernel(G::Blast.GalaxyClustering)
+Blast.get_limber_kernel(G::Blast.WeakLensing)
+Blast.get_limber_kernel(G::Blast.CMB)
+Blast.get_limber_correction(Probe::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, pk::Blast.PowerSpectrum)
+Blast.get_limber_correction(ProbeA::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ProbeB::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, pk::Blast.PowerSpectrum)
+Blast.get_limber_Cℓ(Probe::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, pk::Blast.PowerSpectrum)
+Blast.get_limber_Cℓ(ProbeA::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ProbeB::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, pk::Blast.PowerSpectrum)
 ```
+
+## Numerical routines and Utilities
+```@docs
+Blast.get_clencurt_grid
+Blast.get_clencurt_weights
+Blast.get_clencurt_weights_R_integration
+Blast.bessel_second_derivative
+Blast.bessel_cheb_eval
+Blast.compute_T̃
+Blast.factorial_frac
+Blast.bΦ
+Blast._akima_interpolation(u, t, t_new)
+Blast._akima_slopes
+Blast._akima_coefficients
+Blast._akima_eval
+Blast._akima_interpolation(u::AbstractMatrix, t, t_new)
+```
+
+

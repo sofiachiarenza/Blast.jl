@@ -65,7 +65,6 @@ with `δ_c = 1.686`, where:
 # Returns
 An array containing the non-Gaussian bias coefficient `b_Φ`.
 """
-#TODO: should this be here? 
 function bΦ(bias::AbstractVector{T}, p::Number) where T
     return 2 * 1.686 * (bias .- p)
 end

@@ -1,2 +1,3 @@
 [deps]
+Blast = "aee4e916-1e40-4aff-8d35-b84b50e5d5e3"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
