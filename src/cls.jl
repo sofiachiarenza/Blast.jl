@@ -188,7 +188,7 @@ This function:
   (`GalaxyClustering`, `WeakLensing`, `CMB`) rather than individual components.
 """
 function get_Cℓ(Component1::Union{AbstractComponents, Nothing}, Component2::Union{AbstractComponents, Nothing}, W::ProjectedMatterDensity)
-    return nothing
+    return 0.
 end
 
 ## Galaxy clustering auto

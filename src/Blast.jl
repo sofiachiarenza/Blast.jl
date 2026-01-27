@@ -70,8 +70,8 @@ function __init__()
     kmin = 5e-5
     kmax = 16
     n_cheb = 160
+    
     global k_cheb = chebpoints(n_cheb, log10(kmin), log10(kmax))
-
     global k_limber = chebpoints(256, log10(1e-4), log10(80))
     global z_cheb = chebpoints(49, 0, 3.6)
     global z_lin = LinRange(0,3.6, 50)

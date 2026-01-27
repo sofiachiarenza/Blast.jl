@@ -24,7 +24,7 @@ function get_limber_kernel(Component::AbstractComponents)
 end
 
 function get_limber_kernel(Component::Nothing)
-    return nothing
+    return 0.
 end
 
 """
@@ -79,7 +79,7 @@ function get_limber_correction(Probe::Union{GalaxyClustering, WeakLensing, CMB},
 
     n = size(Blast.χ, 1)
     Δχ = ((χ[n]-χ[1])/(n-1))
-    weights = Blast.simpson_weight_array(n)
+    weights = Blast.simpson_weights_array(n)
 
     K = get_limber_kernel(Probe)[1:size(Blast.ℓ_nonlimber, 1), :, :]
 
@@ -104,7 +104,7 @@ function get_limber_correction(ProbeA::Union{GalaxyClustering, WeakLensing, CMB}
 
     n = size(Blast.χ, 1)
     Δχ = ((χ[n]-χ[1])/(n-1))
-    weights = Blast.simpson_weight_array(n)
+    weights = Blast.simpson_weights_array(n)
 
     KA = get_limber_kernel(ProbeA)[1:size(Blast.ℓ_nonlimber, 1), :, :]
     KB = get_limber_kernel(ProbeB)[1:size(Blast.ℓ_nonlimber, 1), :, :]
@@ -130,7 +130,7 @@ function get_limber_Cℓ(Probe::Union{GalaxyClustering, WeakLensing, CMB}, pk::P
 
     n = size(Blast.χ, 1)
     Δχ = ((χ[n]-χ[1])/(n-1))
-    weights = Blast.simpson_weight_array(n)
+    weights = Blast.simpson_weights_array(n)
 
     K = get_limber_kernel(Probe)[size(Blast.ℓ_nonlimber, 1)+1:end, :, :]
 
@@ -155,7 +155,7 @@ function get_limber_Cℓ(ProbeA::Union{GalaxyClustering, WeakLensing, CMB}, Prob
 
     n = size(Blast.χ, 1)
     Δχ = ((χ[n]-χ[1])/(n-1))
-    weights = Blast.simpson_weight_array(n)
+    weights = Blast.simpson_weights_array(n)
 
     KA = get_limber_kernel(ProbeA)[size(Blast.ℓ_nonlimber, 1)+1:end, :, :]
     KB = get_limber_kernel(ProbeB)[size(Blast.ℓ_nonlimber, 1)+1:end, :, :]
