@@ -46,14 +46,14 @@ function __init__()
     Tdir = artifact"T_tildes"
 
     global T_tildes = T̃(
-        npzread(joinpath(Tdir, "T_2_00.npz")),
-        npzread(joinpath(Tdir, "T_0_00.npz")),
-        npzread(joinpath(Tdir, "T_minus2_00.npz")),
-        npzread(joinpath(Tdir, "T_0_02.npz")),
-        npzread(joinpath(Tdir, "T_0_20.npz")),
-        npzread(joinpath(Tdir, "T_2_02.npz")),
-        npzread(joinpath(Tdir, "T_2_20.npz")),
-        npzread(joinpath(Tdir, "T_2_22.npz"))
+        npzread(joinpath(Tdir, "T_tildes_artifact/T_2_00.npz")),
+        npzread(joinpath(Tdir, "T_tildes_artifact/T_0_00.npz")),
+        npzread(joinpath(Tdir, "T_tildes_artifact/T_minus2_00.npz")),
+        npzread(joinpath(Tdir, "T_tildes_artifact/T_0_02.npz")),
+        npzread(joinpath(Tdir, "T_tildes_artifact/T_0_20.npz")),
+        npzread(joinpath(Tdir, "T_tildes_artifact/T_2_02.npz")),
+        npzread(joinpath(Tdir, "T_tildes_artifact/T_2_20.npz")),
+        npzread(joinpath(Tdir, "T_tildes_artifact/T_2_22.npz"))
     )
 
     global full_ℓ_range = reverse(chebpoints(100, 2, 2000))
