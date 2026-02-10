@@ -505,7 +505,7 @@ function compute_kernel!(Component::MagnificationBias, grid::CosmologicalGrid, b
         end
     end
 
-    @tullio kernel[b, zidx] := Δχ * bg.Hz_array[zp] / C_LIGHT * simpson_matrix[zidx, zp] * prefac * χz_array[zidx] * (1.0 + z_range[zidx]) * n_z_array[b, zp] * (1.0 - χz_array[zidx] / χz_array[zp]) * (5.0 * s_z_array[zp] - 2)
+    @tullio kernel[b, zidx] := Δχ * bg.Hz_array[zp] / C_LIGHT * simpson_matrix[zidx, zp] * prefac * χz_array[zidx] * (1.0 + z_range[zidx]) * n_z_array[b, zp] * (1.0 - χz_array[zidx] / χz_array[zp]) * (5.0 * s_z_array[b, zp] - 2)
 
     Component.Kernel = kernel
 
