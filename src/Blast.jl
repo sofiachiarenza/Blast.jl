@@ -24,6 +24,7 @@ include("projected_matter.jl")
 include("cls.jl")
 include("utils.jl")
 include("limber.jl")
+include("chainrules.jl")
 
 import PhysicalConstants.CODATA2018: c_0
 
