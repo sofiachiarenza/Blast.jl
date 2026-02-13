@@ -628,7 +628,7 @@ This function computes the kernels of the active components in the observable, n
 function evaluate_components!(GC::GalaxyClustering, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
     compute_kernel!(GC.δ, grid, bg, cosmo)
     compute_kernel!(GC.RSD, grid, bg, cosmo)
-    compute_kernel!(GC.μ, grid, bg, cosmo)
+    compute_kernel_safe!(GC.μ, grid, bg, cosmo)
     compute_kernel!(GC.PNG, grid, bg, cosmo)
 end
 
@@ -648,7 +648,7 @@ This function computes the kernels of the active components in the observable, n
 - `cosmo`: The `AbstractCosmology` model.
 """
 function evaluate_components!(WL::WeakLensing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-    compute_kernel!(WL.γ, grid, bg, cosmo)
+    compute_kernel_safe!(WL.γ, grid, bg, cosmo)
     compute_kernel!(WL.IA, grid, bg, cosmo)
 end
 
