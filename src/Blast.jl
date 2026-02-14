@@ -14,6 +14,9 @@ using QuadGK
 using Artifacts
 using PhysicalConstants
 using Memoization
+using ChainRulesCore
+using ChainRules
+using Mooncake
 
 include("cosmo.jl")
 include("deprecated.jl")

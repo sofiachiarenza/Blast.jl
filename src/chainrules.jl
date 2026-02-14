@@ -3,9 +3,7 @@ import Tullio: @tullio
 import FFTW
 import Mooncake
 import Mooncake: @from_chainrules
-import Mooncake: tangent_type, fdata_type, rdata_type,
-                 zero_tangent_internal, fdata, rdata,
-                 NoFData, NoRData, increment_rdata!!
+import Mooncake: tangent_type, fdata_type, rdata_type, zero_tangent_internal, fdata, rdata, NoFData, NoRData, increment_rdata!!
 
 # w_ell_tullio rrules 
 # NOTE: In Blast, T is treated as constant 
