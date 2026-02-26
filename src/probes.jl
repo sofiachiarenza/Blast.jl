@@ -321,7 +321,7 @@ function compute_kernel_safe!(Component::CosmicShear, grid::CosmologicalGrid, bg
             integrand(x) = nz_func(x) * (1. - bg.χz_array[z_idx]/compute_χ(x, cosmo))
             z_low = grid.z_range[z_idx]
             z_top = grid.z_range[end]*1.1 #TODO: check max redshift, with n5k bins, lensing5 fallisce se uso valore diverso da 3.5
-            int, err = quadgk(x -> integrand(x), z_low, z_top) #int is the lensing efficiency
+            int, _ = quadgk(x -> integrand(x), z_low, z_top) #int is the lensing efficiency
 
             kernel[b, z_idx] = prefac * bg.χz_array[z_idx] * (1. + grid.z_range[z_idx]) * int / nz_norm
         end
