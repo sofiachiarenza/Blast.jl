@@ -608,6 +608,10 @@ function compute_kernel!(Component::Nothing, grid::CosmologicalGrid, bg::Backgro
     return nothing
 end
 
+function compute_kernel_safe!(Component::Nothing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
+    return nothing
+end
+
 """
     evaluate_components!(GC::GalaxyClustering, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
 

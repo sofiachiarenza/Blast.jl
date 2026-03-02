@@ -32,16 +32,9 @@ interpolation and evaluated on the flattened χ–R grid.
 A 2D array `(nbins, length(χ * R'))` containing the interpolated kernel.
 """
 function grid_interpolator(Probe::AbstractComponents, grid::Array{<:Any, 1}) 
-
-    n_bins = size(Probe.Kernel, 1)
-    kernel_interpolated = zeros(n_bins, length(grid))
-
-    for b in 1:n_bins
-        interp = AkimaInterpolation(Probe.Kernel[b,:], Blast.χ, extrapolation=ExtrapolationType.Extension)
-        kernel_interpolated[b, :] = interp.(grid)
-    end
-
-    return kernel_interpolated
+    kernel = Probe.Kernel
+    chi_grid = Blast.χ
+    return collect(_akima_interpolation(collect(kernel'), chi_grid, grid)')
 end
 
 """
@@ -79,6 +72,13 @@ function get_kernel_array(Probe::Union{CosmicShear, IntrinsicAlignment, Magnific
     return W_array
 end
 
+function _combine_kernels_tullio(W_A, W_B)
+    W_A_r1 = W_A[:, :, end]
+    W_B_r1 = W_B[:, :, end]
+    @tullio K[idx_i, idx_j, idx_c, idx_r] := W_A_r1[idx_i, idx_c] * W_B[idx_j, idx_c, idx_r] + W_A[idx_i, idx_c, idx_r] * W_B_r1[idx_j, idx_c]
+    return K
+end
+
 """
     combine_kernels(ProbeA, ProbeB)
 
@@ -90,14 +90,9 @@ A 4D array `(nbins_A, nbins_B, χ, R)` containing the symmetrized kernel.
 function combine_kernels(ProbeA::AbstractComponents, ProbeB::AbstractComponents)
 
     W_A = get_kernel_array(ProbeA)
-    W_A_r1 = W_A[:,:,end]
-
     W_B = get_kernel_array(ProbeB)
-    W_B_r1 = W_B[:,:,end]
 
-    @tullio K[i,j,c,r] := W_A_r1[i,c] * W_B[j,c,r] + W_A[i,c,r] * W_B_r1[j,c]
-
-    return K
+    return _combine_kernels_tullio(W_A, W_B)
 end
 
 """
