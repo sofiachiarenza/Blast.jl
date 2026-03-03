@@ -276,20 +276,6 @@ end
     compute_kernel!(Component::NumberCounts, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
 
 Compute and store the projection kernel for galaxy number counts across multiple redshift bins.
-
-For each bin `i`, the kernel is calculated as:
-```math
-W_i^{\\delta}(z) = \\frac{H(z)}{c}n_i(z)b_i(z)
-```
-where `n_i(z)` is the redshift distribution of the tracer, normalized to 1, and `b_i(z)` is the linear galaxy bias in the bin.
-The resulting kernel has shape (n_bins, length(grid.z_range)).
-
-# Parameters:
-- `Component`: An instance of `NumberCounts`, in which the computed kernel values for each redshift bin will be stored.
-- `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
-- `bg`: A `BackgroundQuantities` object containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
-- `cosmo`: An instance of `AbstractCosmology`, containing the cosmological model used to calculate the background quantities.
-
 """
 function compute_kernel!(Component::NumberCounts, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
 
@@ -305,7 +291,6 @@ function compute_kernel!(Component::NumberCounts, grid::CosmologicalGrid, bg::Ba
     Component.Kernel = kernel
 end
 
-#TODO: Old safe version, figure out where to put this. I think I'll keep it for CI.
 function compute_kernel_safe!(Component::CosmicShear, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
 
     n_bins = size(Component.nz, 1)
@@ -330,119 +315,43 @@ function compute_kernel_safe!(Component::CosmicShear, grid::CosmologicalGrid, bg
     Component.Kernel = kernel
 end
 
-"""
-    compute_kernel!(Component::CosmicShear, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Computes the weak lensing shear kernel based on a redshift distribution `nz` and stores it in the `CosmicShear` struct. 
-The kernel is defined as: 
-```math
-W_i^{\\gamma}(z) = \\frac{3}{2}\\frac{H_0^2}{c^2}\\Omega_m \\chi(z)(1+z)\\int_{z}^{\\infty}dz'n_i(z')(1-\\frac{\\chi(z)-}{\\chi(z')})
-```
-where `n_i(z)` is the redshift distribution of the tracer, normalized to 1.
-The resulting kernel has shape (n_bins, length(grid.z_range)).
-
-# Parameters:
-- `Component`: An instance of `CosmicShear`, in which the computed kernel values for each redshift bin will be stored.
-- `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
-- `bg`: A `BackgroundQuantities` object containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
-- `cosmo`: An instance of `AbstractCosmology`, containing the cosmological model used to calculate the background quantities.
-
-"""
-function _compute_kernel_shear_tullio(Δχ, Hz_array, simpson_matrix, prefac, χz_array, z_range, n_z_array)
-    # Use a small epsilon (1e-18) to avoid division by zero at χ=0
-    @tullio kernel[idx_b, idx_zidx] := Δχ * (Hz_array[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * χz_array[idx_zidx] * (1.0 + z_range[idx_zidx]) * n_z_array[idx_b, idx_zp] * (χz_array[idx_zp] - χz_array[idx_zidx]) / (χz_array[idx_zp] + 1e-18)
-    return kernel
-end
-
-function _compute_kernel_mag_tullio(Δχ, Hz_array, simpson_matrix, prefac, χz_array, z_range, n_z_array, s_z_array)
-    @tullio kernel[idx_b, idx_zidx] := Δχ * (Hz_array[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * χz_array[idx_zidx] * (1.0 + z_range[idx_zidx]) * n_z_array[idx_b, idx_zp] * (χz_array[idx_zp] - χz_array[idx_zidx]) / (χz_array[idx_zp] + 1e-18) * (5.0 * s_z_array[idx_b, idx_zp] - 2)
-    return kernel
-end
-
-function _compute_kernel_shear_full(nz, z, grid_z_range, bg_Hz_array, bg_χz_array, prefac, simpson_matrix, Δχ)
-    # Use a comprehension to create the matrix without mutation
-    n_z_array = [begin
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b, :], z, extrapolation=ExtrapolationType.Extension)
-        nz_norm, _ = quadgk(x->nz_func(x), first(grid_z_range), last(grid_z_range))
-        nz_func(z_val) / nz_norm
-    end for b in 1:size(nz, 1), z_val in grid_z_range]
-    
-    return _compute_kernel_shear_tullio(Δχ, bg_Hz_array, simpson_matrix, prefac, bg_χz_array, grid_z_range, n_z_array)
-end
-
-function _compute_kernel_mag_full(nz, z, grid_z_range, bg_Hz_array, bg_χz_array, prefac, simpson_matrix, Δχ, s)
-    # Use a comprehension to create the matrices without mutation
-    data = [begin
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b, :], z, extrapolation=ExtrapolationType.Extension)
-        nz_norm, _ = quadgk(x->nz_func(x), first(grid_z_range), last(grid_z_range))
-        s_z_interp = DataInterpolations.AkimaInterpolation(s[b, :], grid_z_range, extrapolation=ExtrapolationType.Extension)
-        
-        # Return a tuple of normalized nz and s_z for this bin/point
-        ([nz_func(z_val) / nz_norm for z_val in grid_z_range], 
-         [s_z_interp(z_val) for z_val in grid_z_range])
-    end for b in 1:size(nz, 1)]
-
-    # Reshape the results back into matrices
-    n_z_matrix = reduce(vcat, [d[1]' for d in data])
-    s_z_matrix = reduce(vcat, [d[2]' for d in data])
-
-    return _compute_kernel_mag_tullio(Δχ, bg_Hz_array, simpson_matrix, prefac, bg_χz_array, grid_z_range, n_z_matrix, s_z_matrix)
-end
-
 function compute_kernel!(Component::CosmicShear, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
+
+    n_bins = size(Component.nz, 1)
+    kernel = zeros(n_bins, length(grid.z_range))
+
+    n_z_array = zeros(n_bins, length(grid.z_range))
+
+    χz_array = bg.χz_array
+    z_range = grid.z_range
+
     prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
     simpson_matrix = simpson_weights_matrix(length(grid.z_range))
-    Δχ = (bg.χz_array[end] - bg.χz_array[1]) / (length(bg.χz_array) - 1)
+    Δχ = (χz_array[end] - χz_array[1]) / (length(χz_array) - 1)
 
-    Component.Kernel = _compute_kernel_shear_full(Component.nz, Component.z, grid.z_range, bg.Hz_array, bg.χz_array, prefac, simpson_matrix, Δχ)
+    for b in 1:n_bins
+        nz_func = DataInterpolations.AkimaInterpolation(Component.nz[b, :], Component.z, extrapolation=ExtrapolationType.Extension)
+        nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
+        for (zidx, myz) in enumerate(grid.z_range)
+            n_z_array[b, zidx] = nz_func(myz) / nz_norm
+        end
+    end
+
+    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.Hz_array[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * χz_array[idx_zidx] * (1.0 + z_range[idx_zidx]) * n_z_array[idx_b, idx_zp] * (χz_array[idx_zp] - χz_array[idx_zidx]) / (χz_array[idx_zp] + 1e-18)
+
+    Component.Kernel = kernel
+
 end
 
-"""
-    compute_kernel!(Component::CMBLensing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Computes the weak lensing shear kernel based on a redshift distribution `nz` and stores it in the `CosmicShear` struct. 
-The kernel is defined as: 
-```math
-W_i^{\\kappa}(z) = \\frac{3}{2}\\frac{H_0^2}{c^2}\\Omega_m \\chi(z)(1+z)(1-\\frac{\\chi(z)-}{\\chi^*})
-```
-where `χ^*` is the comoving distance at the CMB redshift `χ(z=1090)`. The resulting kernel has shape (1, length(grid.z_range)).
-
-# Parameters:
-- `Component`: An instance of `CMBLensing`, in which the computed kernel values for each redshift bin will be stored.
-- `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
-- `bg`: A `BackgroundQuantities` object containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
-- `cosmo`: An instance of `AbstractCosmology`, containing the cosmological model used to calculate the background quantities.
-
-"""
 function compute_kernel!(Component::CMBLensing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
 
     prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
-    χ_CMB = compute_χ(1090, cosmo) #From DESI fiducial cosmology
+    χ_CMB = compute_χ(1090, cosmo) 
 
     kernel = @. prefac * bg.χz_array * (1. + grid.z_range) * (1 - bg.χz_array/χ_CMB)
     Component.Kernel = reshape(kernel, 1, size(kernel,1))
 end
 
-"""
-    compute_kernel!(Component::RedshiftSpaceDistortions, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Compute and store the projection kernel for Redshift-Space Distortions (RSD) across multiple redshift bins.
-
-This function implements the RSD contribution to the density contrast in the Kaiser limit. 
-For each bin `i`, the kernel is calculated as:
-
-```math
-W_i^{\\mathrm{RSD}}(z) =  \\frac{H(z)}{c} n_i(z)f(z)
-```
-where `f(z)` is the linear growth rate and `n_i(z)` is the redshift distribution of the tracer, normalized to 1.
-
-# Parameters:
-- `Component`: An instance of `CMBLensing`, in which the computed kernel values for each redshift bin will be stored.
-- `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
-- `bg`: A `BackgroundQuantities` object containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
-- `cosmo`: An instance of `AbstractCosmology`, containing the cosmological model used to calculate the background quantities.
-
-"""
 function compute_kernel!(Component::RedshiftSpaceDistortions, grid::CosmologicalGrid,  bg::BackgroundQuantities, cosmo::AbstractCosmology) 
 
     n_bins = size(Component.nz, 1)
@@ -483,52 +392,36 @@ function compute_kernel_safe!(Component::MagnificationBias, grid::CosmologicalGr
     Component.Kernel = kernel 
 end
 
-"""
-    compute_kernel!(Component::MagnificationBias, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Computes the magnification bias kernel based on a redshift distribution `nz` and stores it in the `MagnificationBias` struct. 
-The kernel is defined as: 
-```math
-W_i^{\\mu}(z) = \\frac{3}{2}\\frac{H_0^2}{c^2}\\Omega_m \\chi(z)(1+z)\\int_{z}^{\\infty}dz'n_i(z')(1-\\frac{\\chi(z)-}{\\chi(z')})(5s(z')-2)
-```
-where `n_i(z)` is the redshift distribution of the tracer, normalized to 1. And `s_i(z)` is magnification bias slope in the bin.
-The resulting kernel has shape (n_bins, length(grid.z_range)).
-
-# Parameters:
-- `Component`: An instance of `MagnificationBias`, in which the computed kernel values for each redshift bin will be stored.
-- `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
-- `bg`: A `BackgroundQuantities` object containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
-- `cosmo`: An instance of `AbstractCosmology`, containing the cosmological model used to calculate the background quantities.
-
-"""
 function compute_kernel!(Component::MagnificationBias, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
+
+    n_bins = size(Component.nz, 1)
+    s_z_array = zeros(n_bins, length(grid.z_range))
+    n_z_array = zeros(n_bins, length(grid.z_range))
+
+    χz_array = bg.χz_array
+    z_range = grid.z_range
+
     prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
     simpson_matrix = simpson_weights_matrix(length(grid.z_range))
-    Δχ = (bg.χz_array[end] - bg.χz_array[1]) / (length(bg.χz_array) - 1)
+    Δχ = (χz_array[end] - χz_array[1]) / (length(χz_array) - 1)
 
-    Component.Kernel = _compute_kernel_mag_full(Component.nz, Component.z, grid.z_range, bg.Hz_array, bg.χz_array, prefac, simpson_matrix, Δχ, Component.s)
+    for b in 1:n_bins
+        nz_func = DataInterpolations.AkimaInterpolation(Component.nz[b, :], Component.z, extrapolation=ExtrapolationType.Extension)
+        nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
+        
+        s_z = DataInterpolations.AkimaInterpolation(Component.s[b, :], grid.z_range, extrapolation=ExtrapolationType.Extension)
+        for (zidx, myz) in enumerate(grid.z_range)
+            s_z_array[b, zidx] = s_z(myz)
+            n_z_array[b, zidx] = nz_func(myz) / nz_norm
+        end
+    end
+
+    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.Hz_array[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * χz_array[idx_zidx] * (1.0 + z_range[idx_zidx]) * n_z_array[idx_b, idx_zp] * (χz_array[idx_zp] - χz_array[idx_zidx]) / (χz_array[idx_zp] + 1e-18) * (5.0 * s_z_array[idx_b, idx_zp] - 2)
+
+    Component.Kernel = kernel
+
 end
 
-"""
-    compute_kernel!(Component::IntrinsicAlignment, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Compute and store the projection kernel for Intrinsic Alignments (IA) across multiple redshift bins.
-
-This function calculates the IA kernel, which describes how galaxy shapes are intrinsically 
-aligned with the tidal field of the large-scale structure. For each bin `i`, the kernel is:
-```math
-W_i^{IA}(z) =  \\frac{H(z)}{c} n_i(z) A_{IA}(z)
-```
-where n_i(z) is the redshift distribution of the tracer, normalized to 1, and A_{IA}(z) is a general alignment amplitude, allowing the user to implement the preferred IA model.
-
-The resulting kernel has shape (n_bins, length(grid.z_range)).
-
-# Parameters:
-- `Component`: An instance of `IntrinsicAlignment`, in which the computed kernel values for each redshift bin will be stored.
-- `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
-- `bg`: A `BackgroundQuantities` object containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
-- `cosmo`: An instance of `AbstractCosmology`, containing the cosmological model used to calculate the background quantities. 
-"""
 function compute_kernel!(Component::IntrinsicAlignment, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
 
     n_bins = size(Component.nz, 1)
@@ -543,24 +436,6 @@ function compute_kernel!(Component::IntrinsicAlignment, grid::CosmologicalGrid, 
     Component.Kernel = kernel
 end
 
-"""
-    compute_kernel!(Component::IntegratedSachsWolfe, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Computes the Integrated Sachs-Wolfe (ISW) effect kernel and stores it in the `IntegratedSachsWolfe` struct.
-
-The ISW kernel describes the secondary anisotropy in the CMB temperature caused by time-varying gravitational potentials as photons traverse large-scale structures. It is defined as:
-
-```math
-W^{ISW}(z) = \\frac{3 T_{CMB} H_0^2 \\Omega_m}{c^3} H(z) [1 - f(z)]
-```
-where `T_{CMB} = 2.726K` is the CMB temperature and `f(z)` is the linear growth rate. The resulting kernel has shape (1, length(grid.z_range)).
-
-# Parameters:
-- `Component`: An instance of `IntegratedSachsWolfe`, in which the computed kernel values for each redshift bin will be stored.
-- `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
-- `bg`: A `BackgroundQuantities` object containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
-- `cosmo`: An instance of `AbstractCosmology`, containing the cosmological model used to calculate the background quantities. 
-"""
 function compute_kernel!(Component::IntegratedSachsWolfe, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
     T_CMB = 2.726
     prefac = 3T_CMB * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^3
@@ -569,25 +444,6 @@ function compute_kernel!(Component::IntegratedSachsWolfe, grid::CosmologicalGrid
     Component.Kernel = reshape(kernel, 1, size(kernel, 1))
 end
 
-"""
-    compute_kernel!(Component::PrimordialNonGaussianity, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Compute and store the projection kernel for Primordial Non-Gaussianity (PNG) across multiple redshift bins.
-
-This function calculates the kernel for the scale-dependent bias contribution arising from 
-local-type primordial non-Gaussianity. For each bin `i`, the kernel is calculated as:
-
-```math
-W_i^{f_{NL}}(z) = f_{NL} b_{\\Phi}(z) \\frac{H(z)}{c} n_i(z)
-```
-where `f_{NL}` is the PNG parameter, `b_\\Phi` is the PNG bias, parametrized with the Universality relation `b_\\Phi = 2 \\delta_c (b_i(z) - p)`.
-Finally, n_i(z) is the redshift distribution of the tracer, normalized to 1. The resulting kernel has shape (n_bins, length(grid.z_range)).
-# Parameters:
-- `Component`: An instance of `PrimordialNonGaussianity`, in which the computed kernel values for each redshift bin will be stored.
-- `grid`: A `CosmologicalGrid` object specifying the redshift range and grid points for kernel computation.
-- `bg`: A `BackgroundQuantities` object containing arrays of Hubble parameter (`Hz_array`) and comoving distance (`χz_array`), precomputed over the grid.
-- `cosmo`: An instance of `AbstractCosmology`, containing the cosmological model used to calculate the background quantities. 
-"""
 function compute_kernel!(Component::PrimordialNonGaussianity, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
 
     n_bins = size(Component.nz, 1)
@@ -597,7 +453,7 @@ function compute_kernel!(Component::PrimordialNonGaussianity, grid::Cosmological
         nz_func = DataInterpolations.AkimaInterpolation(Component.nz[b,:], Component.z, extrapolation = ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
-        kernel[b,:] = (bg.Hz_array / C_LIGHT) .* Component.f_NL .* bΦ(Component.bias[b,:], Component.p) .* (nz_func.(grid.z_range) ./ nz_norm)
+        kernel[b,:] = (bg.Hz_array / C_LIGHT) .* Component.f_NL .* bΦ(Component.bias[b,:], Component.p) .* (nz_func.(grid.z_range) / nz_norm)
     end
     Component.Kernel = kernel
 end
@@ -610,23 +466,6 @@ function compute_kernel_safe!(Component::Nothing, grid::CosmologicalGrid, bg::Ba
     return nothing
 end
 
-"""
-    evaluate_components!(GC::GalaxyClustering, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Compute all individual projection kernels associated with galaxy clustering observable.
-
-This function computes the kernels of the active components in the observable, namely:
-- **Number counts** (`GC.δ`): The primary galaxy clustering signal.
-- **Redshift-Space Distortions** (`GC.RSD`): The anisotropic clustering due to peculiar velocities.
-- **Magnification Bias** (`GC.μ`): The change in observed density due to gravitational lensing.
-- **Primordial Non-Gaussianity** (`GC.PNG`): The scale-dependent bias contribution.
-
-# Parameters:
-- `GC`: A `GalaxyClustering` object containing the sub-components to be updated.
-- `grid`: The `CosmologicalGrid` defining the redshift range.
-- `bg`: `BackgroundQuantities` containing precomputed distances and Hubble factors.
-- `cosmo`: The `AbstractCosmology` model.
-"""
 function evaluate_components!(GC::GalaxyClustering, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
     compute_kernel!(GC.δ, grid, bg, cosmo)
     compute_kernel!(GC.RSD, grid, bg, cosmo)
@@ -634,41 +473,11 @@ function evaluate_components!(GC::GalaxyClustering, grid::CosmologicalGrid, bg::
     compute_kernel!(GC.PNG, grid, bg, cosmo)
 end
 
-"""
-    evaluate_components!(WL::WeakLensing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Compute all projection kernels associated with Weak Lensing observable.
-
-This function computes the kernels of the active components in the observable, namely:
-- **Cosmic Shear** (`WL.γ`): The deflection of light by large-scale structure.
-- **Intrinsic Alignment** (`WL.IA`): The intrinsic correlation of galaxy shapes with the tidal field.
-
-# Parameters:
-- `WL`: A `WeakLensing` object containing the lensing and alignment sub-components.
-- `grid`: The `CosmologicalGrid` defining the redshift range.
-- `bg`: `BackgroundQuantities` for distance and evolution calculations.
-- `cosmo`: The `AbstractCosmology` model.
-"""
 function evaluate_components!(WL::WeakLensing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
     compute_kernel_safe!(WL.γ, grid, bg, cosmo)
     compute_kernel!(WL.IA, grid, bg, cosmo)
 end
 
-"""
-    evaluate_components!(cmb::CMB, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Compute all projection kernels associated with Cosmic Microwave Background (CMB) secondary anisotropies.
-
-This function computes the kernels of the active components in the observable, namely:
-- **CMB Lensing** (`cmb.κ`): The gravitational lensing of the CMB temperature and polarization.
-- **Integrated Sachs-Wolfe** (`cmb.ISW`): The temperature fluctuations from time-varying potentials.
-
-# Parameters:
-- `cmb`: A `CMB` object containing the lensing and ISW sub-components.
-- `grid`: The `CosmologicalGrid` defining the redshift range.
-- `bg`: `BackgroundQuantities` for background evolution.
-- `cosmo`: The `AbstractCosmology` model.
-"""
 function evaluate_components!(cmb::CMB, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
     compute_kernel!(cmb.κ, grid, bg, cosmo)
     compute_kernel!(cmb.ISW, grid, bg, cosmo)
