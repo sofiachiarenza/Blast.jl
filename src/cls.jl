@@ -95,6 +95,17 @@ function combine_kernels(ProbeA::AbstractComponents, ProbeB::AbstractComponents)
     return _combine_kernels_tullio(W_A, W_B)
 end
 
+function _compute_Cℓ_tullio(K, pmj, w_χ, w_R, prefactor, Δχ, χ_grid)
+    @tullio Cℓ[idx_l, idx_i, idx_j] := prefactor[idx_l] * χ_grid[idx_n] * K[idx_i, idx_j, idx_n, idx_m] * pmj[idx_l, idx_n, idx_m] * w_χ[idx_n] * w_R[idx_m] * Δχ
+    return Cℓ
+end
+
+function _compute_Cℓ_rsd_tullio(W_A_r1, W_B, pmj02, W_A, W_B_r1, pmj20, w_χ, w_R, prefactor, Δχ, χ_grid)
+    @tullio K[idx_l, idx_i, idx_j, idx_c, idx_r] := W_A_r1[idx_i, idx_c] * W_B[idx_j, idx_c, idx_r] * pmj02[idx_l, idx_c, idx_r] + W_A[idx_i, idx_c, idx_r] * W_B_r1[idx_j, idx_c] * pmj20[idx_l, idx_c, idx_r]
+    @tullio Cℓ[idx_l, idx_i, idx_j] := prefactor[idx_l] * χ_grid[idx_n] * K[idx_l, idx_i, idx_j, idx_n, idx_m] * w_χ[idx_n] * w_R[idx_m] * Δχ
+    return Cℓ
+end
+
 """
     compute_Cℓ(Component1, Component2, w)
 
@@ -120,10 +131,9 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
 
     prefactor = 2/π .* Component1.ell_prefactor[1:length(ℓ_nonlimber)] .* Component2.ell_prefactor[1:length(ℓ_nonlimber)]
     pmj = w.w
+    χ_grid = Blast.χ
 
-    @tullio Cℓ[l,i,j] := prefactor[l]*Blast.χ[n]*K[i,j,n,m]*pmj[l,n,m]*w_χ[n]*w_R[m]*Δχ
-
-    return Cℓ 
+    return _compute_Cℓ_tullio(K, pmj, w_χ, w_R, prefactor, Δχ, χ_grid)
 end
 
 """
@@ -153,15 +163,14 @@ function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractCompon
     pmj02 = w02.w
     pmj20 = w20.w
 
-    @tullio K[l,i,j,c,r] := W_A_r1[i,c] * W_B[j,c,r] * pmj02[l,c,r] + W_A[i,c,r] * W_B_r1[j,c] * pmj20[l,c,r]
-
     Δχ = ((last(Blast.χ)-first(Blast.χ))/(nχ-1))
     w_χ = simpson_weights_array(nχ)
     w_R = get_clencurt_weights_R_integration(2*nR+1)
 
     prefactor = 2/π .* Component1.ell_prefactor[1:length(ℓ_nonlimber)] .* Component2.ell_prefactor[1:length(ℓ_nonlimber)]
+    χ_grid = Blast.χ
 
-    @tullio Cℓ[l,i,j] := prefactor[l]*Blast.χ[n]*K[l,i,j,n,m]*w_χ[n]*w_R[m]*Δχ
+    return _compute_Cℓ_rsd_tullio(W_A_r1, W_B, pmj02, W_A, W_B_r1, pmj20, w_χ, w_R, prefactor, Δχ, χ_grid)
 end
 
 """
