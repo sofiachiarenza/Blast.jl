@@ -195,8 +195,8 @@ function extract_transfer_function(pk::AbstractArray{<:Any,2}, k::AbstractArray{
     return sqrt.(pk ./ reshape(prim_pk, 1, :))
 end
 
-function old_to_χR_frame(matrix::AbstractArray{<:Any,2}, plan::FFTW.r2rFFTWPlan, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
-    coefs = fast_chebcoefs(matrix, plan)
+function old_to_χR_frame(matrix::AbstractArray{<:Any,2}, plan::ChebyshevPlan, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
+    coefs = chebyshev_decomposition(plan, matrix)
     new_χs = make_grid(bg, R)
     x = resample_redshifts(bg, grid, new_χs)
     chebyshevs = chebyshev_polynomials(x, z_cheb)
@@ -273,9 +273,9 @@ end
 
 
 function interpolate_power_spectrum(pk::AbstractArray{T,2}, z_nodes::AbstractArray{T,1}, R::AbstractArray{T,1},
-    plan::FFTW.r2rFFTWPlan, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid) where T
+    plan::ChebyshevPlan, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid) where T
 
-    coefs = fast_chebcoefs(pk, plan)
+    coefs = chebyshev_decomposition(plan, pk)
     new_χs = make_grid(bg, R)
     x = resample_redshifts(bg, grid, new_χs)
     chebyshevs = chebyshev_polynomials(x, z_nodes)
@@ -293,7 +293,7 @@ end
 function Pmm_unequaltime(pk::AbstractArray{T,2}, k::AbstractArray{T,1}, z::AbstractArray{T,1}, R::AbstractArray{T,1}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology) where T
     primordial_pk = Blast.P_phi(k, cosmo)
     T_m = Blast.extract_transfer_function(pk, k, cosmo)
-    plan = Blast.plan_fft(log10.(T_m), 1)
+    plan = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=size(log10.(T_m)), dim=1)
     T_m_interp = 10 .^ (Blast.interpolate_power_spectrum(log10.(T_m), z, R, plan, bg, grid))
 
     T_m_interp_R1 = T_m_interp[:,:,end]
@@ -305,10 +305,10 @@ end
 function Pgg_unequaltime(bias_kz::AbstractArray{T,2}, pk::AbstractArray{T,2}, k::AbstractArray{T,1}, z::AbstractArray{T,1}, R::AbstractArray{T,1}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology) where T
     primordial_pk = Blast.P_phi(k, cosmo)
     T_m = Blast.extract_transfer_function(pk, k, cosmo)
-    plan = Blast.plan_fft(log10.(T_m), 1)
+    plan = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=size(log10.(T_m)), dim=1)
     T_m_interp = 10 .^ (Blast.interpolate_power_spectrum(log10.(T_m), z, R, plan, bg, grid))
-    plan = Blast.plan_fft(bias_kz, 1)
-    bias_interp = Blast.interpolate_power_spectrum(bias_kz, z, R, plan, bg, grid)
+    plan_bias = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=size(bias_kz), dim=1)
+    bias_interp = Blast.interpolate_power_spectrum(bias_kz, z, R, plan_bias, bg, grid)
 
     T_m_interp_R1 = T_m_interp[:,:,end]
     bias_interp_R1 = bias_interp[:,:,end]
@@ -320,16 +320,17 @@ end
 function Pgm_unequaltime(bias_kz::AbstractArray{T,2}, pk::AbstractArray{T,2}, k::AbstractArray{T,1}, z::AbstractArray{T,1}, R::AbstractArray{T,1}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, cosmo::AbstractCosmology) where T
     primordial_pk = Blast.P_phi(k, cosmo)
     T_m = Blast.extract_transfer_function(pk, k, cosmo)
-    plan = Blast.plan_fft(log10.(T_m), 1)
+    plan = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=size(log10.(T_m)), dim=1)
     T_m_interp = 10 .^ (Blast.interpolate_power_spectrum(log10.(T_m), z, R, plan, bg, grid))
-    plan = Blast.plan_fft(bias_kz, 1)
-    bias_interp = Blast.interpolate_power_spectrum(bias_kz, z, R, plan, bg, grid)
+    plan_bias = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=size(bias_kz), dim=1)
+    bias_interp = Blast.interpolate_power_spectrum(bias_kz, z, R, plan_bias, bg, grid)
 
     T_m_interp_R1 = T_m_interp[:,:,end]
     bias_interp_R1 = bias_interp[:,:,end]
 
     return @tullio Pgm_unequaltime[k, i, j] := primordial_pk[k] * bias_interp_R1[k,i] * T_m_interp_R1[k,i] * T_m_interp[k,i,j]
 end
+
 
 function stoopid_2D_interpolator(x::AbstractArray{T,1}, y::AbstractArray{T,1}, f::AbstractArray{T,2}, logx::Bool, logy::Bool, logf::Bool ) where T
     if logx

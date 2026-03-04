@@ -18,10 +18,10 @@ using ChainRulesCore
 using ChainRules
 using Mooncake
 
+include("chebcoefs.jl")
 include("cosmo.jl")
 include("deprecated.jl")
 include("probes.jl")
-include("chebcoefs.jl")
 include("setup.jl")
 include("projected_matter.jl")
 include("cls.jl")

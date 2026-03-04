@@ -83,16 +83,8 @@ function bessel_cheb_eval(ℓ::Number, kmin::Number, kmax::Number, χ::AbstractA
     nχ = length(χ)
     x = get_clencurt_grid(kmin, kmax, N)
 
-    k_cheb = chebpoints(n_cheb, log10(kmin), log10(kmax)) 
-    c = FastChebInterp.ChebPoly(k_cheb, SA[log10(kmin)], SA[log10(kmax)])
-
-    T = zeros(n_cheb+1,N) 
-    Threads.@threads for i in 1:n_cheb+1
-        copy_c = deepcopy(c) 
-        copy_c.coefs .*= 0 
-        copy_c.coefs[i] = 1.
-        T[i,:] = copy_c.(log10.(x))
-    end
+    # Precompute all Chebyshev polynomials up to n_cheb on the log10(k) grid
+    T = chebyshev_polynomials(log10.(x), log10(kmin), log10(kmax), n_cheb)'
 
     Bessel = zeros(nχ, N)
     Threads.@threads for i in 1:nχ

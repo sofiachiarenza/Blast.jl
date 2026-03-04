@@ -9,19 +9,23 @@ import Mooncake: tangent_type, fdata_type, rdata_type, zero_tangent_internal, fd
 # 1. CONSTANT PATCHES
 # =============================================================================
 
-Mooncake.@from_rrule MinimalCtx Tuple{typeof(fast_chebcoefs), AbstractArray, FFTW.r2rFFTWPlan}
+Mooncake.@from_chainrules MinimalCtx Tuple{typeof(chebyshev_decomposition), Any, AbstractArray}
 
 Mooncake.tangent_type(::Type{P}) where {P<:FFTW.FFTWPlan} = P
 Mooncake.fdata_type(::Type{P})   where {P<:FFTW.FFTWPlan} = NoFData
 Mooncake.rdata_type(::Type{P})   where {P<:FFTW.FFTWPlan} = NoRData
 
-function Mooncake.zero_tangent_internal(p::P, ::IdDict{Any, Any}) where {P<:FFTW.FFTWPlan}
+Mooncake.tangent_type(::Type{P}) where {P<:ChebyshevPlan} = P
+Mooncake.fdata_type(::Type{P})   where {P<:ChebyshevPlan} = NoFData
+Mooncake.rdata_type(::Type{P})   where {P<:ChebyshevPlan} = NoRData
+
+function Mooncake.zero_tangent_internal(p::Union{FFTW.FFTWPlan, ChebyshevPlan}, ::IdDict{Any, Any})
     return p
 end
 
-Mooncake.fdata(p::FFTW.FFTWPlan) = NoFData()
-Mooncake.rdata(p::FFTW.FFTWPlan) = NoRData()
-Mooncake.increment_rdata!!(x::FFTW.FFTWPlan, ::NoRData) = x
+Mooncake.fdata(p::Union{FFTW.FFTWPlan, ChebyshevPlan}) = NoFData()
+Mooncake.rdata(p::Union{FFTW.FFTWPlan, ChebyshevPlan}) = NoRData()
+Mooncake.increment_rdata!!(x::Union{FFTW.FFTWPlan, ChebyshevPlan}, ::NoRData) = x
 
 function rrule(::typeof(get_clencurt_weights), kmin, kmax, N)
     return get_clencurt_weights(kmin, kmax, N), _ -> (NoTangent(), NoTangent(), NoTangent(), NoTangent())

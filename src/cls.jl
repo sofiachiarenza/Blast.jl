@@ -260,7 +260,7 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::PrimordialNo
     return compute_Cℓ(Component1, Component2, W.w_2_00_ϕ)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, P::Union{FFTPlans, Nothing}=nothing)
     Cℓ_δδ = get_Cℓ(G.δ, G.δ, W)
     Cℓ_δRSD = get_Cℓ(G.δ, G.RSD, W)
     Cℓ_RSDδ = get_Cℓ(G.RSD, G.δ, W)
@@ -287,10 +287,12 @@ function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpe
 
     Cℓ_final = zeros(size(ℓ,1), nbins, nbins)
 
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2, 2000, 100) : P.plan_ℓ
+
     for i in 1:nbins
         for j in 1:nbins
-            interpol = chebinterp(reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)), 2, 2000)
-            Cℓ_final[:,i,j] = interpol.(ℓ) ./ (ℓ.^2)
+            c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
+            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2, 2000) ./ (ℓ.^2)
         end
     end
 
@@ -314,7 +316,7 @@ function get_Cℓ(Component1::IntrinsicAlignment, Component2::IntrinsicAlignment
     return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, P::Union{FFTPlans, Nothing}=nothing)
     Cℓ_γγ = get_Cℓ(L.γ, L.γ, W)
     Cℓ_γI = get_Cℓ(L.γ, L.IA, W)
     Cℓ_Iγ = get_Cℓ(L.IA, L.γ, W)
@@ -329,10 +331,12 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectru
 
     Cℓ_final = zeros(size(ℓ,1), nbins, nbins)
 
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2, 2000, 100) : P.plan_ℓ
+
     for i in 1:nbins
         for j in 1:nbins
-            interpol = chebinterp(reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)), 2, 2000)
-            Cℓ_final[:,i,j] = interpol.(ℓ) ./ (ℓ.^2)
+            c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
+            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2, 2000) ./ (ℓ.^2)
         end
     end
 
@@ -372,7 +376,7 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::IntrinsicAli
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, P::Union{FFTPlans, Nothing}=nothing)
     Cℓ_δγ = get_Cℓ(G.δ, L.γ, W)
     Cℓ_δI = get_Cℓ(G.δ, L.IA, W)
     Cℓ_RSDγ = get_Cℓ(G.RSD, L.γ, W)
@@ -393,18 +397,20 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLens
 
     Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
 
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2, 2000, 100) : P.plan_ℓ
+
     for i in 1:nbins_A
         for j in 1:nbins_B
-            interpol = chebinterp(reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)), 2, 2000)
-            Cℓ_final[:,i,j] = interpol.(ℓ) ./ (ℓ.^2)
+            c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
+            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2, 2000) ./ (ℓ.^2)
         end
     end
 
     return Cℓ_final
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
-    return get_Cℓ(ℓ, G, L, Pk, W)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, P::Union{FFTPlans, Nothing}=nothing)
+    return get_Cℓ(ℓ, G, L, Pk, W, P)
 end
 
 ## Cross clustering - CMB 
@@ -440,7 +446,7 @@ function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::PrimordialNonGau
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, P::Union{FFTPlans, Nothing}=nothing)
     Cℓ_κδ = get_Cℓ(K.κ, G.δ, W)
     Cℓ_κRSD = get_Cℓ(K.κ, G.RSD, W)
     Cℓ_κμ = get_Cℓ(K.κ, G.μ, W)
@@ -461,18 +467,20 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk:
 
     Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
 
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2, 2000, 100) : P.plan_ℓ
+
     for i in 1:nbins_A
         for j in 1:nbins_B
-            interpol = chebinterp(reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)), 2, 2000)
-            Cℓ_final[:,i,j] = interpol.(ℓ) ./ (ℓ.^2)
+            c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
+            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2, 2000) ./ (ℓ.^2)
         end
     end
 
     return Cℓ_final
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity)
-    return get_Cℓ(ℓ, K, G, Pk, W)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity, P::Union{FFTPlans, Nothing}=nothing)
+    return get_Cℓ(ℓ, K, G, Pk, W, P)
 end
 
 ## Cross lensing - CMB
@@ -492,7 +500,7 @@ function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::IntrinsicAlignme
     return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, P::Union{FFTPlans, Nothing}=nothing)
     Cℓ_κγ = get_Cℓ(K.κ, L.γ, W)
     Cℓ_κI = get_Cℓ(K.κ, L.IA, W)
     Cℓ_Tγ = get_Cℓ(K.ISW, L.γ, W)
@@ -509,16 +517,18 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, L::WeakLensing, Pk::Powe
 
     Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
 
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2, 2000, 100) : P.plan_ℓ
+
     for i in 1:nbins_A
         for j in 1:nbins_B
-            interpol = chebinterp(reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)), 2, 2000)
-            Cℓ_final[:,i,j] = interpol.(ℓ) ./ (ℓ.^2)
+            c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
+            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2, 2000) ./ (ℓ.^2)
         end
     end
 
     return Cℓ_final
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, S::WeakLensing, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity)
-    return get_Cℓ(ℓ, K, S, Pk, W)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, S::WeakLensing, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity, P::Union{FFTPlans, Nothing}=nothing)
+    return get_Cℓ(ℓ, K, S, Pk, W, P)
 end

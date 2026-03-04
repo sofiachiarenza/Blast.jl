@@ -11,9 +11,29 @@ These plans are reused across power spectrum evaluations to avoid repeated FFTW 
 - `plan_ϕ`: Optional FFT plan for the primordial power spectrum.
 """
 @kwdef mutable struct FFTPlans 
-    plan_ϕTT::FFTW.r2rFFTWPlan 
-    plan_ϕT::Union{FFTW.r2rFFTWPlan, Nothing} = nothing
-    plan_ϕ::Union{FFTW.r2rFFTWPlan, Nothing} = nothing
+    plan_ϕTT::ChebyshevPlan 
+    plan_ϕT::Union{ChebyshevPlan, Nothing} = nothing
+    plan_ϕ::Union{ChebyshevPlan, Nothing} = nothing
+    plan_limber::ChebyshevPlan
+    T_k_limber::AbstractArray{<:Any, 3}
+    plan_ℓ::ChebyshevPlan
+end
+
+function _setup_limber_plan()
+    # Limber grid domains from Blast.k_limber and Blast.z_cheb
+    lk_min, lk_max = log10(1e-4), log10(80)
+    z_min, z_max = 0.0, 3.6
+    K_k, K_z = 256, 49
+
+    plan_limber = prepare_chebyshev_plan((lk_min, z_min), (lk_max, z_max), (K_k, K_z))
+    
+    # Precompute k polynomials on Blast.full_ℓ_range and Blast.χ (constant)
+    T_k = get_limber_k_polynomials(plan_limber, Blast.full_ℓ_range, Blast.χ; is_log_k=true)
+    
+    # Plan for C_ℓ interpolation (100 nodes, ℓ from 2 to 2000)
+    plan_ℓ = prepare_chebyshev_plan(2, 2000, 100)
+    
+    return plan_limber, T_k, plan_ℓ
 end
 
 """
@@ -42,9 +62,10 @@ are set to `nothing` avoiding useless overhead.
 - Conceptually, this function computes and stores everything that is only needed once.
 """
 function SetUp(G::GalaxyClustering)
-    plan_ϕTT = plan_fft(randn(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)),1)
+    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
+    plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
     w_δ = w_2_00_ϕTT()
     w_μ_B = nothing
@@ -77,7 +98,7 @@ function SetUp(G::GalaxyClustering)
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = plan_fft(randn(size(Blast.k_cheb, 1)),1)
+        plan_ϕ = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1),), dim=1)
         w_PNG_A = w_2_00_ϕT()
         w_PNG_B = w_2_00_ϕT_R1()
         w_PNG_C = w_2_00_ϕ()
@@ -100,7 +121,7 @@ function SetUp(G::GalaxyClustering)
         w_μxPNG_B = w_0_00_ϕT_R1()
     end
     
-    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ)
+    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
     W = ProjectedMatterDensity(w_δ, w_μ_B, w_μ_A, w_μxRSD_A, w_μxRSD_B, w_RSD_A, w_RSD_B, w_RSD_C, w_PNG_A, w_PNG_B, 
                                 w_μxPNG_A, w_μxPNG_B, w_RSDxPNG_A, w_RSDxPNG_C, w_RSDxPNG_B, w_RSDxPNG_D, w_PNG_C)
     return W, Plans
@@ -108,22 +129,24 @@ end
 
 function SetUp(L::WeakLensing)
     
-    plan_ϕTT = plan_fft(randn(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)),1)
+    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
+    plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
     w_γ = w_minus2_00_ϕTT()    
     
-    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ)
+    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
     W = ProjectedMatterDensity(nothing, w_γ, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing)
     return W, Plans
 end
 
 function SetUp(G::GalaxyClustering, L::WeakLensing)
     
-    plan_ϕTT = plan_fft(randn(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)),1)
+    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
+    plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
     w_δ = w_2_00_ϕTT()
     w_μ_B = w_minus2_00_ϕTT()
@@ -151,7 +174,7 @@ function SetUp(G::GalaxyClustering, L::WeakLensing)
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = plan_fft(randn(size(Blast.k_cheb, 1)),1)
+        plan_ϕ = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1),), dim=1)
         w_PNG_A = w_2_00_ϕT()
         w_PNG_B = w_2_00_ϕT_R1()
         w_PNG_C = w_2_00_ϕ()
@@ -174,7 +197,7 @@ function SetUp(G::GalaxyClustering, L::WeakLensing)
         w_μxPNG_B = w_0_00_ϕT_R1()
     end
     
-    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ)
+    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
     W = ProjectedMatterDensity(w_δ, w_μ_B, w_μ_A, w_μxRSD_A, w_μxRSD_B, w_RSD_A, w_RSD_B, w_RSD_C, w_PNG_A, w_PNG_B, 
                                 w_μxPNG_A, w_μxPNG_B, w_RSDxPNG_A, w_RSDxPNG_C, w_RSDxPNG_B, w_RSDxPNG_D, w_PNG_C)
     return W, Plans
@@ -186,9 +209,10 @@ end
 
 function SetUp(G::GalaxyClustering, C::CMB)
     
-    plan_ϕTT = plan_fft(randn(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)),1)
+    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
+    plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
     w_δ = w_2_00_ϕTT()
     w_μ_B = nothing
@@ -220,7 +244,7 @@ function SetUp(G::GalaxyClustering, C::CMB)
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = plan_fft(randn(size(Blast.k_cheb, 1)),1)
+        plan_ϕ = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1),), dim=1)
         w_PNG_A = w_2_00_ϕT()
         w_PNG_B = w_2_00_ϕT_R1()
         w_PNG_C = w_2_00_ϕ()
@@ -243,7 +267,7 @@ function SetUp(G::GalaxyClustering, C::CMB)
         w_μxPNG_B = w_0_00_ϕT_R1()
     end
     
-    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ)
+    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
     W = ProjectedMatterDensity(w_δ, w_μ_B, w_μ_A, w_μxRSD_A, w_μxRSD_B, w_RSD_A, w_RSD_B, w_RSD_C, w_PNG_A, w_PNG_B, 
                                 w_μxPNG_A, w_μxPNG_B, w_RSDxPNG_A, w_RSDxPNG_C, w_RSDxPNG_B, w_RSDxPNG_D, w_PNG_C)
     return W, Plans
@@ -255,13 +279,14 @@ end
 
 function SetUp(L::WeakLensing, C::CMB)
     
-    plan_ϕTT = plan_fft(randn(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)),1)
+    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
+    plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
     w_γ = w_minus2_00_ϕTT()    
     
-    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ)
+    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
     W = ProjectedMatterDensity(nothing, w_γ, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing)
     return W, Plans
 end
@@ -272,9 +297,10 @@ end
 
 function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
     
-    plan_ϕTT = plan_fft(randn(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)),1)
+    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
+    plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
     w_δ = w_2_00_ϕTT()
     w_μ_B = w_minus2_00_ϕTT()
@@ -307,7 +333,7 @@ function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = plan_fft(randn(size(Blast.k_cheb, 1)),1)
+        plan_ϕ = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1),), dim=1)
         w_PNG_A = w_2_00_ϕT()
         w_PNG_B = w_2_00_ϕT_R1()
         w_PNG_C = w_2_00_ϕ()
@@ -330,11 +356,12 @@ function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
         w_μxPNG_B = w_0_00_ϕT_R1()
     end
     
-    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ)
+    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
     W = ProjectedMatterDensity(w_δ, w_μ_B, w_μ_A, w_μxRSD_A, w_μxRSD_B, w_RSD_A, w_RSD_B, w_RSD_C, w_PNG_A, w_PNG_B, 
                                 w_μxPNG_A, w_μxPNG_B, w_RSDxPNG_A, w_RSDxPNG_C, w_RSDxPNG_B, w_RSDxPNG_D, w_PNG_C)
     return W, Plans
 end
+
 
 function SetUp(G::GalaxyClustering, C::CMB, L::WeakLensing)
     return SetUp(G,L,C)
@@ -463,25 +490,29 @@ function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limbe
     c2 = build_coeff(cϕT,  P_ϕT,  P.plan_ϕT)   
     c3 = build_coeff(cϕ,   P_ϕ,   P.plan_ϕ)    
 
-    lb, ub = [minimum(Blast.z_cheb),minimum(Blast.k_limber)], [maximum(Blast.z_cheb), maximum(Blast.k_limber)] # lower and upper bounds of the domain, respectively
-
+    # --- Optimized Limber Evaluation ---
     P_ϕ_limber = get_PΦ(10 .^ Blast.k_limber, cosmo)'
+    
+    # Linear coefficients
     T_m_limber_lin = get_Tm(pk_limber_lin, 10 .^ Blast.k_limber, cosmo)
     P_limber_lin = P_ϕ_limber .* T_m_limber_lin .^ 2.
-    limber_pk_linear = chebinterp(log10.(P_limber_lin), lb, ub)
+    c_lin = chebyshev_decomposition(P.plan_limber, log10.(P_limber_lin)')
     
+    # Non-linear coefficients
     T_m_limber_nonlin = get_Tm(pk_limber_nonlin, 10 .^ Blast.k_limber, cosmo)
     P_limber_nonlin = P_ϕ_limber .* T_m_limber_nonlin .^ 2.
-    limber_pk_nonlinear = chebinterp(log10.(P_limber_nonlin), lb, ub)
+    c_nonlin = chebyshev_decomposition(P.plan_limber, log10.(P_limber_nonlin)')
 
-    #TODO: handle this better, having this here sucks
+    # Simultaneous evaluation on the (ℓ, χ) grid
     z_of_χ = AkimaInterpolation(grid.z_range, bg.χz_array, extrapolation=ExtrapolationType.Extension)
+    z_eval = z_of_χ.(Blast.χ)
+    T_z_limber = get_limber_coords_polynomials(P.plan_limber, z_eval)
 
-    ℓ_grid = reshape(Blast.full_ℓ_range .+ 0.5, :, 1)   
-    χ_grid = reshape(Blast.χ, 1, :)          
-    k = ℓ_grid ./ χ_grid               
-    ΔP_limber = [10. ^ limber_pk_nonlinear(SVector(z_of_χ.(χ)[j], log10(k[i, j]))) .- 10. ^ limber_pk_linear(SVector(z_of_χ.(χ)[j], log10(k[i, j]))) for i in 1:size(ℓ_grid, 1), j in 1:size(Blast.χ, 1)]
-    Pδ_limber = [10. ^ limber_pk_nonlinear(SVector(z_of_χ.(χ)[j], log10(k[i, j]))) for i in 1:size(ℓ_grid, 1), j in 1:size(Blast.χ, 1)]
+    P_lin_grid = 10.0 .^ limber_eval(c_lin, T_z_limber, P.T_k_limber)
+    P_nonlin_grid = 10.0 .^ limber_eval(c_nonlin, T_z_limber, P.T_k_limber)
 
-    return PowerSpectrum(c1, c2, c3,  ΔP_limber, Pδ_limber)
+    ΔP_limber = P_nonlin_grid .- P_lin_grid
+    Pδ_limber = P_nonlin_grid
+
+    return PowerSpectrum(c1, c2, c3, ΔP_limber, Pδ_limber)
 end

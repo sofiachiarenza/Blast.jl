@@ -4,6 +4,67 @@ function _limber_contraction(P_term, K1, K2, weights, Δχ)
 end
 
 """
+    get_limber_k_polynomials(plan::ChebyshevPlan, l::AbstractVector, chi::AbstractVector; is_log_k=true) -> Array
+
+Precompute the Chebyshev basis polynomials for the Limber grid `k = (l .+ 0.5) ./ chi'`.
+This part is constant if the multipole grid (ℓ) and distance grid (χ) are fixed.
+"""
+function get_limber_k_polynomials(plan::ChebyshevPlan, l::AbstractVector, chi::AbstractVector; is_log_k=true)
+    K_k = plan.K[1]
+    k_min = last(plan.nodes[1]); k_max = first(plan.nodes[1])
+    n_l = length(l); n_chi = length(chi)
+
+    k_mat = @. (l + 0.5) / chi'
+    if is_log_k
+        k_mat = log10.(k_mat)
+    end
+    
+    T = eltype(plan.nodes[1])
+    T_k = Array{T}(undef, n_l, K_k + 1, n_chi)
+    for j in 1:n_chi
+        T_k[:, :, j] = chebyshev_polynomials(vec(k_mat[:, j]), k_min, k_max, K_k)
+    end
+    return T_k
+end
+
+"""
+    get_limber_coords_polynomials(plan::ChebyshevPlan, coords::AbstractVector) -> Matrix
+
+Precompute the Chebyshev basis polynomials for the coordinate axis (usually redshift z).
+"""
+function get_limber_coords_polynomials(plan::ChebyshevPlan, coords::AbstractVector)
+    K_chi = plan.K[2]
+    chi_min = last(plan.nodes[2]); chi_max = first(plan.nodes[2])
+    return chebyshev_polynomials(coords, chi_min, chi_max, K_chi)
+end
+
+"""
+    get_limber_polynomials(plan, l, chi; is_log_k=true) -> (Matrix, Array)
+
+Legacy wrapper that returns both coordinate and k polynomials.
+"""
+function get_limber_polynomials(plan::ChebyshevPlan, l::AbstractVector, chi::AbstractVector; is_log_k=true)
+    T_chi = get_limber_coords_polynomials(plan, chi)
+    T_k = get_limber_k_polynomials(plan, l, chi; is_log_k=is_log_k)
+    return T_chi, T_k
+end
+
+"""
+    limber_eval(c, T_chi, T_k) -> Matrix
+
+Evaluate a 2D Chebyshev expansion f(k, chi) on the Limber grid using precomputed polynomials.
+"""
+function limber_eval(c::AbstractMatrix, T_chi::AbstractMatrix, T_k::AbstractArray{<:Any,3})
+    # Step 1: contract chi axis → (K_k+1, n_chi)
+    B = c * T_chi'
+
+    # Step 2: batched contraction over k axis using Tullio
+    @tullio result[i, j] := T_k[i, k, j] * B[k, j]
+
+    return result
+end
+
+"""
     get_limber_kernel(Component::AbstractComponents)
 
 Construct the Limber kernel associated with a single projected component.
