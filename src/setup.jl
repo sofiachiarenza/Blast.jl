@@ -9,6 +9,9 @@ These plans are reused across power spectrum evaluations to avoid repeated FFTW 
 - `plan_ϕTT`: FFT plan for the unequal-time power spectrum `P(k, χ₁, χ₂)`.
 - `plan_ϕT`: Optional FFT plan for the power spectrum `P(k, χ₁)` built with a single transfer function.
 - `plan_ϕ`: Optional FFT plan for the primordial power spectrum.
+- `plan_limber`: FFT plan for the Limber power spectrum.
+- `T_k_limber`: Precomputed k-basis polynomials for the Limber grid.
+- `plan_ℓ`: Plan for the final C_ℓ interpolation.
 """
 @kwdef mutable struct FFTPlans 
     plan_ϕTT::ChebyshevPlan 
@@ -42,24 +45,9 @@ end
 Construct the projected matter density containers and FFT plans required
 for the given set of cosmological probes.
 
-The returned objects depend on which physical effects are active in the probes:
-- Galaxy clustering: density, RSD, magnification, PNG
-- Weak lensing: shear and intrinsic alignment
-- CMB: lensing convergence and ISW
-
-Only the required projected matter components are instantiated; all others
-are set to `nothing` avoiding useless overhead.
-
-# Arguments
-- `probes...`: Any combination of `GalaxyClustering`, `WeakLensing`, and `CMB`.
-
 # Returns
-- `W::ProjectedMatterDensity`: Container holding all required  inner k integrals.
+- `W::ProjectedMatterDensity`: Container holding all required inner k integrals.
 - `P::FFTPlans`: Pre-allocated FFT plans used for Chebyshev decomposition.
-
-# Notes
-- The ordering of probes does not matter.
-- Conceptually, this function computes and stores everything that is only needed once.
 """
 function SetUp(G::GalaxyClustering)
     plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
@@ -361,7 +349,6 @@ function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
                                 w_μxPNG_A, w_μxPNG_B, w_RSDxPNG_A, w_RSDxPNG_C, w_RSDxPNG_B, w_RSDxPNG_D, w_PNG_C)
     return W, Plans
 end
-
 
 function SetUp(G::GalaxyClustering, C::CMB, L::WeakLensing)
     return SetUp(G,L,C)
