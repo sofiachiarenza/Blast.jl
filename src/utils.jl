@@ -45,7 +45,7 @@ function factorial_frac(ℓ::Union{Number,Vector})
 end
 
 """
-    bΦ(bias::AbstractVector, p::Number)
+    bΦ(bias::AbstractArray, p::Number)
 
 Compute the non-Gaussian bias coefficient `b_Φ` for local-type primordial
 non-Gaussianity.
@@ -55,18 +55,14 @@ The coefficient is defined as
 b_\\Phi(z) = 2 \\delta_c (b(z)-p)
 ```
 with `δ_c = 1.686`, where:
-- `b` is the linear bias,
-- `p` is a tracer-dependent parameter (e.g. `p = 1` for mass-selected samples, `p = 1.6` for quasars...).
-
-# Arguments
-- `bias::AbstractVector`: Linear bias as a function of redshift.
-- `p::Number`: Tracer-dependent parameter.
+- `b` is the linear bias (can be Vector or Matrix for multiple bins),
+- `p` is a tracer-dependent parameter.
 
 # Returns
-An array containing the non-Gaussian bias coefficient `b_Φ`.
+An array of the same shape as `bias` containing the non-Gaussian bias coefficient `b_Φ`.
 """
-function bΦ(bias::AbstractVector{T}, p::Number) where T
-    return 2 * 1.686 * (bias .- p)
+function bΦ(bias::AbstractArray{T}, p::Number) where T
+    return 2 * 1.686 .* (bias .- p)
 end
 
 function simpson_weights_array(n::Int)
