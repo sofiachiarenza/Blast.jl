@@ -1,61 +1,56 @@
 # COSMOLOGY DEFINITIONS AND UNIFIED BACKGROUND SNAPSHOT
-using AbstractCosmologicalEmulators
-using DataInterpolations
+# Note: Core types and functions are imported/aliased in Blast.jl
 
 """
-    Background{T, C, I}
+    Background{T}
 
 A unified container for cosmological background quantities.
 Always targets the global Blast.χ grid to ensure consistent LOS integration.
 
 # Fields:
-- `cosmo::C`: The underlying cosmology parameters.
+- `cosmo::AbstractCosmology`: The underlying cosmology parameters.
 - `z::Vector{T}`: Redshifts corresponding to the global χ grid.
 - `χ::Vector{T}`: The global comoving distance grid (matches Blast.χ).
 - `H::Vector{T}`: Hubble parameter H(z).
 - `D::Vector{T}`: Growth factor D(z).
 - `f::Vector{T}`: Growth rate f(z).
-- `z_of_χ::I`: Pre-built Akima interpolator for z(χ).
-- `χ_of_z::I`: Pre-built Akima interpolator for χ(z).
+- `z_of_χ::Function`: Pre-built interpolator function for z(χ).
+- `χ_of_z::Function`: Pre-built interpolator function for χ(z).
 """
-struct Background{T, C<:AbstractCosmology, I<:DataInterpolations.AbstractInterpolation}
-    cosmo::C
+struct Background{T}
+    cosmo::AbstractCosmology
     z::Vector{T}
     χ::Vector{T}
     H::Vector{T}
     D::Vector{T}
     f::Vector{T}
-    z_of_χ::I
-    χ_of_z::I
+    z_of_χ::Any
+    χ_of_z::Any
 end
 
 """
     Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
 
 Construct a Background snapshot by finding the redshifts corresponding to a target χ grid.
-This ensures the pipeline always works on a consistent distance grid.
 """
 function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
-    # 1. To find z from χ, we first sample the emulator on a fine z-grid
-    # Note: extension functions expect (z, cosmo)
-    fine_z = LinRange(0.0, 5.0, 500)
+    T = eltype(χ_grid)
+    fine_z = LinRange(T(0.0), T(5.0), 500)
     fine_χ = r_z.(fine_z, Ref(cosmo))
     
-    # 2. Build a temporary inversion to find the z-nodes for our target χ_grid
-    z_from_χ_temp = DataInterpolations.AkimaInterpolation(fine_z, fine_χ, extrapolation=ExtrapolationType.Extension)
-    z_nodes = z_from_χ_temp.(χ_grid)
+    # 2. Build z-nodes for our target χ_grid using native Akima
+    z_nodes = Blast._akima_interpolation(fine_z, fine_χ, χ_grid)
     
     # 3. Evaluate all quantities at these specific nodes
-    # Note: w0waCDMCosmology uses .h instead of .H0
     H_array = 100.0 .* cosmo.h .* E_z.(z_nodes, Ref(cosmo))
     D_array = D_z.(z_nodes, Ref(cosmo))
     f_array = f_z.(z_nodes, Ref(cosmo))
     
-    # 4. Build the final stable interpolators
-    z_of_χ_interp = DataInterpolations.AkimaInterpolation(z_nodes, χ_grid, extrapolation=ExtrapolationType.Extension)
-    χ_of_z_interp = DataInterpolations.AkimaInterpolation(χ_grid, z_nodes, extrapolation=ExtrapolationType.Extension)
+    # 4. Build final interpolator functions
+    z_of_χ_interp(val) = Blast._akima_interpolation(z_nodes, χ_grid, val)
+    χ_of_z_interp(val) = Blast._akima_interpolation(χ_grid, z_nodes, val)
 
-    return Background(
+    return Background{T}(
         cosmo, 
         collect(z_nodes), collect(χ_grid), H_array, D_array, f_array, 
         z_of_χ_interp, χ_of_z_interp

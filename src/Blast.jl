@@ -2,10 +2,7 @@ module Blast
 
 using LoopVectorization
 using Tullio
-using FastTransforms
-using FastChebInterp
 using SpecialFunctions
-using Interpolations
 using StaticArrays
 using FFTW
 using NPZ
@@ -13,59 +10,51 @@ using QuadGK
 using Artifacts
 using PhysicalConstants
 using Memoization
+using FastTransforms
 using ChainRulesCore
 using ChainRules
 using Mooncake
 
-# These dependencies are used by the BackgroundCosmologyExt extension
-# They MUST be present in the project but do not necessarily need to be 'using'ed here
+# These dependencies are required for the AbstractCosmologicalEmulators background extension
 using DataInterpolations, FastGaussQuadrature, Integrals, LinearAlgebra, OrdinaryDiffEqTsit5, SciMLSensitivity
 using AbstractCosmologicalEmulators
 
-# --- 1. HANDLE EXTENSION AND CORE TYPES ---
-# We look for the extension that provides differentiable background functions
-const ext = Base.get_extension(AbstractCosmologicalEmulators, :BackgroundCosmologyExt)
+# --- 1. HANDLE EXTENSION SYMBOLS ---
+# Access extension symbols via Base.get_extension to ensure precompilation stability.
+# Using 'const' aliases avoids "undeclared binding" warnings.
+const cosmo_ext = Base.get_extension(AbstractCosmologicalEmulators, :BackgroundCosmologyExt)
 
-if !isnothing(ext)
-    using .ext: AbstractCosmology, w0waCDMCosmology, D_z, D_f_z, f_z, E_z, d̃A_z, dM_z, dA_z, dL_z, r_z
-    # Re-export for user convenience
-    export AbstractCosmology, w0waCDMCosmology, D_z, D_f_z, f_z, E_z, d̃A_z, dM_z, dA_z, dL_z, r_z
+if !isnothing(cosmo_ext)
+    const AbstractCosmology = cosmo_ext.AbstractCosmology
+    const w0waCDMCosmology = cosmo_ext.w0waCDMCosmology
+    const E_z = cosmo_ext.E_z
+    const r_z = cosmo_ext.r_z
+    const D_z = cosmo_ext.D_z
+    const f_z = cosmo_ext.f_z
+    
+    export AbstractCosmology, w0waCDMCosmology
+    export Background, prepare_nz_matrix, NLA_model, ΛCDM, w0waCDM
 else
-    # Fallback or error if essential differentiable background is missing
-    @error "BackgroundCosmologyExt extension not loaded. Please ensure all dependencies are installed."
+    @error "BackgroundCosmologyExt extension not loaded. Differentiable background will not be available."
 end
 
-# --- 2. INCLUDE COMPONENT FILES (Order matters!) ---
-include("chebcoefs.jl")
+# --- 2. CORE INFRASTRUCTURE ---
+include("chebcoefs.jl")  # Native Chebyshev engine
+include("constants.jl")  # Global grids and integration constants
 
-# Define global constants at top-level so they are available at include-time
-const full_ℓ_range = reverse(chebpoints(100, 2, 2000))
-const ℓ_nonlimber = full_ℓ_range[full_ℓ_range .< 220]
-const ℓ_limber = full_ℓ_range[full_ℓ_range .> 220]
-
-const nχ = 96
-const χ = Array(LinRange(26, 7000, nχ))
-
-const _R_nodes = chebpoints(64*2, -1, 1)
-const R = reverse(_R_nodes[_R_nodes .> 0])
-
-const k_cheb = chebpoints(160, log10(5e-5), log10(16))
-const k_limber = chebpoints(256, log10(1e-4), log10(80))
-const z_cheb = chebpoints(49, 0, 3.6)
-const z_lin = LinRange(0, 3.6, 50)
-
-include("utils.jl")
-include("cosmo.jl")
-#include("deprecated.jl")
-include("probes.jl")
-include("setup.jl")
+# --- 3. PIPELINE COMPONENTS ---
+include("utils.jl")      # Math and interpolation helpers
+include("cosmo.jl")      # Unified Background and Parameter accessors
+include("probes.jl")     # Redshift distributions and Probes
+include("setup.jl")      # FFTPlans and PowerSpectrum workspace
 include("projected_matter.jl")
 include("cls.jl")
-include("limber.jl")
+include("limber.jl")     # Limber grid and evaluation
 include("chainrules.jl")
 
+# --- 4. PHYSICAL CONSTANTS ---
 import PhysicalConstants.CODATA2018: c_0
-const C_LIGHT = c_0.val * 10^(-3) #speed of light in Km/s
+const C_LIGHT = c_0.val * 10^(-3) # speed of light in km/s
 
 struct T̃{A<:AbstractArray{<:Any,4}}
     T_2_00::A

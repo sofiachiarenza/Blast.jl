@@ -2,7 +2,7 @@ const BackgroundQuantities = Background
 const AbstractCosmologicalGrid = Any
 
 function resample_redshifts(bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, new_χ::AbstractArray{T,1}) where T
-    z_of_χ = AkimaInterpolation(grid.z_range, bg.χz_array, extrapolation=ExtrapolationType.Extension)
+    z_of_χ = Blast._akima_interpolation(grid.z_range, bg.χz_array, extrapolation=ExtrapolationType.Extension)
     return z_of_χ.(new_χ)
 end
 
@@ -77,7 +77,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
     n_bins = size(Probe.Kernel, 1)
     
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
+        nz_func = Blast._akima_interpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
         Probe.Kernel[b,:] = @. (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
@@ -96,7 +96,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
     n_bins = size(Probe.Kernel, 1)
 
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation = ExtrapolationType.Extension)
+        nz_func = Blast._akima_interpolation(nz[b,:], z, extrapolation = ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
         Probe.Kernel[b,:] = @. bias[b,:] * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm)
@@ -115,7 +115,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
     n_bins = size(Probe.Kernel, 1)
 
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
+        nz_func = Blast._akima_interpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
         prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
@@ -152,7 +152,7 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
     n_bins = size(Probe.Kernel, 1)
 
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
+        nz_func = Blast._akima_interpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
         Probe.Kernel[b,:] = @. growth_factor * (bg.Hz_array / C_LIGHT) * (nz_func.(grid.z_range) / nz_norm) #TODO: might be missing C factors
@@ -171,10 +171,10 @@ function compute_kernel!(nz::AbstractArray{T, 2}, z::AbstractArray{T, 1}, Probe:
     n_bins = size(Probe.Kernel, 1)
 
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
+        nz_func = Blast._akima_interpolation(nz[b,:], z, extrapolation=ExtrapolationType.Extension)
         nz_norm, _ = quadgk(x->nz_func(x), first(grid.z_range), last(grid.z_range))
 
-        s_z = DataInterpolations.AkimaInterpolation(s[b,:], z, extrapolation=ExtrapolationType.Extension)
+        s_z = Blast._akima_interpolation(s[b,:], z, extrapolation=ExtrapolationType.Extension)
 
         prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
 
@@ -250,7 +250,7 @@ function chebyshev_polynomials( x::AbstractArray, cheb_nodes::AbstractArray )
     x_scaled = 2 .* (x .-z_min) ./ (z_max - z_min) .- 1
 
     for i in 1:n_cheb
-        interp = AkimaInterpolation(Tcheb[i,:], app, extrapolation=ExtrapolationType.Extension)
+        interp = Blast._akima_interpolation(Tcheb[i,:], app, extrapolation=ExtrapolationType.Extension)
         T_cheb_return[i,:] = interp.(x_scaled)
     end
     
@@ -372,7 +372,7 @@ function limber_rsd_kernel(ℓ::Number, bg::BackgroundQuantities, RSDK::Blast.RS
     rds_kernels = zeros( nbins, length(χ) )
 
     for b in 1:nbins
-        kernel_interp = AkimaInterpolation(RSDK.Kernel[b, :], χ, extrapolation=ExtrapolationType.Extension)
+        kernel_interp = Blast._akima_interpolation(RSDK.Kernel[b, :], χ, extrapolation=ExtrapolationType.Extension)
         piece1 = @. (2*ℓ^2 + 2*ℓ - 1) / ((2*ℓ - 1)*(2*ℓ + 3)) * RSDK.Kernel[b, :]
         piece2 = @. (ℓ - 1)*ℓ / ((2*ℓ - 1) * sqrt(2*ℓ - 3)*(2*ℓ + 1)) * kernel_interp.((2*ℓ - 3)/(2*ℓ + 1) * χ)
         piece3 = @. (ℓ + 1)*(ℓ + 2) / ((2*ℓ + 3) * sqrt((2*ℓ + 1)*(2*ℓ + 5))) * kernel_interp.((2*ℓ + 5)/(2*ℓ + 1) * χ)
@@ -403,7 +403,7 @@ function grid_interpolator(Probe::Union{GalaxyKernel, ShearKernel, RSDKernel, Le
     kernel_interpolated = zeros(n_bins, length(grid))
 
     for b in 1:n_bins
-        interp = AkimaInterpolation(Probe.Kernel[b,:], bg.χz_array, extrapolation=ExtrapolationType.Extension)
+        interp = Blast._akima_interpolation(Probe.Kernel[b,:], bg.χz_array, extrapolation=ExtrapolationType.Extension)
         kernel_interpolated[b, :] = interp.(grid)
     end
 
@@ -415,7 +415,7 @@ function grid_interpolator(Probe::CMBLensingKernel,
 
     kernel_interpolated = zeros(1, length(grid))
 
-    interp = AkimaInterpolation(Probe.Kernel, bg.χz_array, extrapolation=ExtrapolationType.Extension)
+    interp = Blast._akima_interpolation(Probe.Kernel, bg.χz_array, extrapolation=ExtrapolationType.Extension)
     kernel_interpolated[1, :] = interp.(grid)
 
     return kernel_interpolated

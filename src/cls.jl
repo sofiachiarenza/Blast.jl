@@ -207,12 +207,12 @@ function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpe
 
     nbins = size(G.δ.Kernel, 1)
     Cℓ_final = zeros(size(ℓ,1), nbins, nbins)
-    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2, 2000, 100) : P.plan_ℓ
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
 
     for i in 1:nbins
         for j in 1:nbins
             c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
-            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2, 2000) ./ (ℓ.^2)
+            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ.^2)
         end
     end
     return Cℓ_final
@@ -248,12 +248,12 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectru
 
     nbins = size(L.γ.Kernel, 1)
     Cℓ_final = zeros(size(ℓ,1), nbins, nbins)
-    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2, 2000, 100) : P.plan_ℓ
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
 
     for i in 1:nbins
         for j in 1:nbins
             c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
-            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2, 2000) ./ (ℓ.^2)
+            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ.^2)
         end
     end
     return Cℓ_final
@@ -310,12 +310,12 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLens
     nbins_A = size(G.δ.Kernel, 1)
     nbins_B = size(L.γ.Kernel, 1)
     Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
-    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2, 2000, 100) : P.plan_ℓ
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
 
     for i in 1:nbins_A
         for j in 1:nbins_B
             c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
-            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2, 2000) ./ (ℓ.^2)
+            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ.^2)
         end
     end
     return Cℓ_final
@@ -376,12 +376,12 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk:
     nbins_A = size(K.κ.Kernel, 1)
     nbins_B = size(G.δ.Kernel, 1)
     Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
-    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2, 2000, 100) : P.plan_ℓ
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
 
     for i in 1:nbins_A
         for j in 1:nbins_B
             c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
-            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2, 2000) ./ (ℓ.^2)
+            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ.^2)
         end
     end
     return Cℓ_final
@@ -422,12 +422,12 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, L::WeakLensing, Pk::Powe
     nbins_A = size(K.κ.Kernel, 1)
     nbins_B = size(L.γ.Kernel, 1)
     Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
-    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2, 2000, 100) : P.plan_ℓ
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
 
     for i in 1:nbins_A
         for j in 1:nbins_B
             c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
-            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2, 2000) ./ (ℓ.^2)
+            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ.^2)
         end
     end
     return Cℓ_final

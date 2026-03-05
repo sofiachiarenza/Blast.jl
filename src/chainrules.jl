@@ -9,23 +9,9 @@ import Mooncake: tangent_type, fdata_type, rdata_type, zero_tangent_internal, fd
 # 1. CONSTANT PATCHES
 # =============================================================================
 
+# These patches (for FFTWPlan and ChebyshevPlan) are provided by AbstractCosmologicalEmulators.
+# Removal fixes method overwriting error.
 Mooncake.@from_chainrules MinimalCtx Tuple{typeof(chebyshev_decomposition), Any, AbstractArray}
-
-Mooncake.tangent_type(::Type{P}) where {P<:FFTW.FFTWPlan} = P
-Mooncake.fdata_type(::Type{P})   where {P<:FFTW.FFTWPlan} = NoFData
-Mooncake.rdata_type(::Type{P})   where {P<:FFTW.FFTWPlan} = NoRData
-
-Mooncake.tangent_type(::Type{P}) where {P<:ChebyshevPlan} = P
-Mooncake.fdata_type(::Type{P})   where {P<:ChebyshevPlan} = NoFData
-Mooncake.rdata_type(::Type{P})   where {P<:ChebyshevPlan} = NoRData
-
-function Mooncake.zero_tangent_internal(p::Union{FFTW.FFTWPlan, ChebyshevPlan}, ::IdDict{Any, Any})
-    return p
-end
-
-Mooncake.fdata(p::Union{FFTW.FFTWPlan, ChebyshevPlan}) = NoFData()
-Mooncake.rdata(p::Union{FFTW.FFTWPlan, ChebyshevPlan}) = NoRData()
-Mooncake.increment_rdata!!(x::Union{FFTW.FFTWPlan, ChebyshevPlan}, ::NoRData) = x
 
 function rrule(::typeof(get_clencurt_weights), kmin, kmax, N)
     return get_clencurt_weights(kmin, kmax, N), _ -> (NoTangent(), NoTangent(), NoTangent(), NoTangent())
@@ -201,7 +187,7 @@ function rrule(::typeof(_akima_interpolation), u::AbstractMatrix, t, t_new::Abst
                     f12_inv = 1.0 / f12_c[i]
                     ∂f1[i] += ∂b[i, col] * m[i+1, col] * f12_inv; ∂f2[i] += ∂b[i, col] * m[i+2, col] * f12_inv
                     ∂m[i+1, col] += ∂b[i, col] * f1_c[i] * f12_inv; ∂m[i+2, col] += ∂b[i, col] * f2_c[i] * f12_inv
-                    ∂f12[i] += -∂b[i, col] * (f1_c[i] * m[i+1, col] + f2_c[i] * m[i+2, col]) * f12_inv^2
+                    ∂f12[i] += -∂b[i, col] * (f1_c[i] * m[i+1, col] + f2[i] * m[i+2, col]) * f12_inv^2
                 else
                     ∂m[i+3, col] += ∂b[i, col] / 2; ∂m[i, col] += ∂b[i, col] / 2
                 end

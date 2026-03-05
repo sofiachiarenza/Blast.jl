@@ -22,9 +22,9 @@ function prepare_nz_matrix(nz::AbstractMatrix, z::AbstractVector, z_grid::Abstra
     nz_normed = zeros(eltype(nz), n_bins, length(z_grid))
 
     for b in 1:n_bins
-        nz_func = DataInterpolations.AkimaInterpolation(nz[b, :], z, extrapolation=ExtrapolationType.Extension)
-        nz_norm_val, _ = quadgk(x -> nz_func(x), first(z_grid), last(z_grid))
-        nz_normed[b, :] = nz_func.(z_grid) ./ nz_norm_val
+        # Use native Akima
+        nz_norm_val, _ = quadgk(x -> Blast._akima_interpolation(nz[b,:], z, x), first(z_grid), last(z_grid))
+        nz_normed[b, :] = Blast._akima_interpolation(nz[b, :], z, z_grid) ./ nz_norm_val
     end
     return nz_normed
 end
@@ -44,6 +44,17 @@ end
 
 function check_and_normalize!(Component::Nothing, z_grid::AbstractVector)
     return nothing
+end
+
+"""
+    NLA_model(bg::Background; A=1.72, C1=0.0134)
+
+Computes the Non-Linear Alignment (NLA) model for intrinsic alignments.
+Returns an array evaluated on the Background grid.
+"""
+function NLA_model(bg::Background; A=1.72, C1=0.0134)
+    Ωm = get_Ωm(bg.cosmo)
+    return @. - A * C1 * Ωm / bg.D
 end
 
 """
@@ -113,6 +124,7 @@ end
     nz::Array{<:Any, 2} = zeros(1, 1)
     z::Array{<:Any, 1} = zeros(1)
     nz_norm::Array{<:Any, 2} = zeros(1, 1)
+    A::Number = 1.72 # Standard default amplitude
     A_IA::Array{<:Any, 2} = zeros(1, 1)
     Kernel::Array{<:Any, 2} = zeros(1, 1)
     ell_prefactor::AbstractVector = @. sqrt(factorial_frac(Blast.full_ℓ_range))
@@ -187,9 +199,9 @@ function compute_kernel_safe!(Component::CosmicShear, bg::Background)
     prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
 
     for b in 1:n_bins
-        nz_interp = DataInterpolations.AkimaInterpolation(Component.nz_norm[b,:], bg.z, extrapolation=ExtrapolationType.Extension)
+        nz_vals = Component.nz_norm[b,:]
         for z_idx in 1:length(bg.z)
-            integrand(x) = nz_interp(x) * (1. - bg.χ[z_idx]/bg.χ_of_z(x))
+            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/bg.χ_of_z(x))
             z_low = bg.z[z_idx]
             z_top = bg.z[end]
             int, _ = quadgk(x -> integrand(x), z_low, z_top) 
@@ -239,10 +251,10 @@ function compute_kernel_safe!(Component::MagnificationBias, bg::Background)
     prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
 
     for b in 1:n_bins
-        nz_interp = DataInterpolations.AkimaInterpolation(Component.nz_norm[b,:], bg.z, extrapolation=ExtrapolationType.Extension)
+        nz_vals = Component.nz_norm[b,:]
         s_vals = Component.s[b,:]
         for z_idx in 1:length(bg.z)
-            integrand(x) = nz_interp(x) * (1. - bg.χ[z_idx]/bg.χ_of_z(x)) * (5 .* s_vals[z_idx] .- 2)
+            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/bg.χ_of_z(x)) * (5 .* s_vals[z_idx] .- 2)
             z_low = bg.z[z_idx]
             z_top = bg.z[end]
             int, _ = quadgk(x -> integrand(x), z_low, z_top) 
@@ -269,6 +281,14 @@ end
 
 function compute_kernel!(Component::IntrinsicAlignment, bg::Background) 
     check_and_normalize!(Component, bg.z)
+    
+    # Use NLA model if A_IA is uninitialized
+    if size(Component.A_IA) != (size(Component.nz_norm, 1), length(bg.z))
+        n_bins = size(Component.nz_norm, 1)
+        nla_vals = NLA_model(bg; A=Component.A)
+        Component.A_IA = repeat(nla_vals', n_bins, 1)
+    end
+    
     Component.Kernel = @. Component.A_IA * (bg.H' / C_LIGHT) * Component.nz_norm
 end
 
