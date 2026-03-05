@@ -30,21 +30,19 @@ function prepare_nz_matrix(nz::AbstractMatrix, z::AbstractVector, z_grid::Abstra
 end
 
 """
-    check_and_normalize!(Component, grid)
+    check_and_normalize!(Component, grid_z)
 
 Internal helper: ensures nz_norm is populated for the current calculation grid.
-If it exists and has the correct size, it skips the computation.
 """
-function check_and_normalize!(Component::AbstractComponents, grid::CosmologicalGrid)
-    # Check if we have nz and it hasn't been normalized for this grid yet
+function check_and_normalize!(Component::AbstractComponents, z_grid::AbstractVector)
     if hasfield(typeof(Component), :nz) && hasfield(typeof(Component), :nz_norm)
-        if size(Component.nz_norm) != (size(Component.nz, 1), length(grid.z_range))
-            Component.nz_norm = prepare_nz_matrix(Component.nz, Component.z, grid.z_range)
+        if size(Component.nz_norm) != (size(Component.nz, 1), length(z_grid))
+            Component.nz_norm = prepare_nz_matrix(Component.nz, Component.z, z_grid)
         end
     end
 end
 
-function check_and_normalize!(Component::Nothing, grid::CosmologicalGrid)
+function check_and_normalize!(Component::Nothing, z_grid::AbstractVector)
     return nothing
 end
 
@@ -172,133 +170,144 @@ end
     ISW::Union{IntegratedSachsWolfe, Nothing} = nothing
 end
 
-# --- Optimized Kernel Computation Logic ---
+# --- Simplified Kernel Computation Logic (Using Background object) ---
 
-function compute_kernel!(Component::NumberCounts, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
-    check_and_normalize!(Component, grid)
-    Component.Kernel = @. Component.bias * (bg.Hz_array' / C_LIGHT) * Component.nz_norm
+function compute_kernel!(Component::NumberCounts, bg::Background) 
+    check_and_normalize!(Component, bg.z)
+    Component.Kernel = @. Component.bias * (bg.H' / C_LIGHT) * Component.nz_norm
 end
 
-function compute_kernel_safe!(Component::CosmicShear, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
-    check_and_normalize!(Component, grid)
+function compute_kernel_safe!(Component::CosmicShear, bg::Background) 
+    check_and_normalize!(Component, bg.z)
     n_bins = size(Component.nz_norm, 1)
-    kernel = zeros(n_bins, length(grid.z_range))
-    prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
-    χ_interp = DataInterpolations.AkimaInterpolation(bg.χz_array, grid.z_range, extrapolation=ExtrapolationType.Extension)
+    kernel = zeros(n_bins, length(bg.z))
+    
+    H0 = get_H0(bg.cosmo)
+    Ωm = get_Ωm(bg.cosmo)
+    prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
 
     for b in 1:n_bins
-        nz_interp = DataInterpolations.AkimaInterpolation(Component.nz_norm[b,:], grid.z_range, extrapolation=ExtrapolationType.Extension)
-        for z_idx in 1:length(grid.z_range)
-            integrand(x) = nz_interp(x) * (1. - bg.χz_array[z_idx]/χ_interp(x))
-            z_low = grid.z_range[z_idx]
-            z_top = grid.z_range[end]
+        nz_interp = DataInterpolations.AkimaInterpolation(Component.nz_norm[b,:], bg.z, extrapolation=ExtrapolationType.Extension)
+        for z_idx in 1:length(bg.z)
+            integrand(x) = nz_interp(x) * (1. - bg.χ[z_idx]/bg.χ_of_z(x))
+            z_low = bg.z[z_idx]
+            z_top = bg.z[end]
             int, _ = quadgk(x -> integrand(x), z_low, z_top) 
-            kernel[b, z_idx] = prefac * bg.χz_array[z_idx] * (1. + grid.z_range[z_idx]) * int
+            kernel[b, z_idx] = prefac * bg.χ[z_idx] * (1. + bg.z[z_idx]) * int
         end
     end
     Component.Kernel = kernel
 end
 
-function compute_kernel!(Component::CosmicShear, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-    check_and_normalize!(Component, grid)
+function compute_kernel!(Component::CosmicShear, bg::Background)
+    check_and_normalize!(Component, bg.z)
     n_bins = size(Component.nz_norm, 1)
-    χz_array = bg.χz_array
-    z_range = grid.z_range
-    prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
-    simpson_matrix = simpson_weights_matrix(length(grid.z_range))
-    Δχ = (χz_array[end] - χz_array[1]) / (length(χz_array) - 1)
+    
+    H0 = get_H0(bg.cosmo)
+    Ωm = get_Ωm(bg.cosmo)
+    prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
+    
+    simpson_matrix = simpson_weights_matrix(length(bg.z))
+    Δχ = (bg.χ[end] - bg.χ[1]) / (length(bg.χ) - 1)
 
-    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.Hz_array[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * χz_array[idx_zidx] * (1.0 + z_range[idx_zidx]) * Component.nz_norm[idx_b, idx_zp] * (χz_array[idx_zp] - χz_array[idx_zidx]) / (χz_array[idx_zp] + 1e-18)
+    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.H[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * bg.χ[idx_zidx] * (1.0 + bg.z[idx_zidx]) * Component.nz_norm[idx_b, idx_zp] * (bg.χ[idx_zp] - bg.χ[idx_zidx]) / (bg.χ[idx_zp] + 1e-18)
     Component.Kernel = kernel
 end
 
-function compute_kernel!(Component::CMBLensing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
-    prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
-    χ_CMB = compute_χ(1090, cosmo) 
-    kernel = @. prefac * bg.χz_array * (1. + grid.z_range) * (1 - bg.χz_array/χ_CMB)
+function compute_kernel!(Component::CMBLensing, bg::Background) 
+    H0 = get_H0(bg.cosmo)
+    Ωm = get_Ωm(bg.cosmo)
+    prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
+    
+    χ_CMB = compute_χ(1090, bg.cosmo) 
+    kernel = @. prefac * bg.χ * (1. + bg.z) * (1 - bg.χ/χ_CMB)
     Component.Kernel = reshape(kernel, 1, size(kernel,1))
 end
 
-function compute_kernel!(Component::RedshiftSpaceDistortions, grid::CosmologicalGrid,  bg::BackgroundQuantities, cosmo::AbstractCosmology) 
-    check_and_normalize!(Component, grid)
-    Component.Kernel = @. Component.growth_rate' * (bg.Hz_array' / C_LIGHT) * Component.nz_norm
+function compute_kernel!(Component::RedshiftSpaceDistortions, bg::Background) 
+    check_and_normalize!(Component, bg.z)
+    Component.Kernel = @. bg.f' * (bg.H' / C_LIGHT) * Component.nz_norm
 end
 
-function compute_kernel_safe!(Component::MagnificationBias, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
-    check_and_normalize!(Component, grid)
+function compute_kernel_safe!(Component::MagnificationBias, bg::Background) 
+    check_and_normalize!(Component, bg.z)
     n_bins = size(Component.nz_norm, 1)
-    kernel = zeros(n_bins, length(grid.z_range))
-    prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
-    χ_interp = DataInterpolations.AkimaInterpolation(bg.χz_array, grid.z_range, extrapolation=ExtrapolationType.Extension)
+    kernel = zeros(n_bins, length(bg.z))
+    
+    H0 = get_H0(bg.cosmo)
+    Ωm = get_Ωm(bg.cosmo)
+    prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
 
     for b in 1:n_bins
-        nz_interp = DataInterpolations.AkimaInterpolation(Component.nz_norm[b,:], grid.z_range, extrapolation=ExtrapolationType.Extension)
-        # s is assumed to be on the correct grid already
+        nz_interp = DataInterpolations.AkimaInterpolation(Component.nz_norm[b,:], bg.z, extrapolation=ExtrapolationType.Extension)
         s_vals = Component.s[b,:]
-
-        for z_idx in 1:length(grid.z_range)
-            integrand(x) = nz_interp(x) * (1. - bg.χz_array[z_idx]/χ_interp(x)) * (5 .* s_vals[z_idx] .- 2)
-            z_low = grid.z_range[z_idx]
-            z_top =  grid.z_range[end]
+        for z_idx in 1:length(bg.z)
+            integrand(x) = nz_interp(x) * (1. - bg.χ[z_idx]/bg.χ_of_z(x)) * (5 .* s_vals[z_idx] .- 2)
+            z_low = bg.z[z_idx]
+            z_top = bg.z[end]
             int, _ = quadgk(x -> integrand(x), z_low, z_top) 
-            kernel[b, z_idx] = prefac * bg.χz_array[z_idx] * (1. + grid.z_range[z_idx]) * int
+            kernel[b, z_idx] = prefac * bg.χ[z_idx] * (1. + bg.z[z_idx]) * int
         end
     end
     Component.Kernel = kernel 
 end
 
-function compute_kernel!(Component::MagnificationBias, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-    check_and_normalize!(Component, grid)
+function compute_kernel!(Component::MagnificationBias, bg::Background)
+    check_and_normalize!(Component, bg.z)
     n_bins = size(Component.nz_norm, 1)
-    χz_array = bg.χz_array
-    z_range = grid.z_range
-    prefac = 1.5 * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^2
-    simpson_matrix = simpson_weights_matrix(length(grid.z_range))
-    Δχ = (χz_array[end] - χz_array[1]) / (length(χz_array) - 1)
+    
+    H0 = get_H0(bg.cosmo)
+    Ωm = get_Ωm(bg.cosmo)
+    prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
+    
+    simpson_matrix = simpson_weights_matrix(length(bg.z))
+    Δχ = (bg.χ[end] - bg.χ[1]) / (length(bg.χ) - 1)
 
-    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.Hz_array[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * χz_array[idx_zidx] * (1.0 + z_range[idx_zidx]) * Component.nz_norm[idx_b, idx_zp] * (χz_array[idx_zp] - χz_array[idx_zidx]) / (χz_array[idx_zp] + 1e-18) * (5.0 * Component.s[idx_b, idx_zp] - 2)
+    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.H[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * bg.χ[idx_zidx] * (1.0 + bg.z[idx_zidx]) * Component.nz_norm[idx_b, idx_zp] * (bg.χ[idx_zp] - bg.χ[idx_zidx]) / (bg.χ[idx_zp] + 1e-18) * (5.0 * Component.s[idx_b, idx_zp] - 2)
     Component.Kernel = kernel
 end
 
-function compute_kernel!(Component::IntrinsicAlignment, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
-    check_and_normalize!(Component, grid)
-    Component.Kernel = @. Component.A_IA * (bg.Hz_array' / C_LIGHT) * Component.nz_norm
+function compute_kernel!(Component::IntrinsicAlignment, bg::Background) 
+    check_and_normalize!(Component, bg.z)
+    Component.Kernel = @. Component.A_IA * (bg.H' / C_LIGHT) * Component.nz_norm
 end
 
-function compute_kernel!(Component::IntegratedSachsWolfe, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
+function compute_kernel!(Component::IntegratedSachsWolfe, bg::Background) 
+    H0 = get_H0(bg.cosmo)
+    Ωm = get_Ωm(bg.cosmo)
     T_CMB = 2.726
-    prefac = 3T_CMB * cosmo.H0^2 * cosmo.Ωm / C_LIGHT^3
-    kernel = @. prefac * bg.Hz_array * (1 - Component.growth_rate)
+    prefac = 3T_CMB * H0^2 * Ωm / C_LIGHT^3
+    kernel = @. prefac * bg.H * (1 - bg.f)
     Component.Kernel = reshape(kernel, 1, size(kernel, 1))
 end
 
-function compute_kernel!(Component::PrimordialNonGaussianity, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
-    check_and_normalize!(Component, grid)
+function compute_kernel!(Component::PrimordialNonGaussianity, bg::Background) 
+    check_and_normalize!(Component, bg.z)
     b_phi_vals = bΦ(Component.bias, Component.p)
-    Component.Kernel = @. (bg.Hz_array' / C_LIGHT) * Component.f_NL * b_phi_vals * Component.nz_norm
+    Component.Kernel = @. (bg.H' / C_LIGHT) * Component.f_NL * b_phi_vals * Component.nz_norm
 end
 
-function compute_kernel!(Component::Nothing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
+function compute_kernel!(Component::Nothing, bg::Background) 
     return nothing
 end
 
-function compute_kernel_safe!(Component::Nothing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
+function compute_kernel_safe!(Component::Nothing, bg::Background) 
     return nothing
 end
 
-function evaluate_components!(GC::GalaxyClustering, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology) 
-    compute_kernel!(GC.δ, grid, bg, cosmo)
-    compute_kernel!(GC.RSD, grid, bg, cosmo)
-    compute_kernel_safe!(GC.μ, grid, bg, cosmo)
-    compute_kernel!(GC.PNG, grid, bg, cosmo)
+function evaluate_components!(GC::GalaxyClustering, bg::Background) 
+    compute_kernel!(GC.δ, bg)
+    compute_kernel!(GC.RSD, bg)
+    compute_kernel_safe!(GC.μ, bg)
+    compute_kernel!(GC.PNG, bg)
 end
 
-function evaluate_components!(WL::WeakLensing, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-    compute_kernel_safe!(WL.γ, grid, bg, cosmo)
-    compute_kernel!(WL.IA, grid, bg, cosmo)
+function evaluate_components!(WL::WeakLensing, bg::Background)
+    compute_kernel_safe!(WL.γ, bg)
+    compute_kernel!(WL.IA, bg)
 end
 
-function evaluate_components!(cmb::CMB, grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-    compute_kernel!(cmb.κ, grid, bg, cosmo)
-    compute_kernel!(cmb.ISW, grid, bg, cosmo)
+function evaluate_components!(cmb::CMB, bg::Background)
+    compute_kernel!(cmb.κ, bg)
+    compute_kernel!(cmb.ISW, bg)
 end

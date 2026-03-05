@@ -407,7 +407,9 @@ where the pivot scale is fixed at `0.05 Mpc^{-1}``.
 - A 1D array of the primordial potential power spectrum at the requested scales. 
 """
 function get_PΦ(k::AbstractArray{<:Any,1}, cosmo::AbstractCosmology)
-    return @. 9/25 * 2 * π^2 * cosmo.As / (k^3) * (k/0.05)^(cosmo.ns - 1.)
+    As = get_As(cosmo)
+    ns = get_ns(cosmo)
+    return @. 9/25 * 2 * π^2 * As / (k^3) * (k/0.05)^(ns - 1.)
 end
 
 """ get_Tm(pk::AbstractArray{<:Any, 2}, k::AbstractArray, cosmo::AbstractCosmology)
@@ -425,19 +427,18 @@ function get_Tm(pk::AbstractArray{<:Any,2}, k::AbstractArray{<:Any, 1}, cosmo::A
 end
 
 """
-    transform_to_R_frame(matrix::AbstractArray{<:Any,2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
+    transform_to_R_frame(matrix::AbstractArray{<:Any,2}, bg::Background)
 
-Transforms a 2D array (typically a transfer function) from standard coordinates `(χ, k)` 
-to a ratio-based coordinate system `(χ, Rχ, k)`, where `0<R<1`. This coordinate change is a specialized optimization for the non-Limber integration.
-
-# Returns
-- A 3D array of shape to `(nχ, nR, nk)`.
+Transforms a 2D array from standard coordinates `(z, k)` to a ratio-based 
+coordinate system `(χ, Rχ, k)` using pre-built Background interpolators.
 """
-function transform_to_R_frame(matrix::AbstractArray{<:Any,2}, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
-    new_χs = make_grid(bg, R)
-    x = resample_redshifts(bg, grid, new_χs)
+function transform_to_R_frame(matrix::AbstractArray{<:Any,2}, bg::Background)
+    # Using χ and R from Blast constants
+    new_χs = make_grid(Blast.χ, Blast.R)
+    # Using pre-built χ -> z interpolator from Background object
+    x = bg.z_of_χ.(new_χs)
     interp = Blast._akima_interpolation(matrix, Blast.z_lin, x)  
-    return reshape( interp,  size(bg.χz_array, 1), size(R,1), size(interp,2))
+    return reshape(interp, length(Blast.χ), length(Blast.R), size(interp, 2))
 end
 
 #TODO: this function will interface with mapse once ready.
@@ -445,29 +446,14 @@ end
     prepare_pk_workspace(P::FFTPlans, 
                          pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, 
                          pk_limber_nonlin::AbstractArray{<:Any, 2}, 
-                         cosmo::AbstractCosmology, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
-
-Assembles the `PowerSpectrum` struct by processing primordial, linear, and 
-non-linear power spectra into the format needed for `C_ℓ` calculation.
-
-The function performs the following operations:
-1. Decomposes the matter power spectrum into the primordial power spectrum `P_Φ`
-   and the transfer function `T_m(k, χ)`, which are used to define the unequal time power spectrum `P(k, χ1, χ2)`.
-2. Perform change of coordinates to use a more optimal integration basis.
-3. Computes 3D Chebyshev coefficients for non-Limber integration.
-4. Pre-interpolates the Limber-limit power spectra `P(k = \\frac{(ℓ+1/2)}{χ}, χ)`` on the correct grid.
-
-# Parameters:
-- `P`: Pre-allocated `FFTPlans` for Chebyshev transforms.
-- `pk`: Linear matter power spectrum for the non-Limber integration.
-- `pk_limber_lin/nonlin`: Linear and non linear matter power spectra for the Limber integration.
+                         bg::Background)
 """
-function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, pk_limber_nonlin::AbstractArray{<:Any, 2}, cosmo::AbstractCosmology, bg::BackgroundQuantities, grid::AbstractCosmologicalGrid)
+function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, pk_limber_nonlin::AbstractArray{<:Any, 2}, bg::Background)
     #Treating the non-limber power spectrum
-    P_ϕ = get_PΦ(10 .^ Blast.k_cheb, cosmo)
-    transfer_func = get_Tm(pk, 10 .^ Blast.k_cheb, cosmo)
+    P_ϕ = get_PΦ(10 .^ Blast.k_cheb, bg.cosmo)
+    transfer_func = get_Tm(pk, 10 .^ Blast.k_cheb, bg.cosmo)
     
-    transfer_func_χR = transform_to_R_frame(transfer_func, bg, grid)
+    transfer_func_χR = transform_to_R_frame(transfer_func, bg)
     transfer_func_χ1 = transfer_func_χR[:,end,:]
 
     @tullio P_ϕTT[k, i, j] := P_ϕ[k] * transfer_func_χ1[i,k] * transfer_func_χR[i, j, k] 
@@ -478,21 +464,21 @@ function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limbe
     c3 = build_coeff(cϕ,   P_ϕ,   P.plan_ϕ)    
 
     # --- Optimized Limber Evaluation ---
-    P_ϕ_limber = get_PΦ(10 .^ Blast.k_limber, cosmo)'
+    P_ϕ_limber = get_PΦ(10 .^ Blast.k_limber, bg.cosmo)'
     
     # Linear coefficients
-    T_m_limber_lin = get_Tm(pk_limber_lin, 10 .^ Blast.k_limber, cosmo)
+    T_m_limber_lin = get_Tm(pk_limber_lin, 10 .^ Blast.k_limber, bg.cosmo)
     P_limber_lin = P_ϕ_limber .* T_m_limber_lin .^ 2.
     c_lin = chebyshev_decomposition(P.plan_limber, log10.(P_limber_lin)')
     
     # Non-linear coefficients
-    T_m_limber_nonlin = get_Tm(pk_limber_nonlin, 10 .^ Blast.k_limber, cosmo)
+    T_m_limber_nonlin = get_Tm(pk_limber_nonlin, 10 .^ Blast.k_limber, bg.cosmo)
     P_limber_nonlin = P_ϕ_limber .* T_m_limber_nonlin .^ 2.
     c_nonlin = chebyshev_decomposition(P.plan_limber, log10.(P_limber_nonlin)')
 
     # Simultaneous evaluation on the (ℓ, χ) grid
-    z_of_χ = AkimaInterpolation(grid.z_range, bg.χz_array, extrapolation=ExtrapolationType.Extension)
-    z_eval = z_of_χ.(Blast.χ)
+    # Using pre-computed z evaluation points from Background
+    z_eval = bg.z_of_χ.(Blast.χ)
     T_z_limber = get_limber_coords_polynomials(P.plan_limber, z_eval)
 
     P_lin_grid = 10.0 .^ limber_eval(c_lin, T_z_limber, P.T_k_limber)

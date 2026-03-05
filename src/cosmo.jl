@@ -1,218 +1,151 @@
-"""
-    AbstractCosmology{T}
-An abstract type representing a general cosmological model.
-"""
-abstract type AbstractCosmology{T} end
+# COSMOLOGY DEFINITIONS AND UNIFIED BACKGROUND SNAPSHOT
+using AbstractCosmologicalEmulators
+using DataInterpolations
 
 """
-    AbstractCosmologicalGrid{T}
-An abstract type representing a grid on which cosmological quantities are evaluated.
+    Background{T, C, I}
+
+A unified container for cosmological background quantities.
+Always targets the global Blast.χ grid to ensure consistent LOS integration.
+
+# Fields:
+- `cosmo::C`: The underlying cosmology parameters.
+- `z::Vector{T}`: Redshifts corresponding to the global χ grid.
+- `χ::Vector{T}`: The global comoving distance grid (matches Blast.χ).
+- `H::Vector{T}`: Hubble parameter H(z).
+- `D::Vector{T}`: Growth factor D(z).
+- `f::Vector{T}`: Growth rate f(z).
+- `z_of_χ::I`: Pre-built Akima interpolator for z(χ).
+- `χ_of_z::I`: Pre-built Akima interpolator for χ(z).
 """
-abstract type AbstractCosmologicalGrid{T} end
-
-"""
-    AbstractBackgroundQuantities{T}
-An abstract type for background quantities in cosmology, such as the Hubble parameter (`H`), comoving distance (`χ`), 
-and the growth factor (`D`).
-"""
-abstract type AbstractBackgroundQuantities{T} end
-
-
-# Define the flat ΛCDM cosmological model with default parameters based on the fiducial N5K cosmology.
-
-"""
-    FlatΛCDM{T}(; w0 = -1.0, wa = 0.0, H0 = 67.27, Ωm = 0.3156, Ωb = 0.0492, 
-        Ωde = 0.6844, As = 2.12107e-9, σ8 = 0.816, Ωk = 0.0, Ωr = 0.0, ns = 0.9645
-    )
-
-# Parameters:
-- `w0`: Dark energy equation of state parameter at present time (default: -1).
-- `wa`: Time evolution of the dark energy equation of state (default: 0).
-- `H0`: Hubble constant in km/s/Mpc (default: 67.27).
-- `Ωm`: Matter density parameter (default: 0.3156).
-- `Ωb`: Baryon density parameter (default: 0.0492).
-- `Ωde`: Dark energy density parameter (default: 0.6844).
-- `As`: Scalar amplitude of the primordial power spectrum (default: 2.12107e-9).
-- `σ8`: Root-mean-square density fluctuation in spheres of radius 8 Mpc (default: 0.816).
-- `Ωk`: Curvature density parameter (default: 0, for flat universe).
-- `Ωr`: Radiation density parameter (default: 0, since radiation is negligible at low redshift).
-- `ns`: Scalar spectral index (default: 0.9645).
-"""
-@kwdef mutable struct FlatΛCDM{T} <: AbstractCosmology{T}
-    #TODO: comology will need updates, A_s and sigma8 are not independent of eachother, need more classes...
-    w0::T  = -1.0
-    wa::T  = 0.0
-    H0::T  = 67.27
-    Ωm::T  = 0.3156
-    Ωb::T  = 0.0492
-    Ωde::T = 0.6844
-    As::T  = 2.12107e-9
-    σ8::T  = 0.816
-    Ωk::T  = 0.0
-    Ωr::T  = 0.0
-    ns::T  = 0.9645
-end
-
-"""
-    CosmologicalGrid{T}(; z_range, k_range)
-# Parameters:
-- `z_range`: Array of redshift values where quantities like the Hubble parameter are evaluated (default: LinRange(0.001, 2.5, 300)).
-- `k_range`: Array of wavenumbers for evaluating power spectra or other k-dependent quantities (default: LogSpaced(1e-5, 50, 1000)).
-"""
-@kwdef mutable struct CosmologicalGrid{T} <: AbstractCosmologicalGrid{T}
-    z_range::AbstractArray{T} = LinRange(0, 5, 300)
-    k_range::AbstractArray{T} = LinRange(1e-5, 50., 1000) # TODO: Switch to Chebyshev points for better interpolation.
-end
-
-
-"""
-    BackgroundQuantities{T}(; Hz_array, χz_array)
-
-# Parameters:
-- `Hz_array`: Array of Hubble parameter values, evaluated on a grid of redshift values (default: zeros(500)).
-- `χz_array`: Array of comoving distance values, evaluated on a grid of redshift values (default: zeros(500)).
-"""
-@kwdef mutable struct BackgroundQuantities{T} <: AbstractBackgroundQuantities{T}
-    Hz_array::Vector{T} = zeros(T, 500)
-    χz_array::Vector{T} = zeros(T, 500)
-end
-
-#TODO: tentatively how i would handle this better. Think about this more. 
-# The issue is z(chi) ugly interpolant I'd say.
-struct Background{T, C<:AbstractCosmology} <: AbstractBackgroundQuantities{T}
+struct Background{T, C<:AbstractCosmology, I<:DataInterpolations.AbstractInterpolation}
     cosmo::C
-    χ::Vector{T}
     z::Vector{T}
-    Hz_array::Vector{T}
-    z_of_χ::DataInterpolations.AbstractInterpolation
-end
-
-function Background(
-    cosmo::AbstractCosmology;
-    z_of_χ::DataInterpolations.AbstractInterpolation)
-
-    χ = Blast.χ
-    z = z_of_χ(χ)
-    H = compute_hubble_factor.(z, cosmo)
-
-    return Background(cosmo, χ, z, H, z_of_χ)
-end
-
-
-
-"""
-    compute_adimensional_hubble_factor(z::T, cosmo::FlatΛCDM) -> T
-
-Computes the adimensional Hubble factor `E(z)` for a given redshift `z`, using the 
-cosmological parameters from a `FlatΛCDM` model.
-The analitycal expression is given by:
-```math
-E(z)=\\sqrt{\\Omega_m(1+z)^3+\\Omega_r(1+z)^4+
-\\Omega_{de}(1+z)^{3(1+w_0+w_a)}\\exp(-3w_a \\frac{z}{1+z})+\\Omega_k(1+z)^2}
-```
-
-# Parameters:
-- `z`: Redshift at which to evaluate the Hubble factor.
-- `cosmo`: A `FlatΛCDM` cosmological model containing parameters like Ωm, Ωr, Ωde, etc.
-
-# Returns:
-- `E_z`: The adimensional Hubble factor at redshift `z`.
-"""
-function compute_adimensional_hubble_factor(z::T, cosmo::FlatΛCDM) where T
-    E_z = compute_adimensional_hubble_factor(z, cosmo.Ωm, cosmo.Ωr,
-        cosmo.Ωde, cosmo.Ωk, cosmo.w0, cosmo.wa)
-    return E_z
+    χ::Vector{T}
+    H::Vector{T}
+    D::Vector{T}
+    f::Vector{T}
+    z_of_χ::I
+    χ_of_z::I
 end
 
 """
-    compute_adimensional_hubble_factor(z::T, Ωm::T, Ωr::T, Ωde::T, Ωk::T, w0::T, wa::T) -> T
+    Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
 
-Computes the adimensional Hubble factor `E(z)` given the redshift `z` and individual cosmological parameters.
-The analitycal expression is given by:
-```math
-E(z)=\\sqrt{\\Omega_m(1+z)^3+\\Omega_r(1+z)^4+
-\\Omega_{de}(1+z)^{3(1+w_0+w_a)}\\exp(-3w_a \\frac{z}{1+z})+\\Omega_k(1+z)^2}
-```
-
-# Parameters:
-- `z`: Redshift at which to evaluate the Hubble factor.
-- `Ωm`: Matter density parameter.
-- `Ωr`: Radiation density parameter.
-- `Ωde`: Dark energy density parameter.
-- `Ωk`: Curvature density parameter.
-- `w0`: Dark energy equation of state parameter at the present time.
-- `wa`: Time evolution of the dark energy equation of state.
-
-# Returns:
-- `E_z`: The adimensional Hubble factor at redshift `z`.
+Construct a Background snapshot by finding the redshifts corresponding to a target χ grid.
+This ensures the pipeline always works on a consistent distance grid.
 """
-function compute_adimensional_hubble_factor(z::T, Ωm::T, Ωr::T, Ωde::T, Ωk::T, w0::T, wa::T) where T
-    E_z = sqrt(Ωm*(1+z)^3 + Ωr*(1+z)^4 + Ωk*(1+z)^2 +
-        Ωde*(1+z)^(3*(1+w0+wa))*exp(-3*wa*z/(1+z)))
-    return E_z
+function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
+    # 1. To find z from χ, we first sample the emulator on a fine z-grid
+    # Note: extension functions expect (z, cosmo)
+    fine_z = LinRange(0.0, 5.0, 500)
+    fine_χ = r_z.(fine_z, Ref(cosmo))
+    
+    # 2. Build a temporary inversion to find the z-nodes for our target χ_grid
+    z_from_χ_temp = DataInterpolations.AkimaInterpolation(fine_z, fine_χ, extrapolation=ExtrapolationType.Extension)
+    z_nodes = z_from_χ_temp.(χ_grid)
+    
+    # 3. Evaluate all quantities at these specific nodes
+    # Note: w0waCDMCosmology uses .h instead of .H0
+    H_array = 100.0 .* cosmo.h .* E_z.(z_nodes, Ref(cosmo))
+    D_array = D_z.(z_nodes, Ref(cosmo))
+    f_array = f_z.(z_nodes, Ref(cosmo))
+    
+    # 4. Build the final stable interpolators
+    z_of_χ_interp = DataInterpolations.AkimaInterpolation(z_nodes, χ_grid, extrapolation=ExtrapolationType.Extension)
+    χ_of_z_interp = DataInterpolations.AkimaInterpolation(χ_grid, z_nodes, extrapolation=ExtrapolationType.Extension)
+
+    return Background(
+        cosmo, 
+        collect(z_nodes), collect(χ_grid), H_array, D_array, f_array, 
+        z_of_χ_interp, χ_of_z_interp
+    )
+end
+
+# --- CORE BACKGROUND FUNCTIONS (Back-compatibility wrappers) ---
+
+function compute_hubble_factor(z::Number, cosmo::AbstractCosmology)
+    return 100.0 * cosmo.h * E_z(z, cosmo)
+end
+
+function compute_χ(z::Number, cosmo::AbstractCosmology)
+    return r_z(z, cosmo)
+end
+
+# --- PARAMETER ACCESSORS ---
+
+"""
+    get_Ωm(cosmo::AbstractCosmology)
+Returns the total matter density parameter Ωm.
+"""
+function get_Ωm(cosmo::AbstractCosmology)
+    return (cosmo.ωb + cosmo.ωc) / cosmo.h^2
 end
 
 """
-    compute_hubble_factor(z::T, cosmo::AbstractCosmology) -> T
-
-Computes the Hubble parameter `H(z)` at a given redshift `z` using the Hubble constant `H0` and the adimensional 
-Hubble factor `E(z)`.
-
-# Parameters:
-- `z`: Redshift at which to compute the Hubble parameter.
-- `cosmo`: A cosmological model that contains `H0` and other necessary parameters.
-
-# Returns:
-- `H_z`: The Hubble parameter at redshift `z`.
+    get_H0(cosmo::AbstractCosmology)
+Returns the Hubble constant H0 in km/s/Mpc.
 """
-function compute_hubble_factor(z::T, cosmo::AbstractCosmology) where T
-    H_z = cosmo.H0 * compute_adimensional_hubble_factor(z, cosmo)
-    return H_z
+function get_H0(cosmo::AbstractCosmology)
+    return 100.0 * cosmo.h
 end
 
 """
-    compute_χ(z::T, cosmo::AbstractCosmology) -> T
-
-Computes the comoving distance `χ(z)` to a given redshift `z` by numerically integrating 
-the inverse of the adimensional Hubble factor `E(z)`:
-```math
-\\chi(z)=\\frac{c}{H_0}\\int_0^z \\frac{dz'}{E(z')}
-```
-
-# Parameters:
-- `z`: Redshift up to which the comoving distance is computed.
-- `cosmo`: A cosmological model containing the necessary parameters (e.g., Ωm, H0).
-
-# Returns:
-- `χ_z`: The comoving distance at redshift `z` in units of Mpc.
+    get_As(cosmo::AbstractCosmology)
+Returns the primordial amplitude As.
 """
-function compute_χ(z::T, cosmo::AbstractCosmology) where T
-    integral, err = quadgk(x -> 1. / compute_adimensional_hubble_factor(x, cosmo), 0., z, rtol=1e-12)
-    return integral * C_LIGHT / cosmo.H0
+function get_As(cosmo::AbstractCosmology)
+    return exp(cosmo.ln10Aₛ) / 1e10
 end
 
 """
-    evaluate_background_quantities!(grid::CosmologicalGrid, bg::BackgroundQuantities, cosmo::AbstractCosmology)
-
-Populates the `BackgroundQuantities` struct with values for the Hubble parameter `H(z)` and comoving distance `χ(z)` 
-over the redshift range specified by the `CosmologicalGrid`.
-
-# Parameters:
-- `grid`: A grid specifying the redshift range over which to evaluate the background quantities.
-- `bg`: A mutable struct where the computed `H(z)` and `χ(z)` values will be stored.
-- `cosmo`: A cosmological model containing the necessary parameters (e.g., H0, Ωm).
-
-# Notes:
-This function modifies the `BackgroundQuantities` struct in place by filling the arrays with the computed values.
+    get_ns(cosmo::AbstractCosmology)
+Returns the spectral index ns.
 """
-function evaluate_background_quantities!(grid::CosmologicalGrid,
-    #TODO: works for now, will need vectorization and rethinking in the future.
-    bg::BackgroundQuantities, cosmo::AbstractCosmology)
-    for z_idx in 1:length(grid.z_range)
-        # Compute the Hubble parameter H(z)
-        bg.Hz_array[z_idx] = compute_hubble_factor(grid.z_range[z_idx], cosmo)
-        
-        # Compute the comoving distance χ(z)
-        bg.χz_array[z_idx] = compute_χ(grid.z_range[z_idx], cosmo)
-    end
+function get_ns(cosmo::AbstractCosmology)
+    return cosmo.nₛ
+end
+
+# --- SPECIFIC COSMOLOGY WRAPPERS ---
+
+"""
+    ΛCDM(; H0, Ωm, Ωb, As, ns, σ8, Ωk=0.0, Ωr=0.0)
+
+A flat ΛCDM cosmological model with fixed w0=-1 and wa=0.
+Maps standard parameters to AbstractCosmologicalEmulators format.
+"""
+function ΛCDM(; H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, σ8=0.816, Ωk=0.0, Ωr=0.0)
+    h = H0 / 100.0
+    return w0waCDMCosmology(
+        ωb = Ωb * h^2,
+        ωc = (Ωm - Ωb) * h^2,
+        ωk = Ωk,
+        h = h,
+        nₛ = ns,
+        ln10Aₛ = log(1e10 * As),
+        mν = 0.06,
+        w0 = -1.0,
+        wa = 0.0
+    )
+end
+
+"""
+    w0waCDM(; w0, wa, H0, Ωm, Ωb, As, ns, σ8, Ωk=0.0, Ωr=0.0)
+
+A flexible w0-wa CDM cosmological model.
+Maps standard parameters to AbstractCosmologicalEmulators format.
+"""
+function w0waCDM(; w0=-1.0, wa=0.0, H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, σ8=0.816, Ωk=0.0, Ωr=0.0)
+    h = H0 / 100.0
+    return w0waCDMCosmology(
+        ωb = Ωb * h^2,
+        ωc = (Ωm - Ωb) * h^2,
+        ωk = Ωk,
+        h = h,
+        nₛ = ns,
+        ln10Aₛ = log(1e10 * As),
+        mν = 0.06,
+        w0 = w0,
+        wa = wa
+    )
 end

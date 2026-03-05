@@ -5,7 +5,6 @@ using Tullio
 using FastTransforms
 using FastChebInterp
 using SpecialFunctions
-using DataInterpolations
 using Interpolations
 using StaticArrays
 using FFTW
@@ -18,9 +17,28 @@ using ChainRulesCore
 using ChainRules
 using Mooncake
 
+# These dependencies are used by the BackgroundCosmologyExt extension
+# They MUST be present in the project but do not necessarily need to be 'using'ed here
+using DataInterpolations, FastGaussQuadrature, Integrals, LinearAlgebra, OrdinaryDiffEqTsit5, SciMLSensitivity
+using AbstractCosmologicalEmulators
+
+# --- 1. HANDLE EXTENSION AND CORE TYPES ---
+# We look for the extension that provides differentiable background functions
+const ext = Base.get_extension(AbstractCosmologicalEmulators, :BackgroundCosmologyExt)
+
+if !isnothing(ext)
+    using .ext: AbstractCosmology, w0waCDMCosmology, D_z, D_f_z, f_z, E_z, d̃A_z, dM_z, dA_z, dL_z, r_z
+    # Re-export for user convenience
+    export AbstractCosmology, w0waCDMCosmology, D_z, D_f_z, f_z, E_z, d̃A_z, dM_z, dA_z, dL_z, r_z
+else
+    # Fallback or error if essential differentiable background is missing
+    @error "BackgroundCosmologyExt extension not loaded. Please ensure all dependencies are installed."
+end
+
+# --- 2. INCLUDE COMPONENT FILES (Order matters!) ---
 include("chebcoefs.jl")
 
-# Define global constants at top-level
+# Define global constants at top-level so they are available at include-time
 const full_ℓ_range = reverse(chebpoints(100, 2, 2000))
 const ℓ_nonlimber = full_ℓ_range[full_ℓ_range .< 220]
 const ℓ_limber = full_ℓ_range[full_ℓ_range .> 220]
@@ -36,10 +54,9 @@ const k_limber = chebpoints(256, log10(1e-4), log10(80))
 const z_cheb = chebpoints(49, 0, 3.6)
 const z_lin = LinRange(0, 3.6, 50)
 
-# Functional include order
 include("utils.jl")
 include("cosmo.jl")
-include("deprecated.jl")
+#include("deprecated.jl")
 include("probes.jl")
 include("setup.jl")
 include("projected_matter.jl")

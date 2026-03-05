@@ -1,3 +1,6 @@
+const BackgroundQuantities = Background
+const AbstractCosmologicalGrid = Any
+
 function resample_redshifts(bg::BackgroundQuantities, grid::AbstractCosmologicalGrid, new_χ::AbstractArray{T,1}) where T
     z_of_χ = AkimaInterpolation(grid.z_range, bg.χz_array, extrapolation=ExtrapolationType.Extension)
     return z_of_χ.(new_χ)
