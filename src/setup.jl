@@ -23,17 +23,14 @@ These plans are reused across power spectrum evaluations to avoid repeated FFTW 
 end
 
 function _setup_limber_plan()
-    # Limber grid domains from Blast.k_limber and Blast.z_cheb
-    lk_min, lk_max = log10(1e-4), log10(80)
-    z_min, z_max = 0.0, 3.6
-    K_k, K_z = 256, 49
+    lk_min, lk_max = minimum(k_limber), maximum(k_limber)
+    z_min, z_max = minimum(z_cheb), maximum(z_cheb)
+    K_k, K_z = length(k_limber) - 1, length(z_cheb) - 1
 
     plan_limber = prepare_chebyshev_plan((lk_min, z_min), (lk_max, z_max), (K_k, K_z))
     
-    # Precompute k polynomials on Blast.full_ℓ_range and Blast.χ (constant)
     T_k = get_limber_k_polynomials(plan_limber, Blast.full_ℓ_range, Blast.χ; is_log_k=true)
     
-    # Plan for C_ℓ interpolation (100 nodes, ℓ from 2 to 2000)
     plan_ℓ = prepare_chebyshev_plan(2, 2000, 100)
     
     return plan_limber, T_k, plan_ℓ
@@ -50,7 +47,7 @@ for the given set of cosmological probes.
 - `P::FFTPlans`: Pre-allocated FFT plans used for Chebyshev decomposition.
 """
 function SetUp(G::GalaxyClustering)
-    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
@@ -86,7 +83,7 @@ function SetUp(G::GalaxyClustering)
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1),), dim=1)
+        plan_ϕ = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1),), dim=1)
         w_PNG_A = w_2_00_ϕT()
         w_PNG_B = w_2_00_ϕT_R1()
         w_PNG_C = w_2_00_ϕ()
@@ -117,7 +114,7 @@ end
 
 function SetUp(L::WeakLensing)
     
-    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
@@ -131,7 +128,7 @@ end
 
 function SetUp(G::GalaxyClustering, L::WeakLensing)
     
-    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
@@ -162,7 +159,7 @@ function SetUp(G::GalaxyClustering, L::WeakLensing)
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1),), dim=1)
+        plan_ϕ = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1),), dim=1)
         w_PNG_A = w_2_00_ϕT()
         w_PNG_B = w_2_00_ϕT_R1()
         w_PNG_C = w_2_00_ϕ()
@@ -197,7 +194,7 @@ end
 
 function SetUp(G::GalaxyClustering, C::CMB)
     
-    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
@@ -232,7 +229,7 @@ function SetUp(G::GalaxyClustering, C::CMB)
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1),), dim=1)
+        plan_ϕ = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1),), dim=1)
         w_PNG_A = w_2_00_ϕT()
         w_PNG_B = w_2_00_ϕT_R1()
         w_PNG_C = w_2_00_ϕ()
@@ -267,7 +264,7 @@ end
 
 function SetUp(L::WeakLensing, C::CMB)
     
-    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
@@ -285,7 +282,7 @@ end
 
 function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
     
-    plan_ϕTT = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
@@ -321,7 +318,7 @@ function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = prepare_chebyshev_plan(log10(5e-5), log10(16), 160; size_nd=(size(Blast.k_cheb, 1),), dim=1)
+        plan_ϕ = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1),), dim=1)
         w_PNG_A = w_2_00_ϕT()
         w_PNG_B = w_2_00_ϕT_R1()
         w_PNG_C = w_2_00_ϕ()
@@ -433,9 +430,7 @@ Transforms a 2D array from standard coordinates `(z, k)` to a ratio-based
 coordinate system `(χ, Rχ, k)` using pre-built Background interpolators.
 """
 function transform_to_R_frame(matrix::AbstractArray{<:Any,2}, bg::Background)
-    # Using χ and R from Blast constants
     new_χs = make_grid(Blast.χ, Blast.R)
-    # Using pre-built χ -> z interpolator from Background object
     x = bg.z_of_χ.(new_χs)
     interp = Blast._akima_interpolation(matrix, Blast.z_lin, x)  
     return reshape(interp, length(Blast.χ), length(Blast.R), size(interp, 2))
@@ -463,23 +458,18 @@ function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limbe
     c2 = build_coeff(cϕT,  P_ϕT,  P.plan_ϕT)   
     c3 = build_coeff(cϕ,   P_ϕ,   P.plan_ϕ)    
 
-    # --- Optimized Limber Evaluation ---
+
     P_ϕ_limber = get_PΦ(10 .^ Blast.k_limber, bg.cosmo)'
     
-    # Linear coefficients
     T_m_limber_lin = get_Tm(pk_limber_lin, 10 .^ Blast.k_limber, bg.cosmo)
     P_limber_lin = P_ϕ_limber .* T_m_limber_lin .^ 2.
     c_lin = chebyshev_decomposition(P.plan_limber, log10.(P_limber_lin)')
     
-    # Non-linear coefficients
     T_m_limber_nonlin = get_Tm(pk_limber_nonlin, 10 .^ Blast.k_limber, bg.cosmo)
     P_limber_nonlin = P_ϕ_limber .* T_m_limber_nonlin .^ 2.
     c_nonlin = chebyshev_decomposition(P.plan_limber, log10.(P_limber_nonlin)')
 
-    # Simultaneous evaluation on the (ℓ, χ) grid
-    # Using pre-computed z evaluation points from Background
-    z_eval = bg.z_of_χ.(Blast.χ)
-    T_z_limber = get_limber_coords_polynomials(P.plan_limber, z_eval)
+    T_z_limber = get_limber_coords_polynomials(P.plan_limber, bg.z)
 
     P_lin_grid = 10.0 .^ limber_eval(c_lin, T_z_limber, P.T_k_limber)
     P_nonlin_grid = 10.0 .^ limber_eval(c_nonlin, T_z_limber, P.T_k_limber)

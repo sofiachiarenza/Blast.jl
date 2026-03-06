@@ -55,12 +55,8 @@ end
 Evaluate a 2D Chebyshev expansion f(k, chi) on the Limber grid using precomputed polynomials.
 """
 function limber_eval(c::AbstractMatrix, T_chi::AbstractMatrix, T_k::AbstractArray{<:Any,3})
-    # Step 1: contract chi axis → (K_k+1, n_chi)
     B = c * T_chi'
-
-    # Step 2: batched contraction over k axis using Tullio
     @tullio result[i, j] := T_k[i, k, j] * B[k, j]
-
     return result
 end
 

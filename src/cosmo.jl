@@ -1,6 +1,3 @@
-# COSMOLOGY DEFINITIONS AND UNIFIED BACKGROUND SNAPSHOT
-# Note: Core types and functions are imported/aliased in Blast.jl
-
 """
     Background{T}
 
@@ -25,7 +22,6 @@ struct Background{T}
     D::Vector{T}
     f::Vector{T}
     z_of_χ::Any
-    χ_of_z::Any
 end
 
 """
@@ -38,26 +34,21 @@ function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     fine_z = LinRange(T(0.0), T(5.0), 500)
     fine_χ = r_z.(fine_z, Ref(cosmo))
     
-    # 2. Build z-nodes for our target χ_grid using native Akima
     z_nodes = Blast._akima_interpolation(fine_z, fine_χ, χ_grid)
     
-    # 3. Evaluate all quantities at these specific nodes
     H_array = 100.0 .* cosmo.h .* E_z.(z_nodes, Ref(cosmo))
     D_array = D_z.(z_nodes, Ref(cosmo))
     f_array = f_z.(z_nodes, Ref(cosmo))
-    
-    # 4. Build final interpolator functions
+
     z_of_χ_interp(val) = Blast._akima_interpolation(z_nodes, χ_grid, val)
-    χ_of_z_interp(val) = Blast._akima_interpolation(χ_grid, z_nodes, val)
 
     return Background{T}(
         cosmo, 
-        collect(z_nodes), collect(χ_grid), H_array, D_array, f_array, 
-        z_of_χ_interp, χ_of_z_interp
+        z_nodes, χ_grid, H_array, D_array, f_array, 
+        z_of_χ_interp
     )
 end
 
-# --- CORE BACKGROUND FUNCTIONS (Back-compatibility wrappers) ---
 
 function compute_hubble_factor(z::Number, cosmo::AbstractCosmology)
     return 100.0 * cosmo.h * E_z(z, cosmo)
@@ -67,7 +58,6 @@ function compute_χ(z::Number, cosmo::AbstractCosmology)
     return r_z(z, cosmo)
 end
 
-# --- PARAMETER ACCESSORS ---
 
 """
     get_Ωm(cosmo::AbstractCosmology)
@@ -101,7 +91,6 @@ function get_ns(cosmo::AbstractCosmology)
     return cosmo.nₛ
 end
 
-# --- SPECIFIC COSMOLOGY WRAPPERS ---
 
 """
     ΛCDM(; H0, Ωm, Ωb, As, ns, σ8, Ωk=0.0, Ωr=0.0)

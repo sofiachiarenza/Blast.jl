@@ -6,20 +6,7 @@ function resample_redshifts(bg::BackgroundQuantities, grid::AbstractCosmological
     return z_of_χ.(new_χ)
 end
 
-function load_Ts(folder, nχ, nR, nk)
-    ell_vector = Blast.ℓ_nonlimber
-    full_T = zeros(length(ell_vector), nχ, nR, nk)
-    for i in 1:length(ell_vector)
-        l_string = string(round(ell_vector[i]; digits=1))
-        filename = folder * "/T_tilde_l_$l_string.npy"
-        if isfile(filename)
-            full_T[i,:,:,:] = npzread(filename)
-        else
-            println("Missing file!")
-        end
-    end
-    return full_T
-end
+
 
 abstract type AbstractOLDCosmologicalProbes{T} end
 
@@ -366,21 +353,7 @@ function stoopid_unequal_time_pk(interpolator, k::AbstractArray{T,1}, z1::Number
     return @. sqrt(10^interpolator(z1,log10(k)) * 10^interpolator(z2,log10(k)))
 end
 
-function limber_rsd_kernel(ℓ::Number, bg::BackgroundQuantities, RSDK::Blast.RSDKernel)
-    χ = bg.χz_array
-    nbins = size(RSDK.Kernel)[1]
-    rds_kernels = zeros( nbins, length(χ) )
 
-    for b in 1:nbins
-        kernel_interp = Blast._akima_interpolation(RSDK.Kernel[b, :], χ, extrapolation=ExtrapolationType.Extension)
-        piece1 = @. (2*ℓ^2 + 2*ℓ - 1) / ((2*ℓ - 1)*(2*ℓ + 3)) * RSDK.Kernel[b, :]
-        piece2 = @. (ℓ - 1)*ℓ / ((2*ℓ - 1) * sqrt(2*ℓ - 3)*(2*ℓ + 1)) * kernel_interp.((2*ℓ - 3)/(2*ℓ + 1) * χ)
-        piece3 = @. (ℓ + 1)*(ℓ + 2) / ((2*ℓ + 3) * sqrt((2*ℓ + 1)*(2*ℓ + 5))) * kernel_interp.((2*ℓ + 5)/(2*ℓ + 1) * χ)
-        rds_kernels[b, :] .= piece1 .- piece2 .- piece3
-    end
-
-    return rds_kernels
-end
 
 function bΦ(z, bias_model, p::Number)
     return 2 * 1.686 * (bias_model(z) .- p)

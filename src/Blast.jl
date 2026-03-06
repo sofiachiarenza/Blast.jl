@@ -19,9 +19,6 @@ using Mooncake
 using DataInterpolations, FastGaussQuadrature, Integrals, LinearAlgebra, OrdinaryDiffEqTsit5, SciMLSensitivity
 using AbstractCosmologicalEmulators
 
-# --- 1. HANDLE EXTENSION SYMBOLS ---
-# Access extension symbols via Base.get_extension to ensure precompilation stability.
-# Using 'const' aliases avoids "undeclared binding" warnings.
 const cosmo_ext = Base.get_extension(AbstractCosmologicalEmulators, :BackgroundCosmologyExt)
 
 if !isnothing(cosmo_ext)
@@ -38,23 +35,20 @@ else
     @error "BackgroundCosmologyExt extension not loaded. Differentiable background will not be available."
 end
 
-# --- 2. CORE INFRASTRUCTURE ---
-include("chebcoefs.jl")  # Native Chebyshev engine
-include("constants.jl")  # Global grids and integration constants
-
-# --- 3. PIPELINE COMPONENTS ---
-include("utils.jl")      # Math and interpolation helpers
-include("cosmo.jl")      # Unified Background and Parameter accessors
-include("probes.jl")     # Redshift distributions and Probes
-include("setup.jl")      # FFTPlans and PowerSpectrum workspace
+include("constants.jl")  
+include("chebcoefs.jl")  
+include("utils.jl")     
+include("cosmo.jl")      
+include("probes.jl")     
+include("setup.jl")      
 include("projected_matter.jl")
 include("cls.jl")
-include("limber.jl")     # Limber grid and evaluation
+include("limber.jl")    
 include("chainrules.jl")
 
-# --- 4. PHYSICAL CONSTANTS ---
+
 import PhysicalConstants.CODATA2018: c_0
-const C_LIGHT = c_0.val * 10^(-3) # speed of light in km/s
+const C_LIGHT = c_0.val * 10^(-3) 
 
 struct T̃{A<:AbstractArray{<:Any,4}}
     T_2_00::A

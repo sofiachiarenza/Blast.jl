@@ -22,7 +22,6 @@ function prepare_nz_matrix(nz::AbstractMatrix, z::AbstractVector, z_grid::Abstra
     nz_normed = zeros(eltype(nz), n_bins, length(z_grid))
 
     for b in 1:n_bins
-        # Use native Akima
         nz_norm_val, _ = quadgk(x -> Blast._akima_interpolation(nz[b,:], z, x), first(z_grid), last(z_grid))
         nz_normed[b, :] = Blast._akima_interpolation(nz[b, :], z, z_grid) ./ nz_norm_val
     end
@@ -182,7 +181,8 @@ end
     ISW::Union{IntegratedSachsWolfe, Nothing} = nothing
 end
 
-# --- Simplified Kernel Computation Logic (Using Background object) ---
+
+
 
 function compute_kernel!(Component::NumberCounts, bg::Background) 
     check_and_normalize!(Component, bg.z)
@@ -201,7 +201,7 @@ function compute_kernel_safe!(Component::CosmicShear, bg::Background)
     for b in 1:n_bins
         nz_vals = Component.nz_norm[b,:]
         for z_idx in 1:length(bg.z)
-            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/bg.χ_of_z(x))
+            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/compute_χ(x))
             z_low = bg.z[z_idx]
             z_top = bg.z[end]
             int, _ = quadgk(x -> integrand(x), z_low, z_top) 
@@ -254,7 +254,7 @@ function compute_kernel_safe!(Component::MagnificationBias, bg::Background)
         nz_vals = Component.nz_norm[b,:]
         s_vals = Component.s[b,:]
         for z_idx in 1:length(bg.z)
-            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/bg.χ_of_z(x)) * (5 .* s_vals[z_idx] .- 2)
+            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/compute_χ(x)) * (5 .* s_vals[z_idx] .- 2)
             z_low = bg.z[z_idx]
             z_top = bg.z[end]
             int, _ = quadgk(x -> integrand(x), z_low, z_top) 
@@ -311,23 +311,35 @@ function compute_kernel!(Component::Nothing, bg::Background)
     return nothing
 end
 
-function compute_kernel_safe!(Component::Nothing, bg::Background) 
-    return nothing
-end
-
 function evaluate_components!(GC::GalaxyClustering, bg::Background) 
     compute_kernel!(GC.δ, bg)
     compute_kernel!(GC.RSD, bg)
-    compute_kernel_safe!(GC.μ, bg)
+    compute_kernel!(GC.μ, bg)
     compute_kernel!(GC.PNG, bg)
 end
 
 function evaluate_components!(WL::WeakLensing, bg::Background)
-    compute_kernel_safe!(WL.γ, bg)
+    compute_kernel!(WL.γ, bg)
     compute_kernel!(WL.IA, bg)
 end
 
 function evaluate_components!(cmb::CMB, bg::Background)
     compute_kernel!(cmb.κ, bg)
     compute_kernel!(cmb.ISW, bg)
+end
+
+function limber_rsd_kernel(ℓ::Number, bg::BackgroundQuantities, RSDK::Blast.RSDKernel)
+    χ = bg.χz_array
+    nbins = size(RSDK.Kernel)[1]
+    rds_kernels = zeros( nbins, length(χ) )
+
+    for b in 1:nbins
+        kernel_interp = Blast._akima_interpolation(RSDK.Kernel[b, :], χ, extrapolation=ExtrapolationType.Extension)
+        piece1 = @. (2*ℓ^2 + 2*ℓ - 1) / ((2*ℓ - 1)*(2*ℓ + 3)) * RSDK.Kernel[b, :]
+        piece2 = @. (ℓ - 1)*ℓ / ((2*ℓ - 1) * sqrt(2*ℓ - 3)*(2*ℓ + 1)) * kernel_interp.((2*ℓ - 3)/(2*ℓ + 1) * χ)
+        piece3 = @. (ℓ + 1)*(ℓ + 2) / ((2*ℓ + 3) * sqrt((2*ℓ + 1)*(2*ℓ + 5))) * kernel_interp.((2*ℓ + 5)/(2*ℓ + 1) * χ)
+        rds_kernels[b, :] .= piece1 .- piece2 .- piece3
+    end
+
+    return rds_kernels
 end

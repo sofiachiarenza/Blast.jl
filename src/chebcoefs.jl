@@ -1,11 +1,8 @@
-# FUNCTIONS FOR THE DECOMPOSITION OF THE POWER SPECTRUM ON THE BASIS OF THE CHEBYSHEV POLYNOMIALS
 using AbstractCosmologicalEmulators
 using ChainRulesCore
 using ForwardDiff: Dual, value, partials, Partials, tagtype
 
-# Import core Chebyshev engine from AbstractCosmologicalEmulators
-import AbstractCosmologicalEmulators: ChebyshevPlan, chebpoints, prepare_chebyshev_plan, 
-                                      chebyshev_decomposition, chebyshev_polynomials
+import AbstractCosmologicalEmulators: ChebyshevPlan, chebpoints, prepare_chebyshev_plan, chebyshev_decomposition, chebyshev_polynomials
 
 """
     chebinterp_native(c::AbstractVector, x_grid, x_min, x_max)
