@@ -30,6 +30,34 @@ using LinearAlgebra
         @test grad_mc ≈ grad_fd rtol=1e-8
     end
 
+    @testset "Gradient w.r.t. x1 (input grid)" begin
+        f_x1(x1_vals) = sum(Blast._akima_interpolation(y, x1_vals, x2))
+        backend_fd = AutoFiniteDifferences(central_fdm(5, 1))
+        
+        grad_fd = DifferentiationInterface.gradient(f_x1, backend_fd, x1)
+        grad_fwd = DifferentiationInterface.gradient(f_x1, AutoForwardDiff(), x1)
+        grad_zyg = DifferentiationInterface.gradient(f_x1, AutoZygote(), x1)
+        grad_mc = DifferentiationInterface.gradient(f_x1, AutoMooncake(), x1)
+
+        @test grad_fwd ≈ grad_fd rtol=1e-8
+        @test grad_zyg ≈ grad_fd rtol=1e-8
+        @test grad_mc ≈ grad_fd rtol=1e-8
+    end
+
+    @testset "Gradient w.r.t. x2 (query points)" begin
+        f_x2(x2_vals) = sum(Blast._akima_interpolation(y, x1, x2_vals))
+        backend_fd = AutoFiniteDifferences(central_fdm(5, 1))
+        
+        grad_fd = DifferentiationInterface.gradient(f_x2, backend_fd, x2)
+        grad_fwd = DifferentiationInterface.gradient(f_x2, AutoForwardDiff(), x2)
+        grad_zyg = DifferentiationInterface.gradient(f_x2, AutoZygote(), x2)
+        grad_mc = DifferentiationInterface.gradient(f_x2, AutoMooncake(), x2)
+
+        @test grad_fwd ≈ grad_fd rtol=1e-8
+        @test grad_zyg ≈ grad_fd rtol=1e-8
+        @test grad_mc ≈ grad_fd rtol=1e-8
+    end
+
     @testset "Matrix Akima AD" begin
         n_cols = 3
         Y_mat = hcat([sin.(x1 .+ i) for i in 1:n_cols]...)
@@ -38,9 +66,11 @@ using LinearAlgebra
         
         backend_fd = AutoFiniteDifferences(central_fdm(5, 1))
         grad_fd = DifferentiationInterface.gradient(f_mat, backend_fd, Y_mat)
+        grad_fwd = DifferentiationInterface.gradient(f_mat, AutoForwardDiff(), Y_mat)
         grad_zyg = DifferentiationInterface.gradient(f_mat, AutoZygote(), Y_mat)
         grad_mc = DifferentiationInterface.gradient(f_mat, AutoMooncake(), Y_mat)
 
+        @test grad_fwd ≈ grad_fd rtol=1e-7
         @test grad_zyg ≈ grad_fd rtol=1e-7
         @test grad_mc ≈ grad_fd rtol=1e-7
     end

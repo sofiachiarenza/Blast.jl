@@ -10,7 +10,9 @@ import AbstractCosmologicalEmulators: ChebyshevPlan, chebpoints, prepare_chebysh
 Evaluates a 1D Chebyshev expansion on a grid.
 """
 function chebinterp_native(c::AbstractVector, x_grid, x_min, x_max)
-    T = chebyshev_polynomials(x_grid, Float64(x_min), Float64(x_max), length(c) - 1)
+    xx = float.(x_grid)
+    T_type = eltype(xx)
+    T = chebyshev_polynomials(xx, T_type(x_min), T_type(x_max), length(c) - 1)
     return T * c
 end
 
