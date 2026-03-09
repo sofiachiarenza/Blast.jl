@@ -187,7 +187,7 @@ function rrule(::typeof(_akima_interpolation), u::AbstractMatrix, t, t_new::Abst
                     f12_inv = 1.0 / f12_c[i]
                     ∂f1[i] += ∂b[i, col] * m[i+1, col] * f12_inv; ∂f2[i] += ∂b[i, col] * m[i+2, col] * f12_inv
                     ∂m[i+1, col] += ∂b[i, col] * f1_c[i] * f12_inv; ∂m[i+2, col] += ∂b[i, col] * f2_c[i] * f12_inv
-                    ∂f12[i] += -∂b[i, col] * (f1_c[i] * m[i+1, col] + f2[i] * m[i+2, col]) * f12_inv^2
+                    ∂f12[i] += -∂b[i, col] * (f1_c[i] * m[i+1, col] + f2_c[i] * m[i+2, col]) * f12_inv^2
                 else
                     ∂m[i+3, col] += ∂b[i, col] / 2; ∂m[i, col] += ∂b[i, col] / 2
                 end

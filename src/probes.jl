@@ -201,7 +201,7 @@ function compute_kernel_safe!(Component::CosmicShear, bg::Background)
     for b in 1:n_bins
         nz_vals = Component.nz_norm[b,:]
         for z_idx in 1:length(bg.z)
-            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/compute_χ(x))
+            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/Blast.compute_χ(x, bg.cosmo))
             z_low = bg.z[z_idx]
             z_top = bg.z[end]
             int, _ = quadgk(x -> integrand(x), z_low, z_top) 
@@ -254,7 +254,7 @@ function compute_kernel_safe!(Component::MagnificationBias, bg::Background)
         nz_vals = Component.nz_norm[b,:]
         s_vals = Component.s[b,:]
         for z_idx in 1:length(bg.z)
-            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/compute_χ(x)) * (5 .* s_vals[z_idx] .- 2)
+            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/Blast.compute_χ(x, bg.cosmo)) * (5 .* s_vals[z_idx] .- 2)
             z_low = bg.z[z_idx]
             z_top = bg.z[end]
             int, _ = quadgk(x -> integrand(x), z_low, z_top) 
@@ -328,7 +328,7 @@ function evaluate_components!(cmb::CMB, bg::Background)
     compute_kernel!(cmb.ISW, bg)
 end
 
-function limber_rsd_kernel(ℓ::Number, bg::BackgroundQuantities, RSDK::Blast.RSDKernel)
+"""function limber_rsd_kernel(ℓ::Number, bg::BackgroundQuantities, RSDK::Blast.RSDKernel)
     χ = bg.χz_array
     nbins = size(RSDK.Kernel)[1]
     rds_kernels = zeros( nbins, length(χ) )
@@ -342,4 +342,4 @@ function limber_rsd_kernel(ℓ::Number, bg::BackgroundQuantities, RSDK::Blast.RS
     end
 
     return rds_kernels
-end
+end"""

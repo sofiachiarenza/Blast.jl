@@ -18,8 +18,8 @@ end
 Return the integration points in k. They are a set of 'N' Chebyshev points rescaled between 'kmin' and 'kmax'.
 """
 function get_clencurt_grid(kmin::Number, kmax::Number, N::Number)
-    CC_obj = FastTransforms.chebyshevmoments1(Float64, N)
-    x = FastTransforms.clenshawcurtisnodes(Float64, N)
+    CC_obj = FastTransforms.chebyshevmoments1(Float64, Int(N))
+    x = FastTransforms.clenshawcurtisnodes(Float64, Int(N))
     x = (kmax - kmin) / 2 * x .+ (kmin + kmax) / 2 
 
     x[1] *= (1-1e-8)
