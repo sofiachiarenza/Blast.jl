@@ -314,12 +314,12 @@ end
 function evaluate_components!(GC::GalaxyClustering, bg::Background) 
     compute_kernel!(GC.δ, bg)
     compute_kernel!(GC.RSD, bg)
-    compute_kernel!(GC.μ, bg)
+    compute_kernel_safe!(GC.μ, bg)
     compute_kernel!(GC.PNG, bg)
 end
 
 function evaluate_components!(WL::WeakLensing, bg::Background)
-    compute_kernel!(WL.γ, bg)
+    compute_kernel_safe!(WL.γ, bg)
     compute_kernel!(WL.IA, bg)
 end
 
