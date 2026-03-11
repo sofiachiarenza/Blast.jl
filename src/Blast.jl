@@ -74,14 +74,14 @@ function __init__()
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_22.npz"))
     )"""
     global T_tildes = T̃(
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_00", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_0_00", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_-2_00", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_0_02", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_0_20", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_02", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_20", nχ, nR, n_cheb+1),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_22", nχ, nR, n_cheb+1)
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_00", 128, 64, 161),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_0_00", 128, 64, 161),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_-2_00", 128, 64, 161),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_0_02", 128, 64, 161),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_0_20", 128, 64, 161),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_02", 128, 64, 161),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_20", 128, 64, 161),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_22", 128, 64, 161)
     )
 end
 

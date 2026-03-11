@@ -222,7 +222,7 @@ function compute_kernel!(Component::CosmicShear, bg::Background)
     simpson_matrix = simpson_weights_matrix(length(bg.z))
     Δχ = (bg.χ[end] - bg.χ[1]) / (length(bg.χ) - 1)
 
-    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.H[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * bg.χ[idx_zidx] * (1.0 + bg.z[idx_zidx]) * Component.nz_norm[idx_b, idx_zp] * (bg.χ[idx_zp] - bg.χ[idx_zidx]) / (bg.χ[idx_zp] + 1e-18)
+    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.H[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * bg.χ[idx_zidx] * (1.0 + bg.z[idx_zidx]) * Component.nz_norm[idx_b, idx_zp] * (bg.χ[idx_zp] - bg.χ[idx_zidx]) / (bg.χ[idx_zp])
     Component.Kernel = kernel
 end
 
@@ -231,7 +231,7 @@ function compute_kernel!(Component::CMBLensing, bg::Background)
     Ωm = get_Ωm(bg.cosmo)
     prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
     
-    χ_CMB = compute_χ(1090, bg.cosmo) 
+    χ_CMB = compute_χ(1090, bg.cosmo, order=120) 
     kernel = @. prefac * bg.χ * (1. + bg.z) * (1 - bg.χ/χ_CMB)
     Component.Kernel = reshape(kernel, 1, size(kernel,1))
 end
@@ -275,7 +275,7 @@ function compute_kernel!(Component::MagnificationBias, bg::Background)
     simpson_matrix = simpson_weights_matrix(length(bg.z))
     Δχ = (bg.χ[end] - bg.χ[1]) / (length(bg.χ) - 1)
 
-    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.H[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * bg.χ[idx_zidx] * (1.0 + bg.z[idx_zidx]) * Component.nz_norm[idx_b, idx_zp] * (bg.χ[idx_zp] - bg.χ[idx_zidx]) / (bg.χ[idx_zp] + 1e-18) * (5.0 * Component.s[idx_b, idx_zp] - 2)
+    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.H[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * bg.χ[idx_zidx] * (1.0 + bg.z[idx_zidx]) * Component.nz_norm[idx_b, idx_zp] * (bg.χ[idx_zp] - bg.χ[idx_zidx]) / (bg.χ[idx_zp]) * (5.0 * Component.s[idx_b, idx_zp] - 2)
     Component.Kernel = kernel
 end
 
