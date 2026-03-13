@@ -25,6 +25,10 @@ using Tullio
     object = FastTransforms.chebyshevmoments1(Float64, N)
     w_check = FastTransforms.clenshawcurtisweights(object)
     @test isapprox(w_check, w_blast)
+
+    # CC weights on [-1, 1] must sum to 2 (∫₋₁¹ 1 dx = 2)
+    w_unit = Blast.get_clencurt_weights(-1.0, 1.0, N)
+    @test sum(w_unit) ≈ 2.0
 end
 
 @testset "Utils: Akima and Bessel" begin

@@ -11,10 +11,12 @@ makedocs(
     sidebar_sitename=true),
     sitename = "Blast.jl",
     authors  = "Sofia Chiarenza",
+    checkdocs = :exports,
+    warnonly = [:missing_docs, :docs_block],
     pages = [
-        "Home" => "index.md"
-        "The algorithm" => "alg.md"
-        "API" => "api.md"
+        "Home" => "index.md",
+        "The algorithm" => "alg.md",
+        "API" => "api.md",
     ]
 )
 

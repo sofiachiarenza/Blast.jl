@@ -29,6 +29,34 @@ function prepare_nz_matrix(nz::AbstractMatrix, z::AbstractVector, z_grid::Abstra
 end
 
 """
+    smooth_nz(nz::AbstractMatrix, z::AbstractVector; z_out::AbstractVector=z, span::Real=0.02)
+
+Smooth n(z) bin-by-bin with `Loess.jl` and evaluate on `z_out`.
+"""
+function smooth_nz(
+    nz::AbstractMatrix,
+    z::AbstractVector,
+    ;
+    z_out::AbstractVector=z,
+    span::Real=0.02
+)
+    size(nz, 2) == length(z) || throw(DimensionMismatch("size(nz, 2) must match length(z)."))
+    0 < span <= 1 || throw(ArgumentError("span must satisfy 0 < span <= 1."))
+
+    n_bins = size(nz, 1)
+    nz_smooth = Matrix{Float64}(undef, n_bins, length(z_out))
+
+    for b in 1:n_bins
+        model = Loess.loess(z, nz[b, :], span=span)
+        vs = collect(Loess.predict(model, z_out))
+        vs[vs .< 0] .= 0.0
+        nz_smooth[b, :] = vs
+    end
+
+    return nz_smooth
+end
+
+"""
     check_and_normalize!(Component, grid_z)
 
 Internal helper: ensures nz_norm is populated for the current calculation grid.
@@ -184,33 +212,21 @@ end
 
 
 
+"""
+    compute_kernel!(Component::NumberCounts, bg::Background)
+
+Compute the galaxy number-counts kernel on the background redshift grid.
+"""
 function compute_kernel!(Component::NumberCounts, bg::Background) 
     check_and_normalize!(Component, bg.z)
     Component.Kernel = @. Component.bias * (bg.H' / C_LIGHT) * Component.nz_norm
 end
 
-function compute_kernel_safe!(Component::CosmicShear, bg::Background) 
-    check_and_normalize!(Component, bg.z)
-    n_bins = size(Component.nz_norm, 1)
-    kernel = zeros(n_bins, length(bg.z))
-    
-    H0 = get_H0(bg.cosmo)
-    Ωm = get_Ωm(bg.cosmo)
-    prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
+"""
+    compute_kernel!(Component::CosmicShear, bg::Background)
 
-    for b in 1:n_bins
-        nz_vals = Component.nz_norm[b,:]
-        for z_idx in 1:length(bg.z)
-            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/Blast.compute_χ(x, bg.cosmo))
-            z_low = bg.z[z_idx]
-            z_top = bg.z[end]
-            int, _ = quadgk(x -> integrand(x), z_low, z_top) 
-            kernel[b, z_idx] = prefac * bg.χ[z_idx] * (1. + bg.z[z_idx]) * int
-        end
-    end
-    Component.Kernel = kernel
-end
-
+Compute the weak-lensing shear kernel using Simpson integration on the χ grid.
+"""
 function compute_kernel!(Component::CosmicShear, bg::Background)
     check_and_normalize!(Component, bg.z)
     n_bins = size(Component.nz_norm, 1)
@@ -226,6 +242,11 @@ function compute_kernel!(Component::CosmicShear, bg::Background)
     Component.Kernel = kernel
 end
 
+"""
+    compute_kernel!(Component::CMBLensing, bg::Background)
+
+Compute the CMB lensing convergence kernel on the background grid.
+"""
 function compute_kernel!(Component::CMBLensing, bg::Background) 
     H0 = get_H0(bg.cosmo)
     Ωm = get_Ωm(bg.cosmo)
@@ -236,34 +257,21 @@ function compute_kernel!(Component::CMBLensing, bg::Background)
     Component.Kernel = reshape(kernel, 1, size(kernel,1))
 end
 
+"""
+    compute_kernel!(Component::RedshiftSpaceDistortions, bg::Background)
+
+Compute the redshift-space-distortion kernel from growth rate and normalized n(z).
+"""
 function compute_kernel!(Component::RedshiftSpaceDistortions, bg::Background) 
     check_and_normalize!(Component, bg.z)
     Component.Kernel = @. bg.f' * (bg.H' / C_LIGHT) * Component.nz_norm
 end
 
-function compute_kernel_safe!(Component::MagnificationBias, bg::Background) 
-    check_and_normalize!(Component, bg.z)
-    n_bins = size(Component.nz_norm, 1)
-    kernel = zeros(n_bins, length(bg.z))
-    
-    H0 = get_H0(bg.cosmo)
-    Ωm = get_Ωm(bg.cosmo)
-    prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
+"""
+    compute_kernel!(Component::MagnificationBias, bg::Background)
 
-    for b in 1:n_bins
-        nz_vals = Component.nz_norm[b,:]
-        s_vals = Component.s[b,:]
-        for z_idx in 1:length(bg.z)
-            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1. - bg.χ[z_idx]/Blast.compute_χ(x, bg.cosmo)) * (5 .* s_vals[z_idx] .- 2)
-            z_low = bg.z[z_idx]
-            z_top = bg.z[end]
-            int, _ = quadgk(x -> integrand(x), z_low, z_top) 
-            kernel[b, z_idx] = prefac * bg.χ[z_idx] * (1. + bg.z[z_idx]) * int
-        end
-    end
-    Component.Kernel = kernel 
-end
-
+Compute the magnification-bias kernel with source-slope factor `(5s - 2)`.
+"""
 function compute_kernel!(Component::MagnificationBias, bg::Background)
     check_and_normalize!(Component, bg.z)
     n_bins = size(Component.nz_norm, 1)
@@ -279,6 +287,11 @@ function compute_kernel!(Component::MagnificationBias, bg::Background)
     Component.Kernel = kernel
 end
 
+"""
+    compute_kernel!(Component::IntrinsicAlignment, bg::Background)
+
+Compute the intrinsic-alignment kernel using the NLA amplitude model.
+"""
 function compute_kernel!(Component::IntrinsicAlignment, bg::Background) 
     check_and_normalize!(Component, bg.z)
     
@@ -292,6 +305,11 @@ function compute_kernel!(Component::IntrinsicAlignment, bg::Background)
     Component.Kernel = @. Component.A_IA * (bg.H' / C_LIGHT) * Component.nz_norm
 end
 
+"""
+    compute_kernel!(Component::IntegratedSachsWolfe, bg::Background)
+
+Compute the ISW kernel from background expansion and growth history.
+"""
 function compute_kernel!(Component::IntegratedSachsWolfe, bg::Background) 
     H0 = get_H0(bg.cosmo)
     Ωm = get_Ωm(bg.cosmo)
@@ -301,6 +319,11 @@ function compute_kernel!(Component::IntegratedSachsWolfe, bg::Background)
     Component.Kernel = reshape(kernel, 1, size(kernel, 1))
 end
 
+"""
+    compute_kernel!(Component::PrimordialNonGaussianity, bg::Background)
+
+Compute the primordial non-Gaussianity scale-dependent-bias kernel.
+"""
 function compute_kernel!(Component::PrimordialNonGaussianity, bg::Background) 
     check_and_normalize!(Component, bg.z)
     b_phi_vals = bΦ(Component.bias, Component.p)
@@ -311,15 +334,20 @@ function compute_kernel!(Component::Nothing, bg::Background)
     return nothing
 end
 
-function evaluate_components!(GC::GalaxyClustering, bg::Background) 
+"""
+    evaluate_components!(probe, bg)
+
+Compute and store all kernels for the components of `probe` on the `Background` grid.
+"""
+function evaluate_components!(GC::GalaxyClustering, bg::Background)
     compute_kernel!(GC.δ, bg)
     compute_kernel!(GC.RSD, bg)
-    compute_kernel_safe!(GC.μ, bg)
+    compute_kernel!(GC.μ, bg)
     compute_kernel!(GC.PNG, bg)
 end
 
 function evaluate_components!(WL::WeakLensing, bg::Background)
-    compute_kernel_safe!(WL.γ, bg)
+    compute_kernel!(WL.γ, bg)
     compute_kernel!(WL.IA, bg)
 end
 

@@ -11,6 +11,7 @@ using Artifacts
 using PhysicalConstants
 using Memoization
 using FastTransforms
+using Loess
 using ChainRulesCore
 using ChainRules
 using Mooncake
@@ -30,7 +31,7 @@ if !isnothing(cosmo_ext)
     const f_z = cosmo_ext.f_z
     
     export AbstractCosmology, w0waCDMCosmology
-    export Background, prepare_nz_matrix, NLA_model, ΛCDM, w0waCDM
+    export Background, ΛCDM, w0waCDM
 else
     @error "BackgroundCosmologyExt extension not loaded. Differentiable background will not be available."
 end

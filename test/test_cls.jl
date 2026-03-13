@@ -39,31 +39,35 @@ using NPZ
     # Test correction logic
     corr = Blast.get_limber_correction(gc, PS)
     @test size(corr) == (length(Blast.ℓ_nonlimber), 1, 1)
+    @test all(isfinite, corr)
 end
 
 @testset "Cls: Cross-probe consistency" begin
     cosmo = get_test_cosmo()
     bg = get_test_bg(cosmo)
-    
+
     # Dummy grids
     pk_grid = ones(length(Blast.z_lin), length(Blast.k_cheb))
     pk_limber = ones(length(Blast.z_cheb), length(Blast.k_limber))
-    
+
     # Probes
     gc = Blast.GalaxyClustering(δ = Blast.NumberCounts(nz=ones(1,50), z=LinRange(0,3.6,50), bias=ones(1,length(bg.z))))
     wl = Blast.WeakLensing(γ = Blast.CosmicShear(nz=ones(1,50), z=LinRange(0,3.6,50)))
-    
+
     W, Plans = Blast.SetUp(gc, wl)
     Blast.evaluate_components!(gc, bg)
     Blast.evaluate_components!(wl, bg)
     PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber, pk_limber, bg)
-    
+
     # CRITICAL: Compute projected matter coefficients
     Blast.compute_w!(W, PS)
-    
+
     # Cross Cl: get_Cℓ(ℓ, G, L, Pk, W, bg, P)
-    cl_xl = Blast.get_Cℓ(Blast.full_ℓ_range, gc, wl, PS, W, bg, Plans)
-    
-    @test size(cl_xl) == (length(Blast.full_ℓ_range), 1, 1)
-    @test all(isfinite, cl_xl)
+    cl_gc_wl = Blast.get_Cℓ(Blast.full_ℓ_range, gc, wl, PS, W, bg, Plans)
+    cl_wl_gc = Blast.get_Cℓ(Blast.full_ℓ_range, wl, gc, PS, W, bg, Plans)
+
+    @test size(cl_gc_wl) == (length(Blast.full_ℓ_range), 1, 1)
+    @test all(isfinite, cl_gc_wl)
+    # Symmetry: C_ℓ(A,B) == C_ℓ(B,A)
+    @test cl_gc_wl ≈ cl_wl_gc
 end

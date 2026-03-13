@@ -77,14 +77,29 @@ function get_limber_kernel(Component::Nothing)
     return 0.
 end
 
+"""
+    get_limber_kernel(G::GalaxyClustering)
+
+Sum Limber kernels over all active `GalaxyClustering` components (δ, μ).
+"""
 function get_limber_kernel(G::GalaxyClustering)
     return get_limber_kernel(G.δ) .+ get_limber_kernel(G.μ) 
 end
 
+"""
+    get_limber_kernel(L::WeakLensing)
+
+Sum Limber kernels over all active `WeakLensing` components (γ, IA).
+"""
 function get_limber_kernel(L::WeakLensing)
     return get_limber_kernel(L.γ) .+ get_limber_kernel(L.IA)
 end
 
+"""
+    get_limber_kernel(C::CMB)
+
+Sum Limber kernels over all active `CMB` components (κ, ISW).
+"""
 function get_limber_kernel(C::CMB)
     return get_limber_kernel(C.κ) .+ get_limber_kernel(C.ISW)
 end

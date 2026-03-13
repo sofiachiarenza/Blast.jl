@@ -2,6 +2,56 @@ using Test
 using Blast
 using NPZ
 using DataInterpolations
+using QuadGK
+
+function _compute_kernel_safe!(component::Blast.CosmicShear, bg::Blast.Background)
+    Blast.check_and_normalize!(component, bg.z)
+    n_bins = size(component.nz_norm, 1)
+    kernel = zeros(n_bins, length(bg.z))
+
+    H0 = Blast.get_H0(bg.cosmo)
+    Ωm = Blast.get_Ωm(bg.cosmo)
+    prefac = 1.5 * H0^2 * Ωm / Blast.C_LIGHT^2
+
+    for b in 1:n_bins
+        nz_vals = component.nz_norm[b, :]
+        for z_idx in 1:length(bg.z)
+            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1.0 - bg.χ[z_idx] / Blast.compute_χ(x, bg.cosmo))
+            z_low = bg.z[z_idx]
+            z_top = bg.z[end]
+            integral, _ = quadgk(integrand, z_low, z_top)
+            kernel[b, z_idx] = prefac * bg.χ[z_idx] * (1.0 + bg.z[z_idx]) * integral
+        end
+    end
+
+    component.Kernel = kernel
+    return component
+end
+
+function _compute_kernel_safe!(component::Blast.MagnificationBias, bg::Blast.Background)
+    Blast.check_and_normalize!(component, bg.z)
+    n_bins = size(component.nz_norm, 1)
+    kernel = zeros(n_bins, length(bg.z))
+
+    H0 = Blast.get_H0(bg.cosmo)
+    Ωm = Blast.get_Ωm(bg.cosmo)
+    prefac = 1.5 * H0^2 * Ωm / Blast.C_LIGHT^2
+
+    for b in 1:n_bins
+        nz_vals = component.nz_norm[b, :]
+        s_vals = component.s[b, :]
+        for z_idx in 1:length(bg.z)
+            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1.0 - bg.χ[z_idx] / Blast.compute_χ(x, bg.cosmo)) * (5.0 * s_vals[z_idx] - 2.0)
+            z_low = bg.z[z_idx]
+            z_top = bg.z[end]
+            integral, _ = quadgk(integrand, z_low, z_top)
+            kernel[b, z_idx] = prefac * bg.χ[z_idx] * (1.0 + bg.z[z_idx]) * integral
+        end
+    end
+
+    component.Kernel = kernel
+    return component
+end
 
 @testset "Probes: Kernel computation" begin
     cosmo = get_test_cosmo()
@@ -36,11 +86,65 @@ using DataInterpolations
 end
 
 @testset "Probes: N(z) Normalization" begin
-    z_grid = LinRange(0.0, 4.0, 100)
-    nz = ones(2, 50) 
-    z = LinRange(0.0, 4.0, 50)
-    
+    z_grid = collect(LinRange(0.0, 4.0, 100))
+    nz = ones(2, 50)
+    z = collect(LinRange(0.0, 4.0, 50))
+
     nz_normed = Blast.prepare_nz_matrix(nz, z, z_grid)
     @test size(nz_normed) == (2, 100)
     @test all(isfinite, nz_normed)
+    # Each bin must integrate to 1 on the output grid
+    for b in 1:size(nz_normed, 1)
+        nrm, _ = quadgk(x -> Blast._akima_interpolation(nz_normed[b, :], z_grid, x), first(z_grid), last(z_grid))
+        @test nrm ≈ 1.0 atol=1e-2
+    end
+end
+
+@testset "Probes: N(z) Smoothing" begin
+    z = collect(LinRange(0.0, 4.0, 250))
+    z_out = collect(LinRange(0.0, 4.0, 180))
+
+    nz = zeros(2, length(z))
+    nz[1, :] .= @. exp(-((z - 1.0)^2) / 0.08) + 0.05 * sin(25 * z)
+    nz[2, :] .= @. exp(-((z - 2.3)^2) / 0.12) + 0.04 * cos(20 * z)
+    nz[:, 20] .= -0.1
+
+    nz_smoothed = Blast.smooth_nz(nz, z; z_out=z_out, span=0.05)
+
+    @test size(nz_smoothed) == (2, length(z_out))
+    @test all(isfinite, nz_smoothed)
+    @test all(nz_smoothed .>= 0)
+
+    nz_normed = Blast.prepare_nz_matrix(nz_smoothed, z_out, z_out)
+    for b in 1:size(nz_normed, 1)
+        nrm, _ = quadgk(x -> Blast._akima_interpolation(nz_normed[b, :], z_out, x), first(z_out), last(z_out))
+        @test nrm ≈ 1.0 atol=1e-2
+    end
+end
+
+@testset "Probes: kernel vs safe reference (Gaussian n(z))" begin
+    cosmo = get_test_cosmo()
+    bg = get_test_bg(cosmo)
+
+    z = collect(bg.z)
+    n_bins = 2
+    nz = zeros(n_bins, length(z))
+    nz[1, :] .= @. exp(-((z - 0.8)^2) / 0.05)
+    nz[2, :] .= @. exp(-((z - 1.6)^2) / 0.08)
+    s = fill(0.4, n_bins, length(z))
+
+    cs_fast = Blast.CosmicShear(nz = copy(nz), z = copy(z))
+    cs_safe = Blast.CosmicShear(nz = copy(nz), z = copy(z))
+
+    μ_fast = Blast.MagnificationBias(nz = copy(nz), z = copy(z), s = copy(s))
+    μ_safe = Blast.MagnificationBias(nz = copy(nz), z = copy(z), s = copy(s))
+
+    Blast.compute_kernel!(cs_fast, bg)
+    _compute_kernel_safe!(cs_safe, bg)
+
+    Blast.compute_kernel!(μ_fast, bg)
+    _compute_kernel_safe!(μ_safe, bg)
+
+    @test cs_fast.Kernel ≈ cs_safe.Kernel rtol=1e-2 atol=1e-6
+    @test μ_fast.Kernel ≈ μ_safe.Kernel rtol=1e-2 atol=1e-6
 end

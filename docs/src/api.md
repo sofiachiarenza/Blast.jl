@@ -1,106 +1,80 @@
 # API Reference
 
-This page documents the public API of `Blast.jl`, organized by functionality
-and level of abstraction.
-
-Most users should only interact with **high-level probe constructors** and
-the `get_Cℓ` interface.
+This page documents the current API of `Blast.jl`.
 
 ## Cosmology
 
-Types and functions defining the background cosmology.
+### Constructors
 
 ```@docs
-Blast.AbstractCosmology
-Blast.FlatΛCDM
-
-Blast.compute_adimensional_hubble_factor
-Blast.compute_hubble_factor
-Blast.compute_χ
+Blast.ΛCDM
+Blast.w0waCDM
 ```
 
-## Background Quantities and Grids
-
-Background quantities derived from the cosmology and used to build kernels.
-These objects store interpolants of background functions evaluated on the
-global comoving distance grid.
+### Background and derived quantities
 
 ```@docs
-Blast.AbstractBackgroundQuantities
-Blast.BackgroundQuantities
-Blast.AbstractCosmologicalGrid
-Blast.CosmologicalGrid
-Blast.evaluate_background_quantities!
+Blast.Background
+Blast.compute_hubble_factor
+Blast.compute_χ
+Blast.get_H0
+Blast.get_Ωm
+Blast.get_Ωb
+Blast.get_Ωc
+Blast.get_As
+Blast.get_ns
 ```
 
 ## Probes and Components
 
-Each observable is decomposed into physical components (e.g. number density, RSD,
-magnification, primordial non-Gaussianity). These components store kernels
-as functions of comoving distance.
-`AbstractCosmologicalProbes` objects group physical components (`AbstractComponents` objects) defining the Observables.
-
 ```@docs
 Blast.AbstractCosmologicalProbes
 Blast.AbstractComponents
+Blast.GalaxyClustering
+Blast.WeakLensing
+Blast.CMB
+Blast.NumberCounts
+Blast.RedshiftSpaceDistortions
+Blast.MagnificationBias
+Blast.PrimordialNonGaussianity
+Blast.CosmicShear
+Blast.IntrinsicAlignment
+Blast.CMBLensing
+Blast.IntegratedSachsWolfe
+```
+
+### n(z) helpers
+
+```@docs
+Blast.prepare_nz_matrix
+Blast.smooth_nz
+Blast.NLA_model
+```
+
+### Kernel evaluation
+
+```@docs
+Blast.compute_kernel!(::Blast.NumberCounts, ::Blast.Background)
+Blast.compute_kernel!(::Blast.RedshiftSpaceDistortions, ::Blast.Background)
+Blast.compute_kernel!(::Blast.MagnificationBias, ::Blast.Background)
+Blast.compute_kernel!(::Blast.PrimordialNonGaussianity, ::Blast.Background)
+Blast.compute_kernel!(::Blast.CosmicShear, ::Blast.Background)
+Blast.compute_kernel!(::Blast.IntrinsicAlignment, ::Blast.Background)
+Blast.compute_kernel!(::Blast.CMBLensing, ::Blast.Background)
+Blast.compute_kernel!(::Blast.IntegratedSachsWolfe, ::Blast.Background)
 Blast.evaluate_components!
 ```
 
-### Galaxy Clustering Probe
-```@docs
-Blast.GalaxyClustering
-
-Blast.NumberCounts
-Blast.compute_kernel!(Component::Blast.NumberCounts, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
-Blast.RedshiftSpaceDistortions
-Blast.compute_kernel!(Component::Blast.RedshiftSpaceDistortions, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
-Blast.MagnificationBias
-Blast.compute_kernel!(Component::Blast.MagnificationBias, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
-Blast.PrimordialNonGaussianity
-Blast.compute_kernel!(Component::Blast.PrimordialNonGaussianity, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
-```
-
-### Weak Lensing Probe
-```@docs
-Blast.WeakLensing
-
-Blast.CosmicShear
-Blast.compute_kernel!(Component::Blast.CosmicShear, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
-Blast.IntrinsicAlignment
-Blast.compute_kernel!(Component::Blast.IntrinsicAlignment, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
-```
-
-### CMB Probe
-```@docs
-Blast.CMB
-
-Blast.CMBLensing
-Blast.compute_kernel!(Component::Blast.CMBLensing, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
-Blast.IntegratedSachsWolfe
-Blast.compute_kernel!(Component::Blast.IntegratedSachsWolfe, grid::Blast.CosmologicalGrid, bg::Blast.BackgroundQuantities, cosmo::Blast.AbstractCosmology)
-```
-
-## Initialization and Setup
+## Setup and Power Spectrum Workspace
 
 ```@docs
 Blast.FFTPlans
 Blast.SetUp
-Blast.plan_fft
-Blast.fast_chebcoefs
 Blast.AbstractCoeff
 Blast.cϕTT
 Blast.cϕT
 Blast.cϕ
-Blast.make_coeff
 Blast.build_coeff
-```
-
-## Power Spectrum Handling 
-
-Container holding all necessary matter power spectrum information.
-This object has to be rebuilt when the cosmology or input power spectra change (i.e. in a MCMC chain).
-
-```@docs
 Blast.PowerSpectrum
 Blast.prepare_pk_workspace
 Blast.get_PΦ
@@ -109,7 +83,6 @@ Blast.transform_to_R_frame
 ```
 
 ## Projected Matter Density
-The projected matter density stores the inner k integral, whose efficient computation is at the core of the Blast algorithm.
 
 ```@docs
 Blast.ProjectedMatterDensityComponent
@@ -118,39 +91,29 @@ Blast.compute_w!
 Blast.w_ell_tullio
 ```
 
-## Angular Power Spectrum Computation
+## Angular Power Spectra
 
-This is the main numerical engine of BLAST. Angular power spectra are
-computed using a hybrid approach:
-- non-Limber computation at low multipoles
-- Limber approximation at high multipoles
-- smooth interpolation between regimes
-
-Users should generally call get_Cℓ.
 ```@docs
 Blast.get_Cℓ
+Blast.compute_Cℓ(::Blast.AbstractComponents, ::Blast.AbstractComponents, ::Blast.ProjectedMatterDensityComponent, ::Blast.Background)
+Blast.compute_Cℓ(::Blast.AbstractComponents, ::Blast.AbstractComponents, ::Blast.ProjectedMatterDensityComponent, ::Blast.ProjectedMatterDensityComponent, ::Blast.Background)
 ```
 
-#### Internal routines
+## Limber helpers
+
 ```@docs
-Blast.make_grid
-Blast.grid_interpolator
-Blast.get_kernel_array
-Blast.combine_kernels
-Blast.compute_Cℓ(Component1::Blast.AbstractComponents, Component2::Blast.AbstractComponents, w::Blast.ProjectedMatterDensityComponent) 
-Blast.compute_Cℓ(Component1::Blast.AbstractComponents, Component2::Blast.AbstractComponents, w02::Blast.ProjectedMatterDensityComponent, 
-                    w20::Blast.ProjectedMatterDensityComponent) 
-Blast.get_limber_kernel(Component::Blast.AbstractComponents)
-Blast.get_limber_kernel(G::Blast.GalaxyClustering)
-Blast.get_limber_kernel(G::Blast.WeakLensing)
-Blast.get_limber_kernel(G::Blast.CMB)
-Blast.get_limber_correction(Probe::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, pk::Blast.PowerSpectrum)
-Blast.get_limber_correction(ProbeA::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ProbeB::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, pk::Blast.PowerSpectrum)
-Blast.get_limber_Cℓ(Probe::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, pk::Blast.PowerSpectrum)
-Blast.get_limber_Cℓ(ProbeA::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ProbeB::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, pk::Blast.PowerSpectrum)
+Blast.get_limber_kernel(::Blast.AbstractComponents)
+Blast.get_limber_kernel(::Blast.GalaxyClustering)
+Blast.get_limber_kernel(::Blast.WeakLensing)
+Blast.get_limber_kernel(::Blast.CMB)
+Blast.get_limber_correction(::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Blast.PowerSpectrum)
+Blast.get_limber_correction(::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Blast.PowerSpectrum)
+Blast.get_limber_Cℓ(::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Blast.PowerSpectrum)
+Blast.get_limber_Cℓ(::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Blast.PowerSpectrum)
 ```
 
-## Numerical routines and Utilities
+## Numerical utilities
+
 ```@docs
 Blast.get_clencurt_grid
 Blast.get_clencurt_weights
@@ -158,13 +121,4 @@ Blast.get_clencurt_weights_R_integration
 Blast.bessel_second_derivative
 Blast.bessel_cheb_eval
 Blast.compute_T̃
-Blast.factorial_frac
-Blast.bΦ
-Blast._akima_interpolation(u, t, t_new)
-Blast._akima_slopes
-Blast._akima_coefficients
-Blast._akima_eval
-Blast._akima_interpolation(u::AbstractMatrix, t, t_new)
 ```
-
-

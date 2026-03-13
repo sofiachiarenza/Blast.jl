@@ -25,8 +25,26 @@ end
     cosmo = get_test_cosmo()
     @test Blast.get_H0(cosmo) ≈ 100.0 * cosmo.h
     @test Blast.get_Ωm(cosmo) ≈ (cosmo.ωb + cosmo.ωc) / cosmo.h^2
+    @test Blast.get_Ωb(cosmo) ≈ cosmo.ωb / cosmo.h^2
+    @test Blast.get_Ωc(cosmo) ≈ cosmo.ωc / cosmo.h^2
+    # Ωb + Ωc == Ωm
+    @test Blast.get_Ωb(cosmo) + Blast.get_Ωc(cosmo) ≈ Blast.get_Ωm(cosmo)
     @test Blast.get_ns(cosmo) == cosmo.nₛ
     @test Blast.get_As(cosmo) == exp(cosmo.ln10Aₛ) / 1e10
+end
+
+@testset "Cosmology: E_z physical reasonableness" begin
+    cosmo = get_test_cosmo()
+    # E(0) = 1 by definition
+    @test Blast.E_z(0.0, cosmo) ≈ 1.0
+    # For a flat ΛCDM with Ωm < 1, E(z) > 1 for z > 0
+    for z in [0.5, 1.0, 2.0]
+        @test Blast.E_z(z, cosmo) > 1.0
+    end
+    # E_z should be monotonically increasing for these redshifts
+    zs = [0.0, 0.5, 1.0, 2.0, 3.0]
+    Ez = Blast.E_z.(zs, Ref(cosmo))
+    @test issorted(Ez)
 end
 
 @testset "Cosmology: Grid inversion z(χ) vs χ(z)" begin

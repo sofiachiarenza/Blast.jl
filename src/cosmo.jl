@@ -32,7 +32,7 @@ Construct a Background snapshot by finding the redshifts corresponding to a targ
 function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     T = eltype(χ_grid)
     # Dense sampling for accurate z(χ) inversion
-    fine_z = LinRange(T(0.0), T(10.0), 500)
+    fine_z = LinRange(T(0.0), T(10.0), 200)
     fine_χ = r_z.(fine_z, Ref(cosmo))
     
     z_of_χ_interp(χ) = Blast._akima_interpolation(fine_z, fine_χ, χ)
@@ -51,10 +51,20 @@ function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
 end
 
 
+"""
+    compute_hubble_factor(z, cosmo)
+
+Returns the dimensional Hubble parameter ``H(z) = 100 h \\cdot E(z)`` in km/s/Mpc.
+"""
 function compute_hubble_factor(z::Number, cosmo::AbstractCosmology)
     return 100.0 * cosmo.h * E_z(z, cosmo)
 end
 
+"""
+    compute_χ(z, cosmo)
+
+Returns the comoving distance to redshift `z` in Mpc, computed via Gaussian quadrature.
+"""
 function compute_χ(z::Number, cosmo::AbstractCosmology; order=9)
     return r_z(z, cosmo, order=order)
 end
@@ -67,6 +77,23 @@ Returns the total matter density parameter Ωm.
 function get_Ωm(cosmo::AbstractCosmology)
     return (cosmo.ωb + cosmo.ωc) / cosmo.h^2
 end
+
+"""
+    get_Ωb(cosmo::AbstractCosmology)
+Returns the baryon density parameter Ωb.
+"""
+function get_Ωb(cosmo::AbstractCosmology)
+    return cosmo.ωb / cosmo.h^2
+end
+
+"""
+    get_Ωc(cosmo::AbstractCosmology)
+Returns the cold dark matter density parameter Ωc.
+"""
+function get_Ωc(cosmo::AbstractCosmology)
+    return cosmo.ωc / cosmo.h^2
+end
+
 
 """
     get_H0(cosmo::AbstractCosmology)
@@ -99,7 +126,7 @@ end
 A flat ΛCDM cosmological model with fixed w0=-1 and wa=0.
 Maps standard parameters to AbstractCosmologicalEmulators format.
 """
-function ΛCDM(; H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, σ8=0.816, Ωk=0.0, Ωr=0.0)
+function ΛCDM(; H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, Ωk=0.0)
     h = H0 / 100.0
     return w0waCDMCosmology(
         ωb = Ωb * h^2,
@@ -120,7 +147,7 @@ end
 A flexible w0-wa CDM cosmological model.
 Maps standard parameters to AbstractCosmologicalEmulators format.
 """
-function w0waCDM(; w0=-1.0, wa=0.0, H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, σ8=0.816, Ωk=0.0, Ωr=0.0)
+function w0waCDM(; w0=-1.0, wa=0.0, H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, Ωk=0.0)
     h = H0 / 100.0
     return w0waCDMCosmology(
         ωb = Ωb * h^2,
