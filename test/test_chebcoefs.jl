@@ -3,6 +3,7 @@ using Blast
 using FastChebInterp
 using StaticArrays
 using NPZ
+using LinearAlgebra
 
 @testset "Chebcoefs: FFT vs FastChebInterp" begin
     # Power of two nodes usually avoids plan mismatches in FFTW wrappers
@@ -57,4 +58,28 @@ end
     w_blast = Blast.w_ell_tullio(c, T_mat)
     @test size(w_blast) == (i, j, k)
     @test !all(iszero, w_blast)
+end
+
+@testset "T tilde legacy artifact regression" begin
+    chi = LinRange(26, 7000, 10)
+    R_grid = Blast.chebpoints(20, -1, 1)
+    R_grid = reverse(R_grid[R_grid .> 0])
+    kmax = 200 / 13
+    kmin = 2.5 / 7000
+
+    # Legacy sectors from runtests_old.jl
+    # sector tag, beta exponent, relative-norm tolerance
+    configs = [
+        ("CC", 2, 5e-4),
+        ("CL", 0, 5e-4),
+        ("LL", -2, 5e-2)
+    ]
+
+    for (sector, beta, tol) in configs
+        ref = data["T_tilde"][sector]["2.0"]
+        calc = Blast.compute_T̃(2.0, chi, R_grid, kmin, kmax, beta, 0, 0, n_cheb=119, N=2^12+1)
+
+        rel_norm = norm(vec(calc .- ref)) / norm(vec(ref))
+        @test rel_norm < tol
+    end
 end

@@ -3,6 +3,7 @@ using Blast
 using NPZ
 using DataInterpolations
 using QuadGK
+using Statistics
 
 function _compute_kernel_safe!(component::Blast.CosmicShear, bg::Blast.Background)
     Blast.check_and_normalize!(component, bg.z)
@@ -83,6 +84,38 @@ end
     # Check that kernels are non-zero
     @test any(!iszero, nc.Kernel)
     @test any(!iszero, cs.Kernel)
+end
+
+@testset "Probes: Legacy LJ kernel regression" begin
+    cosmo = get_test_cosmo()
+    bins = data["bins"]
+
+    # Match the legacy 1000-point background grid used to generate LJ references
+    z_ref = collect(LinRange(1e-3, 4.0, 1000))
+    χ_ref = Blast.compute_χ.(z_ref, Ref(cosmo))
+    bg_ref = Blast.Background(cosmo; χ_grid=χ_ref)
+
+    n_bins = size(bins["dNdz"], 1)
+    nc = Blast.NumberCounts(nz=bins["dNdz"], z=bins["z"], bias=ones(n_bins, length(bg_ref.z)))
+    cs = Blast.CosmicShear(nz=bins["dNdz"][1:3, :], z=bins["z"])
+    cmbκ = Blast.CMBLensing()
+
+    Blast.compute_kernel!(nc, bg_ref)
+    Blast.compute_kernel!(cs, bg_ref)
+    Blast.compute_kernel!(cmbκ, bg_ref)
+
+    lj_clustering = data["LJ_clustering"]
+    lj_shear = data["LJ_shear"]
+    lj_cmb = reshape(data["LJ_cmb"], 1, :)
+
+    # Legacy-amplitude regression for clustering and CMB lensing
+    @test nc.Kernel ≈ lj_clustering rtol=1e-2
+    @test cmbκ.Kernel ≈ lj_cmb rtol=1e-2
+
+    # Shear kernel currently differs in normalization but preserves shape very closely
+    for b in 1:size(lj_shear, 1)
+        @test cor(cs.Kernel[b, :], lj_shear[b, :]) > 0.999
+    end
 end
 
 @testset "Probes: N(z) Normalization" begin

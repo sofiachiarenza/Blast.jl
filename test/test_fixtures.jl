@@ -7,10 +7,26 @@ using FastTransforms
 using FastChebInterp
 using Downloads
 
+function _load_t_tilde_reference!(data::Dict{String, Any}, record_id::Int, sector::String, ell_tag::String)
+    local_file = "T_tilde_$(sector)_l_$(ell_tag).npy"
+
+    if !isfile(local_file)
+        tmpdir = mktempdir()
+        archive = joinpath(tmpdir, "files-archive.zip")
+        Downloads.download("https://zenodo.org/api/records/$(record_id)/files-archive", archive)
+        run(`unzip -o -q $archive -d $tmpdir`)
+        cp(joinpath(tmpdir, "T_tilde_l_$(ell_tag).npy"), local_file; force=true)
+    end
+
+    t_tilde = get!(data, "T_tilde", Dict{String, Dict{String, Any}}())
+    sector_refs = get!(t_tilde, sector, Dict{String, Any}())
+    sector_refs[ell_tag] = npzread(local_file)
+end
+
 """
     load_reference_data()
 
-Downloads (if missing) and loads all reference data from Zenodo for validation.
+Downloads (if missing) and loads the reference data used by the modular test suite.
 """
 function load_reference_data()
     data = Dict{String, Any}()
@@ -36,32 +52,10 @@ function load_reference_data()
     end
     data["LJ_cmb"] = npzread("LJ_cmb_kernel.npz")
 
-    # 2. T_tilde artifacts (CC, CL, LL)
-    if !isfile("T_tilde_l_2.0.npy")
-        println("Downloading T_tilde artifacts...")
-        # Note: Zenodo zip-archive links are slightly different
-        Downloads.download("https://zenodo.org/api/records/13885803/files-archive", "CC.zip")
-        run(`unzip -o -q CC.zip`)
-        Downloads.download("https://zenodo.org/api/records/13885823/files-archive", "CL.zip")
-        run(`unzip -o -q CL.zip`)
-        Downloads.download("https://zenodo.org/api/records/13885822/files-archive", "LL.zip")
-        run(`unzip -o -q LL.zip`)
-        
-        rm("CC.zip", force=true)
-        rm("CL.zip", force=true)
-        rm("LL.zip", force=true)
-    end
-
-    # 3. Power spectrum interpolation data
-    if !isfile("pk_n5k_cheb.npz")
-        Downloads.download("https://zenodo.org/records/14192971/files/pk_n5k_cheb.npz?download=1", "pk_n5k_cheb.npz")
-    end
-    data["pk_n5k"] = npzread("pk_n5k_cheb.npz")
-
-    if !isfile("n5k_zs.npz")
-        Downloads.download("https://zenodo.org/records/14193379/files/n5k_zs.npz?download=1", "n5k_zs.npz")
-    end
-    data["n5k_zs"] = npzread("n5k_zs.npz")
+    # 2. T_tilde artifacts used by the legacy regression tests
+    _load_t_tilde_reference!(data, 13885803, "CC", "2.0")
+    _load_t_tilde_reference!(data, 13885823, "CL", "2.0")
+    _load_t_tilde_reference!(data, 13885822, "LL", "2.0")
 
     return data
 end

@@ -32,7 +32,7 @@ Construct a Background snapshot by finding the redshifts corresponding to a targ
 function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     T = eltype(χ_grid)
     # Dense sampling for accurate z(χ) inversion
-    fine_z = LinRange(T(0.0), T(10.0), 200)
+    fine_z = LinRange(T(0.0), T(5.0), 1000)
     fine_χ = r_z.(fine_z, Ref(cosmo))
     
     z_of_χ_interp(χ) = Blast._akima_interpolation(fine_z, fine_χ, χ)
