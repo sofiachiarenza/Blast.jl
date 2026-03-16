@@ -46,3 +46,15 @@ end
     @test all(isfinite, res)
     @test any(!iszero, res)
 end
+
+@testset "Projected-matter contraction" begin
+    # Matching Tullio indices in src/projected_matter.jl:
+    # @tullio w[i,j,k] := c[l,j,k] * T[i,j,k,l]
+    i, j, k, l = 3, 7, 10, 8
+    c = rand(l, j, k)
+    T_mat = rand(i, j, k, l)
+
+    w_blast = Blast.w_ell_tullio(c, T_mat)
+    @test size(w_blast) == (i, j, k)
+    @test !all(iszero, w_blast)
+end

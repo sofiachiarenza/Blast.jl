@@ -31,7 +31,7 @@ using Tullio
     @test sum(w_unit) ≈ 2.0
 end
 
-@testset "Utils: Akima and Bessel" begin
+@testset "Utils: ChebPoly and Bessel" begin
     # Precomputation tests for Bessel/Cheb evaluation
     min_v = 10^(-1) * (1 + 1e-10)
     max_v = 10.0
@@ -41,7 +41,6 @@ end
     ncheb = 2
     ell = 1
     test_chi = zeros(10)
-    # Correct signature: (ell, min, max, chi, ncheb, N, deriv_order)
     T_blast, Bessel_blast = Blast.bessel_cheb_eval(ell, min_v, max_v, test_chi, Int(ncheb), Int(N), 0)
 
     T_check = zeros(ncheb + 1, N)
@@ -57,13 +56,29 @@ end
     @test isapprox(T_check[3, :], T_blast[3, :])
 end
 
-@testset "Utils: Matrix products" begin
-    # Matching Tullio indices in src/projected_matter.jl:
-    # @tullio w[i,j,k] := c[l,j,k] * T[i,j,k,l]
-    i, j, k, l = 3, 7, 10, 8
-    c = rand(l, j, k)
-    T_mat = rand(i, j, k, l)
-    w_blast = Blast.w_ell_tullio(c, T_mat)
-    @test size(w_blast) == (i, j, k)
-    @test !all(iszero, w_blast)
+@testset "Utils: Akima interpolation" begin
+    t = collect(LinRange(0.0, 5.0, 20))
+    u = sin.(t)
+    t_new = collect(LinRange(0.2, 4.8, 35))
+
+    @testset "Vector interpolation" begin
+        # Interpolant should reproduce data values at original nodes
+        u_on_nodes = Blast._akima_interpolation(u, t, t)
+        @test u_on_nodes ≈ u rtol=1e-12
+
+        # Output size should match query grid
+        u_interp = Blast._akima_interpolation(u, t, t_new)
+        @test length(u_interp) == length(t_new)
+        @test all(isfinite, u_interp)
+    end
+
+    @testset "Matrix interpolation" begin
+        u_mat = hcat(sin.(t), cos.(t), sin.(2 .* t))
+
+        interp_mat = Blast._akima_interpolation(u_mat, t, t_new)
+        interp_cols = hcat([Blast._akima_interpolation(u_mat[:, i], t, t_new) for i in 1:size(u_mat, 2)]...)
+
+        @test size(interp_mat) == (length(t_new), size(u_mat, 2))
+        @test interp_mat ≈ interp_cols rtol=1e-12
+    end
 end

@@ -33,7 +33,7 @@ end
 Return the set of 'N' weights needed to perform the integration with the Clenshaw-Curtis quadrature rule.
 The weights are rescaled between 'kmin' and 'kmax'.  
 """
-function get_clencurt_weights(kmin::Number, kmax::Number, N::Number)
+function get_clencurt_weights(kmin::Number, kmax::Number, N::Int)
     CC_obj = FastTransforms.chebyshevmoments1(Float64, N)
     w = FastTransforms.clenshawcurtisweights(CC_obj)
     w = (kmax - kmin) / 2 * w
