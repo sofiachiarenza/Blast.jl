@@ -63,7 +63,7 @@ struct T̃{A<:AbstractArray{<:Any,4}}
 end
 
 function __init__()
-    """Tdir = artifact"T_tildes"
+    Tdir = artifact"T_tildes"
     global T_tildes = T̃(
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_00.npz")),
         npzread(joinpath(Tdir, "T_tildes_artifact/T_0_00.npz")),
@@ -73,8 +73,8 @@ function __init__()
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_02.npz")),
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_20.npz")),
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_22.npz"))
-    )"""
-    global T_tildes = T̃(
+    )
+    """global T_tildes = T̃(
         Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_00", 128, 64, 161),
         Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_0_00", 128, 64, 161),
         Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_-2_00", 128, 64, 161),
@@ -83,7 +83,7 @@ function __init__()
         Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_02", 128, 64, 161),
         Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_20", 128, 64, 161),
         Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_22", 128, 64, 161)
-    )
+    )"""
 end
 
 end # module Blast

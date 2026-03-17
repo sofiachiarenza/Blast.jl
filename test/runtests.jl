@@ -44,11 +44,12 @@ global data = load_reference_data()
         include("test_cls.jl")
     end
 
+    @testset "Limber" begin
+        include("test_limber.jl")
+    end
+
     @testset "Automatic Differentiation" begin
         include("test_differentiation.jl")
     end
-
-    # Future: Porting integration and pipeline tests
-    # include("test_limber.jl")
     
 end
