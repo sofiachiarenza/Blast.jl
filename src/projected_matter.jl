@@ -2,7 +2,7 @@
     w_ell_tullio(c, T)
 
 Contract Chebyshev coefficients of the power spectrum with the precomputed `T̃`
-to form the projected matter density `w_\ell(χ_1, χ_2)`.
+to form the projected matter density `w_ℓ(χ_1, χ_2)`.
 
 This performs the sum over Chebyshev indices using `Tullio` for efficient
 tensor contraction. Multiple methods are provided depending on the dimensionality

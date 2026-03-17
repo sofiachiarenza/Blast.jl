@@ -1,3 +1,11 @@
+"""
+    _limber_contraction(P_term, K1, K2, weights, Δχ)
+
+Internal helper that performs the χ-line-of-sight contraction for Limber terms.
+
+Given a power-spectrum term sampled on `(ℓ, χ)` and two Limber kernels,
+this computes binned angular spectra via Simpson-weighted integration.
+"""
 function _limber_contraction(P_term, K1, K2, weights, Δχ)
     @tullio Cℓ[idx_l, idx_i, idx_j] := P_term[idx_l, idx_m] * K1[idx_l, idx_m, idx_i] * K2[idx_l, idx_m, idx_j] * weights[idx_m] * Δχ
     return Cℓ
@@ -80,7 +88,9 @@ end
 """
     get_limber_kernel(G::GalaxyClustering)
 
-Sum Limber kernels over all active `GalaxyClustering` components (δ, μ).
+Sum Limber kernels over implemented `GalaxyClustering` Limber components.
+
+Current implementation includes number counts `δ` and magnification `μ`.
 """
 function get_limber_kernel(G::GalaxyClustering)
     return get_limber_kernel(G.δ) .+ get_limber_kernel(G.μ) 
@@ -104,8 +114,18 @@ function get_limber_kernel(C::CMB)
     return get_limber_kernel(C.κ) .+ get_limber_kernel(C.ISW)
 end
 
-"""
+@doc raw"""
     get_limber_correction(Probe, pk)
+
+Compute the low-ℓ Limber correction for auto-spectra of a single probe.
+
+This function evaluates the correction term built from `pk.ΔP_limber` on
+`Blast.ℓ_nonlimber` and contracts it with the probe Limber kernel:
+
+```math
+\Delta C_\ell^{ij} = \int d\chi\,\frac{\Delta P_\ell(\chi)}{\chi^2}
+K_i(\ell,\chi)K_j(\ell,\chi).
+```
 """
 function get_limber_correction(Probe::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
     chi_grid = Blast.χ
@@ -120,8 +140,18 @@ function get_limber_correction(Probe::Union{GalaxyClustering, WeakLensing, CMB},
     return _limber_contraction(ΔP_over_χ2, K, K, weights, Δχ)
 end
 
-"""
+@doc raw"""
     get_limber_correction(ProbeA, ProbeB, pk)
+
+Compute the low-ℓ Limber correction for cross-spectra between two probes.
+
+This uses the same correction source term as the auto case (`pk.ΔP_limber`),
+with one kernel from each probe:
+
+```math
+\Delta C_\ell^{ij} = \int d\chi\,\frac{\Delta P_\ell(\chi)}{\chi^2}
+K_i^{A}(\ell,\chi)K_j^{B}(\ell,\chi).
+```
 """
 function get_limber_correction(ProbeA::Union{GalaxyClustering, WeakLensing, CMB}, ProbeB::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
     chi_grid = Blast.χ
@@ -137,8 +167,18 @@ function get_limber_correction(ProbeA::Union{GalaxyClustering, WeakLensing, CMB}
     return _limber_contraction(ΔP_over_χ2, KA, KB, weights, Δχ)
 end
 
-"""
+@doc raw"""
     get_limber_Cℓ(Probe, pk)
+
+Compute Limber auto-spectra for the high-ℓ regime.
+
+This uses `pk.Pδ_limber` on multipoles above `Blast.ℓ_nonlimber` and performs
+the same χ-contraction with probe kernels:
+
+```math
+C_\ell^{ij,\mathrm{Limber}} = \int d\chi\,\frac{P_\ell(\chi)}{\chi^2}
+K_i(\ell,\chi)K_j(\ell,\chi).
+```
 """
 function get_limber_Cℓ(Probe::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
     chi_grid = Blast.χ
@@ -153,8 +193,15 @@ function get_limber_Cℓ(Probe::Union{GalaxyClustering, WeakLensing, CMB}, pk::P
     return _limber_contraction(Pδ_over_χ2, K, K, weights, Δχ)
 end
 
-"""
+@doc raw"""
     get_limber_Cℓ(ProbeA, ProbeB, pk)
+
+Compute Limber cross-spectra for the high-ℓ regime between two probes:
+
+```math
+C_\ell^{ij,\mathrm{Limber}} = \int d\chi\,\frac{P_\ell(\chi)}{\chi^2}
+K_i^{A}(\ell,\chi)K_j^{B}(\ell,\chi).
+```
 """
 function get_limber_Cℓ(ProbeA::Union{GalaxyClustering, WeakLensing, CMB}, ProbeB::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
     chi_grid = Blast.χ

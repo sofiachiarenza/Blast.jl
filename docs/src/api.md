@@ -25,14 +25,20 @@ Blast.get_As
 Blast.get_ns
 ```
 
-## Probes and Components
+## Probes
+
+This section lists the concrete user-facing probe containers and components.
+Internal abstract supertypes are intentionally omitted from the rendered API page.
 
 ```@docs
-Blast.AbstractCosmologicalProbes
-Blast.AbstractComponents
 Blast.GalaxyClustering
 Blast.WeakLensing
 Blast.CMB
+```
+
+## Probe components
+
+```@docs
 Blast.NumberCounts
 Blast.RedshiftSpaceDistortions
 Blast.MagnificationBias
@@ -70,7 +76,6 @@ Blast.evaluate_components!
 ```@docs
 Blast.FFTPlans
 Blast.SetUp
-Blast.AbstractCoeff
 Blast.cϕTT
 Blast.cϕT
 Blast.cϕ

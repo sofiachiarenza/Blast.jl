@@ -84,8 +84,16 @@ function NLA_model(bg::Background; A=1.72, C1=0.0134)
     return @. - A * C1 * Ωm / bg.D
 end
 
-"""
+@doc raw"""
     NumberCounts <: AbstractComponents
+
+Galaxy number-counts density component.
+
+This component stores the redshift distribution and linear bias entering
+
+```math
+K_i^{\delta}(z) = \frac{H(z)}{c}\, b_i(z)\, \hat n_i(z).
+```
 """
 @kwdef mutable struct NumberCounts <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1, 1)
@@ -97,8 +105,16 @@ end
     limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
 end
 
-"""
+@doc raw"""
     CosmicShear <: AbstractComponents
+
+Weak-lensing shear component with kernel
+
+```math
+K_i^{\gamma}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
+\int_z^{\infty} \mathrm{d}z'\, \frac{H(z')}{c}\, \hat n_i(z')
+\frac{\chi(z')-\chi}{\chi(z')}.
+```
 """
 @kwdef mutable struct CosmicShear <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1, 1)
@@ -109,8 +125,15 @@ end
     limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
 
-"""
+@doc raw"""
     CMBLensing <: AbstractComponents
+
+CMB lensing convergence component with source plane at recombination:
+
+```math
+K^{\kappa_{\mathrm{CMB}}}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
+\left(1 - \frac{\chi}{\chi_*}\right).
+```
 """
 @kwdef mutable struct CMBLensing <: AbstractComponents
     Kernel::Array{<:Any, 2} = zeros(1, 1)
@@ -118,8 +141,14 @@ end
     limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
 
-"""
+@doc raw"""
     RedshiftSpaceDistortions <: AbstractComponents
+
+Redshift-space distortion component with kernel
+
+```math
+K_i^{\mathrm{RSD}}(z) = \frac{H(z)}{c}\, f(z)\, \hat n_i(z).
+```
 """
 @kwdef mutable struct RedshiftSpaceDistortions <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1,1)
@@ -131,8 +160,18 @@ end
     limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
 end
 
-"""
+@doc raw"""
     MagnificationBias <: AbstractComponents
+
+Magnification-bias component weighted by the source-slope factor $5s-2$.
+
+Implemented as the shear-like lensing kernel times the extra slope factor:
+
+```math
+K_i^{\mu}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
+\int_z^{\infty} \mathrm{d}z'\, \frac{H(z')}{c}\, \hat n_i(z')
+\frac{\chi(z')-\chi}{\chi(z')}\,\left[5 s_i(z')-2\right].
+```
 """
 @kwdef mutable struct MagnificationBias <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1, 1)
@@ -144,8 +183,20 @@ end
     limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
 
-"""
+@doc raw"""
     IntrinsicAlignment <: AbstractComponents
+
+Intrinsic-alignment component with NLA-style amplitude model:
+
+Users can provide a generic amplitude table `A_IA` (same bin/redshift shape as
+`nz_norm`) to be used directly in the kernel. If `A_IA` is not provided with the
+required shape, BLAST falls back to the standard NLA model controlled by `A`.
+
+```math
+K_i^{\mathrm{IA}}(z) = \frac{H(z)}{c}\, A_{\mathrm{IA},i}(z)\, \hat n_i(z),
+\qquad
+A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)}.
+```
 """
 @kwdef mutable struct IntrinsicAlignment <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1, 1)
@@ -158,8 +209,15 @@ end
     limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
 
-"""
+@doc raw"""
     IntegratedSachsWolfe <: AbstractComponents
+
+Integrated Sachs-Wolfe component sourced by the time variation of the
+gravitational potential:
+
+```math
+K^{\mathrm{ISW}}(z) = \frac{3 T_{\mathrm{CMB}} H_0^2 \Omega_m}{c^3}\, H(z)\, \left[1-f(z)\right].
+```
 """
 @kwdef mutable struct IntegratedSachsWolfe <: AbstractComponents
     growth_rate::Array{<:Any, 1} = zeros(1)
@@ -168,8 +226,17 @@ end
     limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
 end
 
-"""
+@doc raw"""
     PrimordialNonGaussianity <: AbstractComponents
+
+Scale-dependent bias contribution induced by local-type primordial
+non-Gaussianity:
+
+```math
+K_i^{\mathrm{PNG}}(z) = \frac{H(z)}{c}\, f_{\mathrm{NL}}\, b_{\Phi,i}(z)\, \hat n_i(z),
+\qquad
+b_{\Phi,i}(z) = 2\,\delta_c\,\left[b_i(z)-p\right].
+```
 """
 @kwdef mutable struct PrimordialNonGaussianity <: AbstractComponents
     nz::Array{<:Any, 2} = zeros(1,1)
@@ -185,6 +252,11 @@ end
 
 """
     GalaxyClustering <: AbstractCosmologicalProbes
+
+Galaxy-clustering probe container.
+
+It combines the density term `δ` with optional redshift-space distortions
+`RSD`, magnification bias `μ`, and primordial non-Gaussianity `PNG`.
 """
 @kwdef mutable struct GalaxyClustering <: AbstractCosmologicalProbes
     δ::NumberCounts
@@ -195,6 +267,9 @@ end
 
 """
     WeakLensing <: AbstractCosmologicalProbes
+
+Weak-lensing probe container combining shear `γ` and optional intrinsic
+alignment `IA`.
 """
 @kwdef mutable struct WeakLensing <: AbstractCosmologicalProbes
     γ::CosmicShear
@@ -203,6 +278,9 @@ end
 
 """
     CMB <: AbstractCosmologicalProbes
+
+CMB probe container combining lensing convergence `κ` and optional
+Integrated Sachs-Wolfe contribution `ISW`.
 """
 @kwdef mutable struct CMB <: AbstractCosmologicalProbes
     κ::CMBLensing
@@ -212,20 +290,31 @@ end
 
 
 
-"""
+@doc raw"""
     compute_kernel!(Component::NumberCounts, bg::Background)
 
-Compute the galaxy number-counts kernel on the background redshift grid.
+Compute the galaxy number-counts kernel on the background redshift grid:
+
+```math
+K_i^{\delta}(z) = \frac{H(z)}{c}\, b_i(z)\, \hat n_i(z).
+```
 """
 function compute_kernel!(Component::NumberCounts, bg::Background) 
     check_and_normalize!(Component, bg.z)
     Component.Kernel = @. Component.bias * (bg.H' / C_LIGHT) * Component.nz_norm
 end
 
-"""
+@doc raw"""
     compute_kernel!(Component::CosmicShear, bg::Background)
 
-Compute the weak-lensing shear kernel using Simpson integration on the χ grid.
+Compute the weak-lensing shear kernel using Simpson integration on the $\chi$
+grid:
+
+```math
+K_i^{\gamma}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
+\int_z^{\infty} \mathrm{d}z'\, \frac{H(z')}{c}\, \hat n_i(z')
+\frac{\chi(z')-\chi}{\chi(z')}.
+```
 """
 function compute_kernel!(Component::CosmicShear, bg::Background)
     check_and_normalize!(Component, bg.z)
@@ -242,10 +331,16 @@ function compute_kernel!(Component::CosmicShear, bg::Background)
     Component.Kernel = kernel
 end
 
-"""
+@doc raw"""
     compute_kernel!(Component::CMBLensing, bg::Background)
 
-Compute the CMB lensing convergence kernel on the background grid.
+Compute the CMB lensing convergence kernel on the background grid:
+
+```math
+K^{\kappa_{\mathrm{CMB}}}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
+\left(1 - \frac{\chi}{\chi_*}\right),
+\qquad \chi_* = \chi(z_*),\ z_* \simeq 1090.
+```
 """
 function compute_kernel!(Component::CMBLensing, bg::Background) 
     H0 = get_H0(bg.cosmo)
@@ -257,20 +352,31 @@ function compute_kernel!(Component::CMBLensing, bg::Background)
     Component.Kernel = reshape(kernel, 1, size(kernel,1))
 end
 
-"""
+@doc raw"""
     compute_kernel!(Component::RedshiftSpaceDistortions, bg::Background)
 
-Compute the redshift-space-distortion kernel from growth rate and normalized n(z).
+Compute the redshift-space-distortion kernel from the linear growth rate and
+normalized redshift distribution:
+
+```math
+K_i^{\mathrm{RSD}}(z) = \frac{H(z)}{c}\, f(z)\, \hat n_i(z).
+```
 """
 function compute_kernel!(Component::RedshiftSpaceDistortions, bg::Background) 
     check_and_normalize!(Component, bg.z)
     Component.Kernel = @. bg.f' * (bg.H' / C_LIGHT) * Component.nz_norm
 end
 
-"""
+@doc raw"""
     compute_kernel!(Component::MagnificationBias, bg::Background)
 
-Compute the magnification-bias kernel with source-slope factor `(5s - 2)`.
+Compute the magnification-bias kernel with source-slope factor $5s-2$:
+
+```math
+K_i^{\mu}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
+\int_z^{\infty} \mathrm{d}z'\, \frac{H(z')}{c}\, \hat n_i(z')
+\frac{\chi(z')-\chi}{\chi(z')}\, \left[5 s_i(z') - 2\right].
+```
 """
 function compute_kernel!(Component::MagnificationBias, bg::Background)
     check_and_normalize!(Component, bg.z)
@@ -287,10 +393,16 @@ function compute_kernel!(Component::MagnificationBias, bg::Background)
     Component.Kernel = kernel
 end
 
-"""
+@doc raw"""
     compute_kernel!(Component::IntrinsicAlignment, bg::Background)
 
-Compute the intrinsic-alignment kernel using the NLA amplitude model.
+Compute the intrinsic-alignment kernel using the NLA amplitude model:
+
+```math
+K_i^{\mathrm{IA}}(z) = \frac{H(z)}{c}\, A_{\mathrm{IA},i}(z)\, \hat n_i(z),
+\qquad
+A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)}.
+```
 """
 function compute_kernel!(Component::IntrinsicAlignment, bg::Background) 
     check_and_normalize!(Component, bg.z)
@@ -305,10 +417,14 @@ function compute_kernel!(Component::IntrinsicAlignment, bg::Background)
     Component.Kernel = @. Component.A_IA * (bg.H' / C_LIGHT) * Component.nz_norm
 end
 
-"""
+@doc raw"""
     compute_kernel!(Component::IntegratedSachsWolfe, bg::Background)
 
-Compute the ISW kernel from background expansion and growth history.
+Compute the ISW kernel from the background expansion and growth history:
+
+```math
+K^{\mathrm{ISW}}(z) = \frac{3 T_{\mathrm{CMB}} H_0^2 \Omega_m}{c^3}\, H(z)\, \left[1-f(z)\right].
+```
 """
 function compute_kernel!(Component::IntegratedSachsWolfe, bg::Background) 
     H0 = get_H0(bg.cosmo)
@@ -319,10 +435,16 @@ function compute_kernel!(Component::IntegratedSachsWolfe, bg::Background)
     Component.Kernel = reshape(kernel, 1, size(kernel, 1))
 end
 
-"""
+@doc raw"""
     compute_kernel!(Component::PrimordialNonGaussianity, bg::Background)
 
-Compute the primordial non-Gaussianity scale-dependent-bias kernel.
+Compute the primordial non-Gaussianity scale-dependent-bias kernel:
+
+```math
+K_i^{\mathrm{PNG}}(z) = \frac{H(z)}{c}\, f_{\mathrm{NL}}\, b_{\Phi,i}(z)\, \hat n_i(z),
+\qquad
+b_{\Phi,i}(z) = 2\,\delta_c\,\left[b_i(z)-p\right].
+```
 """
 function compute_kernel!(Component::PrimordialNonGaussianity, bg::Background) 
     check_and_normalize!(Component, bg.z)

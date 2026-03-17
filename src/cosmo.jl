@@ -51,19 +51,43 @@ function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
 end
 
 
-"""
+@doc raw"""
     compute_hubble_factor(z, cosmo)
 
-Returns the dimensional Hubble parameter ``H(z) = 100 h \\cdot E(z)`` in km/s/Mpc.
+Returns the dimensional Hubble parameter ``H(z) = H_0 E(z) = 100 h \\cdot E(z)``
+in km/s/Mpc.
+
+This is a thin wrapper around the `AbstractCosmologicalEmulators` function
+`E_z(z, cosmo)`, which evaluates the dimensionless expansion history. In the
+underlying `w0waCDMCosmology` implementation,
+
+```math
+E(z) = E(a=1/(1+z)),
+```
+
+with
+
+```math
+E(a) = \sqrt{\Omega_{\gamma,0} a^{-4} + \Omega_{cb,0} a^{-3} + \Omega_{k,0} a^{-2}
++ \Omega_{\Lambda,0} \, \rho_{\mathrm{DE}}(a) + \Omega_{\nu}E^2(a)},
+```
 """
 function compute_hubble_factor(z::Number, cosmo::AbstractCosmology)
     return 100.0 * cosmo.h * E_z(z, cosmo)
 end
 
-"""
+@doc raw"""
     compute_χ(z, cosmo)
 
-Returns the comoving distance to redshift `z` in Mpc, computed via Gaussian quadrature.
+Returns the comoving distance to redshift `z` in Mpc, computed via Gaussian
+quadrature.
+
+This is a thin wrapper around the `AbstractCosmologicalEmulators` function
+`r_z(z, cosmo)`. In the underlying implementation,
+
+```math
+\chi(z) = \frac{c}{H_0} \int_0^z \frac{\mathrm{d}z'}{E(z')}.
+```
 """
 function compute_χ(z::Number, cosmo::AbstractCosmology; order=9)
     return r_z(z, cosmo, order=order)
