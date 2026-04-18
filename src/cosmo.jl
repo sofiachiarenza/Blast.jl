@@ -35,19 +35,21 @@ Construct a Background snapshot by finding the redshifts corresponding to a targ
 """
 function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     T = eltype(χ_grid)
+    issorted(χ_grid) || throw(ArgumentError(
+        "χ_grid must be monotonically increasing (got minimum at index $(argmin(χ_grid)))"))
     # Dense sampling for accurate z(χ) inversion.
     # collect() materializes the LinRange as a Vector so Mooncake can build
     # a proper tangent for the captured closure field (z_of_χ_interp). The
     # @from_chainrules wrapper on _akima_interpolation does not support
     # LinRange's RData{NamedTuple{start,stop,len,lendiv}} tangent shape.
-    fine_z = collect(LinRange(T(0.0), T(5.0), 1000))
+    fine_z = collect(LinRange(T(0.0), T(Z_MAX_BACKGROUND), N_BG_FINE_GRID))
     fine_χ = r_z.(fine_z, Ref(cosmo))
     
     z_of_χ_interp(χ) = Blast._akima_interpolation(fine_z, fine_χ, χ)
 
     z_nodes = z_of_χ_interp(χ_grid)
     
-    H_array = T(100.0) .* cosmo.h .* E_z.(z_nodes, Ref(cosmo))
+    H_array = T(H_0_CONV) .* cosmo.h .* E_z.(z_nodes, Ref(cosmo))
     D_array = D_z.(z_nodes, Ref(cosmo))
     f_array = f_z.(z_nodes, Ref(cosmo))
 
@@ -81,7 +83,7 @@ E(a) = \sqrt{\Omega_{\gamma,0} a^{-4} + \Omega_{cb,0} a^{-3} + \Omega_{k,0} a^{-
 ```
 """
 function compute_hubble_factor(z::Number, cosmo::AbstractCosmology)
-    return 100.0 * cosmo.h * E_z(z, cosmo)
+    return H_0_CONV * cosmo.h * E_z(z, cosmo)
 end
 
 @doc raw"""
@@ -132,7 +134,7 @@ end
 Returns the Hubble constant H0 in km/s/Mpc.
 """
 function get_H0(cosmo::AbstractCosmology)
-    return 100.0 * cosmo.h
+    return H_0_CONV * cosmo.h
 end
 
 """
@@ -159,7 +161,7 @@ A flat ΛCDM cosmological model with fixed w0=-1 and wa=0.
 Maps standard parameters to AbstractCosmologicalEmulators format.
 """
 function ΛCDM(; H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, Ωk=0.0)
-    h = H0 / 100.0
+    h = H0 / H_0_CONV
     return w0waCDMCosmology(
         ωb = Ωb * h^2,
         ωc = (Ωm - Ωb) * h^2,
@@ -180,7 +182,7 @@ A flexible w0-wa CDM cosmological model.
 Maps standard parameters to AbstractCosmologicalEmulators format.
 """
 function w0waCDM(; w0=-1.0, wa=0.0, H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, Ωk=0.0)
-    h = H0 / 100.0
+    h = H0 / H_0_CONV
     return w0waCDMCosmology(
         ωb = Ωb * h^2,
         ωc = (Ωm - Ωb) * h^2,

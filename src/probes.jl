@@ -23,6 +23,9 @@ function prepare_nz_matrix(nz::AbstractMatrix, z::AbstractVector, z_grid::Abstra
 
     for b in 1:n_bins
         nz_norm_val, _ = quadgk(x -> Blast._akima_interpolation(nz[b,:], z, x), first(z_grid), last(z_grid))
+        nz_norm_val > 0 || throw(ArgumentError(
+            "n(z) for bin $b integrates to zero or negative ($nz_norm_val); " *
+            "check that your redshift distribution is non-negative and overlaps z_grid."))
         nz_normed[b, :] = Blast._akima_interpolation(nz[b, :], z, z_grid) ./ nz_norm_val
     end
     return nz_normed
