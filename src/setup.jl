@@ -18,7 +18,7 @@ These plans are reused across power spectrum evaluations to avoid repeated FFTW 
     plan_ϕT::Union{ChebyshevPlan, Nothing} = nothing
     plan_ϕ::Union{ChebyshevPlan, Nothing} = nothing
     plan_limber::ChebyshevPlan
-    T_k_limber::AbstractArray{<:Any, 3}
+    T_k_limber::Array{Float64, 3}
     plan_ℓ::ChebyshevPlan
 end
 
@@ -288,7 +288,9 @@ function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
     w_δ = w_2_00_ϕTT()
+    # w_minus2_00_ϕTT is always needed: γ×γ (L auto), κ×κ (C auto), γ×κ (L×C cross)
     w_μ_B = w_minus2_00_ϕTT()
+    # w_0_00_ϕTT is always needed: δ×γ, δ×IA (G×L cross), δ×κ (G×C cross)
     w_μ_A = w_0_00_ϕTT()
     w_μxRSD_A = nothing
     w_μxRSD_B = nothing
@@ -309,11 +311,6 @@ function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
         w_RSD_A = w_2_02_ϕTT()
         w_RSD_B = w_2_20_ϕTT()
         w_RSD_C = w_2_22_ϕTT()
-    end
-
-    if !isnothing(G.μ)
-        w_μ_A = w_0_00_ϕTT()
-        w_μ_B = w_minus2_00_ϕTT()
     end
 
     if !isnothing(G.PNG)
@@ -381,12 +378,12 @@ the Limber approximation.
 - `ΔP_limber`: A 2D array of the non-linear correction to the matter power spectrum.  
 - `Pδ_limber`: A 2D array of the total matter power spectrum.
 """
-@kwdef mutable struct PowerSpectrum 
-    cϕTT::cϕTT
-    cϕT::Union{cϕT, Nothing}
-    cϕ::Union{cϕ, Nothing}
-    ΔP_limber::AbstractArray{<:Any, 2} 
-    Pδ_limber::AbstractArray{<:Any, 2} 
+@kwdef mutable struct PowerSpectrum
+    cϕTT::cϕTT{Float64}
+    cϕT::Union{cϕT{Float64}, Nothing}
+    cϕ::Union{cϕ{Float64}, Nothing}
+    ΔP_limber::Matrix{Float64}
+    Pδ_limber::Matrix{Float64}
 end
 
 """

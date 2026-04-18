@@ -57,12 +57,22 @@ function smooth_nz(
 end
 
 """
+    has_nz(::AbstractComponents) → Bool
+
+Trait indicating whether a component carries an n(z) redshift distribution
+that must be normalised before kernel computation. Defaults to `false`.
+"""
+has_nz(::AbstractComponents) = false
+has_nz(::Nothing) = false
+
+"""
     check_and_normalize!(Component, grid_z)
 
 Internal helper: ensures nz_norm is populated for the current calculation grid.
+Uses the `has_nz` trait to avoid `hasfield` runtime overhead.
 """
 function check_and_normalize!(Component::AbstractComponents, z_grid::AbstractVector)
-    if hasfield(typeof(Component), :nz) && hasfield(typeof(Component), :nz_norm)
+    if has_nz(Component)
         if size(Component.nz_norm) != (size(Component.nz, 1), length(z_grid))
             Component.nz_norm = prepare_nz_matrix(Component.nz, Component.z, z_grid)
         end
@@ -96,14 +106,15 @@ K_i^{\delta}(z) = \frac{H(z)}{c}\, b_i(z)\, \hat n_i(z).
 ```
 """
 @kwdef mutable struct NumberCounts <: AbstractComponents
-    nz::Array{<:Any, 2} = zeros(1, 1)
-    z::Array{<:Any, 1} = zeros(1)
-    nz_norm::Array{<:Any, 2} = zeros(1, 1)
-    bias::Array{<:Any, 2} = zeros(1, 1)
-    Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
-    limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
+    nz::Matrix{Float64} = zeros(1, 1)
+    z::Vector{Float64} = zeros(1)
+    nz_norm::Matrix{Float64} = zeros(1, 1)
+    bias::Matrix{Float64} = zeros(1, 1)
+    Kernel::Matrix{Float64} = zeros(1, 1)
+    ell_prefactor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
+    limber_factor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
 end
+has_nz(::NumberCounts) = true
 
 @doc raw"""
     CosmicShear <: AbstractComponents
@@ -117,13 +128,14 @@ K_i^{\gamma}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 ```
 """
 @kwdef mutable struct CosmicShear <: AbstractComponents
-    nz::Array{<:Any, 2} = zeros(1, 1)
-    z::Array{<:Any, 1} = zeros(1)
-    nz_norm::Array{<:Any, 2} = zeros(1, 1)
-    Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor::AbstractVector = @. sqrt(factorial_frac(Blast.full_ℓ_range))
-    limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
+    nz::Matrix{Float64} = zeros(1, 1)
+    z::Vector{Float64} = zeros(1)
+    nz_norm::Matrix{Float64} = zeros(1, 1)
+    Kernel::Matrix{Float64} = zeros(1, 1)
+    ell_prefactor::Vector{Float64} = @. sqrt(factorial_frac(Blast.full_ℓ_range))
+    limber_factor::Vector{Float64} = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
+has_nz(::CosmicShear) = true
 
 @doc raw"""
     CMBLensing <: AbstractComponents
@@ -136,9 +148,9 @@ K^{\kappa_{\mathrm{CMB}}}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 ```
 """
 @kwdef mutable struct CMBLensing <: AbstractComponents
-    Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor::AbstractVector = @. Blast.full_ℓ_range * (Blast.full_ℓ_range + 1)
-    limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
+    Kernel::Matrix{Float64} = zeros(1, 1)
+    ell_prefactor::Vector{Float64} = @. Blast.full_ℓ_range * (Blast.full_ℓ_range + 1)
+    limber_factor::Vector{Float64} = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
 
 @doc raw"""
@@ -151,14 +163,15 @@ K_i^{\mathrm{RSD}}(z) = \frac{H(z)}{c}\, f(z)\, \hat n_i(z).
 ```
 """
 @kwdef mutable struct RedshiftSpaceDistortions <: AbstractComponents
-    nz::Array{<:Any, 2} = zeros(1,1)
-    z::Array{<:Any, 1} = zeros(1)
-    nz_norm::Array{<:Any, 2} = zeros(1, 1)
-    growth_rate::Array{<:Any, 1} = zeros(1)
-    Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
-    limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
+    nz::Matrix{Float64} = zeros(1, 1)
+    z::Vector{Float64} = zeros(1)
+    nz_norm::Matrix{Float64} = zeros(1, 1)
+    growth_rate::Vector{Float64} = zeros(1)
+    Kernel::Matrix{Float64} = zeros(1, 1)
+    ell_prefactor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
+    limber_factor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
 end
+has_nz(::RedshiftSpaceDistortions) = true
 
 @doc raw"""
     MagnificationBias <: AbstractComponents
@@ -174,14 +187,15 @@ K_i^{\mu}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 ```
 """
 @kwdef mutable struct MagnificationBias <: AbstractComponents
-    nz::Array{<:Any, 2} = zeros(1, 1)
-    z::Array{<:Any, 1} = zeros(1)
-    nz_norm::Array{<:Any, 2} = zeros(1, 1)
-    s::Array{<:Any, 2} = zeros(1,1)
-    Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor::AbstractVector = @. Blast.full_ℓ_range * (Blast.full_ℓ_range + 1)
-    limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
+    nz::Matrix{Float64} = zeros(1, 1)
+    z::Vector{Float64} = zeros(1)
+    nz_norm::Matrix{Float64} = zeros(1, 1)
+    s::Matrix{Float64} = zeros(1, 1)
+    Kernel::Matrix{Float64} = zeros(1, 1)
+    ell_prefactor::Vector{Float64} = @. Blast.full_ℓ_range * (Blast.full_ℓ_range + 1)
+    limber_factor::Vector{Float64} = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
+has_nz(::MagnificationBias) = true
 
 @doc raw"""
     IntrinsicAlignment <: AbstractComponents
@@ -199,15 +213,16 @@ A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)}.
 ```
 """
 @kwdef mutable struct IntrinsicAlignment <: AbstractComponents
-    nz::Array{<:Any, 2} = zeros(1, 1)
-    z::Array{<:Any, 1} = zeros(1)
-    nz_norm::Array{<:Any, 2} = zeros(1, 1)
-    A::Number = 1.72 # Standard default amplitude
-    A_IA::Array{<:Any, 2} = zeros(1, 1)
-    Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor::AbstractVector = @. sqrt(factorial_frac(Blast.full_ℓ_range))
-    limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
+    nz::Matrix{Float64} = zeros(1, 1)
+    z::Vector{Float64} = zeros(1)
+    nz_norm::Matrix{Float64} = zeros(1, 1)
+    A::Float64 = 1.72  # Standard NLA amplitude
+    A_IA::Matrix{Float64} = zeros(1, 1)
+    Kernel::Matrix{Float64} = zeros(1, 1)
+    ell_prefactor::Vector{Float64} = @. sqrt(factorial_frac(Blast.full_ℓ_range))
+    limber_factor::Vector{Float64} = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
 end
+has_nz(::IntrinsicAlignment) = true
 
 @doc raw"""
     IntegratedSachsWolfe <: AbstractComponents
@@ -220,10 +235,10 @@ K^{\mathrm{ISW}}(z) = \frac{3 T_{\mathrm{CMB}} H_0^2 \Omega_m}{c^3}\, H(z)\, \le
 ```
 """
 @kwdef mutable struct IntegratedSachsWolfe <: AbstractComponents
-    growth_rate::Array{<:Any, 1} = zeros(1)
-    Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
-    limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
+    growth_rate::Vector{Float64} = zeros(1)
+    Kernel::Matrix{Float64} = zeros(1, 1)
+    ell_prefactor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
+    limber_factor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
 end
 
 @doc raw"""
@@ -239,16 +254,17 @@ b_{\Phi,i}(z) = 2\,\delta_c\,\left[b_i(z)-p\right].
 ```
 """
 @kwdef mutable struct PrimordialNonGaussianity <: AbstractComponents
-    nz::Array{<:Any, 2} = zeros(1,1)
-    z::Array{<:Any, 1} = zeros(1)
-    nz_norm::Array{<:Any, 2} = zeros(1, 1)
-    bias::Array{<:Any, 2} = zeros(1, 1)
-    f_NL::Number = 0
-    p::Number = 0
-    Kernel::Array{<:Any, 2} = zeros(1, 1)
-    ell_prefactor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
-    limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1))
+    nz::Matrix{Float64} = zeros(1, 1)
+    z::Vector{Float64} = zeros(1)
+    nz_norm::Matrix{Float64} = zeros(1, 1)
+    bias::Matrix{Float64} = zeros(1, 1)
+    f_NL::Float64 = 0.0
+    p::Float64 = 0.0
+    Kernel::Matrix{Float64} = zeros(1, 1)
+    ell_prefactor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
+    limber_factor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
 end
+has_nz(::PrimordialNonGaussianity) = true
 
 """
     GalaxyClustering <: AbstractCosmologicalProbes
@@ -478,18 +494,4 @@ function evaluate_components!(cmb::CMB, bg::Background)
     compute_kernel!(cmb.ISW, bg)
 end
 
-"""function limber_rsd_kernel(ℓ::Number, bg::BackgroundQuantities, RSDK::Blast.RSDKernel)
-    χ = bg.χz_array
-    nbins = size(RSDK.Kernel)[1]
-    rds_kernels = zeros( nbins, length(χ) )
 
-    for b in 1:nbins
-        kernel_interp = Blast._akima_interpolation(RSDK.Kernel[b, :], χ, extrapolation=ExtrapolationType.Extension)
-        piece1 = @. (2*ℓ^2 + 2*ℓ - 1) / ((2*ℓ - 1)*(2*ℓ + 3)) * RSDK.Kernel[b, :]
-        piece2 = @. (ℓ - 1)*ℓ / ((2*ℓ - 1) * sqrt(2*ℓ - 3)*(2*ℓ + 1)) * kernel_interp.((2*ℓ - 3)/(2*ℓ + 1) * χ)
-        piece3 = @. (ℓ + 1)*(ℓ + 2) / ((2*ℓ + 3) * sqrt((2*ℓ + 1)*(2*ℓ + 5))) * kernel_interp.((2*ℓ + 5)/(2*ℓ + 1) * χ)
-        rds_kernels[b, :] .= piece1 .- piece2 .- piece3
-    end
-
-    return rds_kernels
-end"""

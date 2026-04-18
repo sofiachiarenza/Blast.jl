@@ -48,8 +48,13 @@ global data = load_reference_data()
         include("test_limber.jl")
     end
 
-    @testset "Automatic Differentiation" begin
-        include("test_differentiation.jl")
-    end
+@testset "Automatic Differentiation" begin
+    include("test_differentiation.jl")
+    include("test_diff_utils.jl")
+    include("test_diff_cls.jl")
+    include("test_diff_cosmo.jl")
+    include("test_diff_setup.jl")
+    include("test_diff_phase_e.jl")
+end
     
 end

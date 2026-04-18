@@ -7,7 +7,7 @@ function load_Ts(folder, nχ, nR, nk)
         if isfile(filename)
             full_T[i,:,:,:] = npzread(filename)
         else
-            println("Missing file!")
+            error("Missing T_tilde file: $filename. Cannot load T̃ kernels.")
         end
     end
     return full_T
@@ -18,7 +18,6 @@ end
 Return the integration points in k. They are a set of 'N' Chebyshev points rescaled between 'kmin' and 'kmax'.
 """
 function get_clencurt_grid(kmin::Number, kmax::Number, N::Number)
-    CC_obj = FastTransforms.chebyshevmoments1(Float64, Int(N))
     x = FastTransforms.clenshawcurtisnodes(Float64, Int(N))
     x = (kmax - kmin) / 2 * x .+ (kmin + kmax) / 2 
 
@@ -523,7 +522,7 @@ Matrix of interpolated values with shape `(length(tq), n_columns)`.
 function _akima_eval(u::AbstractMatrix, t, b::AbstractMatrix, c::AbstractMatrix, d::AbstractMatrix, tq::AbstractArray)
     n_query = length(tq)
     n_cols = size(u, 2)
-    results = zeros(promote_type(eltype(u), eltype(tq)), n_query, n_cols)
+    results = zeros(promote_type(eltype(u), eltype(t), eltype(b), eltype(c), eltype(d), eltype(tq)), n_query, n_cols)
 
     @inbounds for i in 1:n_query
         idx = _akima_find_interval(t, tq[i])

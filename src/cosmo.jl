@@ -11,17 +11,21 @@ Always targets the global Blast.χ grid to ensure consistent LOS integration.
 - `H::Vector{T}`: Hubble parameter H(z).
 - `D::Vector{T}`: Growth factor D(z).
 - `f::Vector{T}`: Growth rate f(z).
-- `z_of_χ::Function`: Pre-built interpolator function for z(χ).
-- `χ_of_z::Function`: Pre-built interpolator function for χ(z).
+- `z_of_χ`: Pre-built Akima interpolator closure for z(χ).
+
+# Notes
+The χ grid is assumed to be **uniformly spaced**. Kernel computations
+(`compute_kernel!` for `CosmicShear` and `MagnificationBias`) rely on this
+assumption when constructing the Simpson weight matrices.
 """
-struct Background{T}
+struct Background{T, F}
     cosmo::AbstractCosmology
     z::Vector{T}
     χ::Vector{T}
     H::Vector{T}
     D::Vector{T}
     f::Vector{T}
-    z_of_χ::Any
+    z_of_χ::F
 end
 
 """
@@ -31,8 +35,12 @@ Construct a Background snapshot by finding the redshifts corresponding to a targ
 """
 function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     T = eltype(χ_grid)
-    # Dense sampling for accurate z(χ) inversion
-    fine_z = LinRange(T(0.0), T(5.0), 1000)
+    # Dense sampling for accurate z(χ) inversion.
+    # collect() materializes the LinRange as a Vector so Mooncake can build
+    # a proper tangent for the captured closure field (z_of_χ_interp). The
+    # @from_chainrules wrapper on _akima_interpolation does not support
+    # LinRange's RData{NamedTuple{start,stop,len,lendiv}} tangent shape.
+    fine_z = collect(LinRange(T(0.0), T(5.0), 1000))
     fine_χ = r_z.(fine_z, Ref(cosmo))
     
     z_of_χ_interp(χ) = Blast._akima_interpolation(fine_z, fine_χ, χ)
@@ -43,7 +51,7 @@ function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     D_array = D_z.(z_nodes, Ref(cosmo))
     f_array = f_z.(z_nodes, Ref(cosmo))
 
-    return Background{T}(
+    return Background{T, typeof(z_of_χ_interp)}(
         cosmo, 
         z_nodes, collect(χ_grid), H_array, D_array, f_array, 
         z_of_χ_interp

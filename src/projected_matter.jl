@@ -50,7 +50,7 @@ end
 
 @kwdef mutable struct w_2_00_ϕTT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_00
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_00_ϕTT, c::PowerSpectrum)
@@ -59,7 +59,7 @@ end
 
 @kwdef mutable struct w_minus2_00_ϕTT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_minus2_00
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_minus2_00_ϕTT, c::PowerSpectrum)
@@ -68,7 +68,7 @@ end
 
 @kwdef mutable struct w_0_00_ϕTT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_0_00
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_0_00_ϕTT, c::PowerSpectrum)
@@ -77,7 +77,7 @@ end
 
 @kwdef mutable struct w_0_02_ϕTT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_0_02
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_0_02_ϕTT, c::PowerSpectrum)
@@ -86,7 +86,7 @@ end
 
 @kwdef mutable struct w_0_20_ϕTT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_0_20
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_0_20_ϕTT, c::PowerSpectrum)
@@ -95,7 +95,7 @@ end
 
 @kwdef mutable struct w_2_02_ϕTT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_02
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_02_ϕTT, c::PowerSpectrum)
@@ -104,7 +104,7 @@ end
 
 @kwdef mutable struct w_2_20_ϕTT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_20
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_20_ϕTT, c::PowerSpectrum)
@@ -113,7 +113,7 @@ end
 
 @kwdef mutable struct w_2_22_ϕTT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_22
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_22_ϕTT, c::PowerSpectrum)
@@ -122,7 +122,7 @@ end
 
 @kwdef mutable struct w_2_00_ϕT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_00
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_00_ϕT, c::PowerSpectrum)
@@ -131,7 +131,7 @@ end
 
 @kwdef mutable struct w_2_00_ϕT_R1 <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_00
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_00_ϕT_R1, c::PowerSpectrum)
@@ -141,7 +141,7 @@ end
 
 @kwdef mutable struct w_0_00_ϕT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_0_00
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_0_00_ϕT, c::PowerSpectrum)
@@ -150,7 +150,7 @@ end
 
 @kwdef mutable struct w_0_00_ϕT_R1 <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_0_00
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_0_00_ϕT_R1, c::PowerSpectrum)
@@ -160,7 +160,7 @@ end
 
 @kwdef mutable struct w_2_02_ϕT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_02
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_02_ϕT, c::PowerSpectrum)
@@ -169,7 +169,7 @@ end
 
 @kwdef mutable struct w_2_02_ϕT_R1 <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_02
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_02_ϕT_R1, c::PowerSpectrum)
@@ -179,7 +179,7 @@ end
 
 @kwdef mutable struct w_2_20_ϕT <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_20
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_20_ϕT, c::PowerSpectrum)
@@ -188,7 +188,7 @@ end
 
 @kwdef mutable struct w_2_20_ϕT_R1 <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_20
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_20_ϕT_R1, c::PowerSpectrum)
@@ -198,7 +198,7 @@ end
 
 @kwdef mutable struct w_2_00_ϕ <: ProjectedMatterDensityComponent
     T̃ = T_tildes.T_2_00
-    w::AbstractArray{<:Any, 3} = zeros(1, 1, 1)
+    w::Array{Float64, 3} = zeros(1, 1, 1)
 end
 
 function compute_w!(w::w_2_00_ϕ, c::PowerSpectrum)

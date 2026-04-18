@@ -14,7 +14,6 @@ using FastTransforms
 using Loess
 using ChainRulesCore
 using ChainRules
-using Mooncake
 
 # These dependencies are required for the AbstractCosmologicalEmulators background extension
 using DataInterpolations, FastGaussQuadrature, Integrals, LinearAlgebra, OrdinaryDiffEqTsit5, SciMLSensitivity
@@ -29,27 +28,46 @@ if !isnothing(cosmo_ext)
     const r_z = cosmo_ext.r_z
     const D_z = cosmo_ext.D_z
     const f_z = cosmo_ext.f_z
-    
-    export AbstractCosmology, w0waCDMCosmology
-    export Background, ΛCDM, w0waCDM
 else
     @error "BackgroundCosmologyExt extension not loaded. Differentiable background will not be available."
 end
 
-include("constants.jl")  
-include("chebcoefs.jl")  
-include("utils.jl")     
-include("cosmo.jl")      
-include("probes.jl")     
-include("setup.jl")      
+# Physical constants — defined before includes so all source files can use C_LIGHT
+import PhysicalConstants.CODATA2018: c_0
+const C_LIGHT = c_0.val * 10^(-3)   # speed of light in km/s
+
+include("constants.jl")
+include("chebcoefs.jl")
+include("utils.jl")
+include("cosmo.jl")
+include("probes.jl")
+include("setup.jl")
 include("projected_matter.jl")
 include("cls.jl")
-include("limber.jl")    
+include("limber.jl")
 include("chainrules.jl")
 
+# ── Public API ────────────────────────────────────────────────────────────────
+# Cosmology
+export AbstractCosmology, w0waCDMCosmology
+export Background, ΛCDM, w0waCDM
 
-import PhysicalConstants.CODATA2018: c_0
-const C_LIGHT = c_0.val * 10^(-3) 
+# Probes
+export AbstractCosmologicalProbes, AbstractComponents
+export GalaxyClustering, WeakLensing, CMB
+
+# Components
+export NumberCounts, CosmicShear, CMBLensing
+export RedshiftSpaceDistortions, MagnificationBias
+export IntrinsicAlignment, IntegratedSachsWolfe, PrimordialNonGaussianity
+
+# Setup and workspace
+export SetUp, FFTPlans, PowerSpectrum, ProjectedMatterDensity
+
+# Core functions
+export evaluate_components!, compute_kernel!, compute_w!
+export prepare_pk_workspace, get_Cℓ
+# ─────────────────────────────────────────────────────────────────────────────
 
 struct T̃{A<:AbstractArray{<:Any,4}}
     T_2_00::A
@@ -74,16 +92,6 @@ function __init__()
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_20.npz")),
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_22.npz"))
     )
-    """global T_tildes = T̃(
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_00", 128, 64, 161),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_0_00", 128, 64, 161),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_-2_00", 128, 64, 161),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_0_02", 128, 64, 161),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_0_20", 128, 64, 161),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_02", 128, 64, 161),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_20", 128, 64, 161),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_DESI/T_tilde_2_22", 128, 64, 161)
-    )"""
 end
 
 end # module Blast

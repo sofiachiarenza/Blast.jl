@@ -24,28 +24,31 @@ Abstract supertype for Chebyshev-coefficient containers in BLAST.
 abstract type AbstractCoeff end
 
 """
-    cϕTT <: AbstractCoeff
+    cϕTT{T} <: AbstractCoeff
 Container for Chebyshev coefficients of the unequal time power spectrum.
 """
-@kwdef mutable struct cϕTT <: AbstractCoeff
-    coefs::AbstractArray{<:Any, 3} 
+mutable struct cϕTT{T} <: AbstractCoeff
+    coefs::Array{T, 3}
 end
+cϕTT(coefs::AbstractArray{T, 3}) where T = cϕTT{T}(coefs)
 
 """
-    cϕT <: AbstractCoeff
+    cϕT{T} <: AbstractCoeff
 Container for Chebyshev coefficients of the power spectrum built with only one transfer function.
 """
-@kwdef mutable struct cϕT <: AbstractCoeff
-    coefs::AbstractArray{<:Any, 3}
+mutable struct cϕT{T} <: AbstractCoeff
+    coefs::Array{T, 3}
 end
+cϕT(coefs::AbstractArray{T, 3}) where T = cϕT{T}(coefs)
 
 """
-    cϕ <: AbstractCoeff
+    cϕ{T} <: AbstractCoeff
 Container for Chebyshev coefficients of the primordial power spectrum.
 """
-@kwdef mutable struct cϕ <: AbstractCoeff
-    coefs::AbstractArray{<:Any, 1}
+mutable struct cϕ{T} <: AbstractCoeff
+    coefs::Array{T, 1}
 end
+cϕ(coefs::AbstractArray{T, 1}) where T = cϕ{T}(coefs)
 
 # Constructors
 make_coeff(::Type{T}, c) where {T<:AbstractCoeff} = T(c)
