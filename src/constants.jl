@@ -16,7 +16,7 @@ const full_ℓ_range = reverse(chebpoints(100, 2.0, 2000.0))
 const ℓ_nonlimber = full_ℓ_range[full_ℓ_range .< 220]
 const ℓ_limber = full_ℓ_range[full_ℓ_range .> 220]
 
-const nχ = 128
+const nχ = 96   # must match T_tildes artifact χ-axis dimension
 const χ = Array(LinRange(26.0, 7000.0, nχ))
 
 const _R_nodes = chebpoints(64*2, -1.0, 1.0)
