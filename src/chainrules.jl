@@ -1,17 +1,10 @@
 import ChainRulesCore: rrule, NoTangent, unthunk, ProjectTo
 import Tullio: @tullio
 import FFTW
-import Mooncake
-import Mooncake: @from_chainrules, MinimalCtx
-import Mooncake: tangent_type, fdata_type, rdata_type, zero_tangent_internal, fdata, rdata, NoFData, NoRData, increment_rdata!!
 
 # =============================================================================
 # 1. CONSTANT PATCHES
 # =============================================================================
-
-# These patches (for FFTWPlan and ChebyshevPlan) are provided by AbstractCosmologicalEmulators.
-# Removal fixes method overwriting error.
-Mooncake.@from_chainrules MinimalCtx Tuple{typeof(chebyshev_decomposition), Any, AbstractArray}
 
 function rrule(::typeof(get_clencurt_weights), kmin, kmax, N)
     return get_clencurt_weights(kmin, kmax, N), _ -> (NoTangent(), NoTangent(), NoTangent(), NoTangent())
@@ -26,10 +19,6 @@ function rrule(::typeof(simpson_weights_matrix), n)
     return simpson_weights_matrix(n), _ -> (NoTangent(), NoTangent())
 end
 
-@from_chainrules MinimalCtx Tuple{typeof(get_clencurt_weights), Any, Any, Any}
-@from_chainrules MinimalCtx Tuple{typeof(simpson_weights_array), Int}
-@from_chainrules MinimalCtx Tuple{typeof(get_clencurt_weights_R_integration), Int}
-@from_chainrules MinimalCtx Tuple{typeof(simpson_weights_matrix), Int}
 
 # =============================================================================
 # 2. AKIMA INTERPOLATION
@@ -210,14 +199,6 @@ function rrule(::typeof(_akima_interpolation), u::AbstractMatrix, t, t_new::Abst
     return res, _akima_interpolation_matrix_fused_pullback
 end
 
-@from_chainrules MinimalCtx Tuple{typeof(_akima_slopes), AbstractVector, AbstractVector}
-@from_chainrules MinimalCtx Tuple{typeof(_akima_coefficients), Any, Any}
-@from_chainrules MinimalCtx Tuple{typeof(_akima_eval), Any, Any, Any, Any, Any, AbstractArray}
-@from_chainrules MinimalCtx Tuple{typeof(_akima_slopes), AbstractMatrix, Any}
-@from_chainrules MinimalCtx Tuple{typeof(_akima_coefficients), Any, AbstractMatrix}
-@from_chainrules MinimalCtx Tuple{typeof(_akima_eval), AbstractMatrix, Any, AbstractMatrix, AbstractMatrix, AbstractMatrix, Any}
-@from_chainrules MinimalCtx Tuple{typeof(_akima_eval), AbstractMatrix, Any, AbstractMatrix, AbstractMatrix, AbstractMatrix, AbstractArray}
-@from_chainrules MinimalCtx Tuple{typeof(_akima_interpolation), AbstractMatrix, Any, AbstractArray}
 
 # =============================================================================
 # 3. KERNEL COMBINATION
@@ -238,7 +219,6 @@ function rrule(::typeof(_combine_kernels_tullio), W_A::AbstractArray{<:Any, 3}, 
     return K, _combine_kernels_tullio_pullback
 end
 
-@from_chainrules MinimalCtx Tuple{typeof(_combine_kernels_tullio), AbstractArray{<:Any, 3}, AbstractArray{<:Any, 3}}
 
 # =============================================================================
 # 4. FINAL INTEGRATION
@@ -274,8 +254,6 @@ function rrule(::typeof(_compute_Cℓ_rsd_tullio), W_A_r1::AbstractArray, W_B::A
     return Cℓ, _compute_Cℓ_rsd_tullio_pullback
 end
 
-@from_chainrules MinimalCtx Tuple{typeof(_compute_Cℓ_tullio), AbstractArray, AbstractArray, AbstractVector, AbstractVector, AbstractVector, Number, AbstractVector}
-@from_chainrules MinimalCtx Tuple{typeof(_compute_Cℓ_rsd_tullio), AbstractArray, AbstractArray, AbstractArray, AbstractArray, AbstractArray, AbstractArray, AbstractVector, AbstractVector, AbstractVector, Number, AbstractVector}
 
 # =============================================================================
 # 5. LIMBER integration
@@ -294,7 +272,6 @@ function rrule(::typeof(_limber_contraction), P_term::AbstractArray, K1::Abstrac
     return Cℓ, _limber_contraction_pullback
 end
 
-@from_chainrules MinimalCtx Tuple{typeof(_limber_contraction), AbstractArray, AbstractArray, AbstractArray, AbstractVector, Number}
 
 # w_ell_tullio
 function rrule(::typeof(w_ell_tullio), c::AbstractArray{<:Any, 3}, T::AbstractArray{<:Any, 4})
@@ -322,6 +299,3 @@ function rrule(::typeof(w_ell_tullio), c::AbstractArray{<:Any, 1}, T::AbstractAr
     return (y, w_ell_tullio_pullback_1)
 end
 
-@from_chainrules MinimalCtx Tuple{typeof(w_ell_tullio), AbstractArray{<:Any, 3}, AbstractArray{<:Any, 4}}
-@from_chainrules MinimalCtx Tuple{typeof(w_ell_tullio), AbstractArray{<:Any, 2}, AbstractArray{<:Any, 4}}
-@from_chainrules MinimalCtx Tuple{typeof(w_ell_tullio), AbstractArray{<:Any, 1}, AbstractArray{<:Any, 4}}
