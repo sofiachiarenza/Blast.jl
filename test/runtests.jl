@@ -50,7 +50,6 @@ global data = load_reference_data()
 
 @testset "Automatic Differentiation" begin
     include("test_differentiation.jl")
-    include("test_diff_utils.jl")
     include("test_diff_cls.jl")
     include("test_diff_cosmo.jl")
     include("test_diff_setup.jl")

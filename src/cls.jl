@@ -16,7 +16,7 @@ function grid_interpolator(Probe::AbstractComponents, bg::Background)
     kernel = Probe.Kernel
     chi_grid = bg.χ
     grid_flat = make_grid(Blast.χ, Blast.R)
-    return collect(_akima_interpolation(collect(kernel'), chi_grid, grid_flat)')
+    return collect(akima_interpolation(collect(kernel'), chi_grid, grid_flat)')
 end
 
 """

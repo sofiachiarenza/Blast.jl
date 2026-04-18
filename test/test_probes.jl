@@ -17,7 +17,7 @@ function _compute_kernel_safe!(component::Blast.CosmicShear, bg::Blast.Backgroun
     for b in 1:n_bins
         nz_vals = component.nz_norm[b, :]
         for z_idx in 1:length(bg.z)
-            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1.0 - bg.χ[z_idx] / Blast.compute_χ(x, bg.cosmo))
+            integrand(x) = akima_interpolation(nz_vals, bg.z, x) * (1.0 - bg.χ[z_idx] / Blast.compute_χ(x, bg.cosmo))
             z_low = bg.z[z_idx]
             z_top = bg.z[end]
             integral, _ = quadgk(integrand, z_low, z_top)
@@ -42,7 +42,7 @@ function _compute_kernel_safe!(component::Blast.MagnificationBias, bg::Blast.Bac
         nz_vals = component.nz_norm[b, :]
         s_vals = component.s[b, :]
         for z_idx in 1:length(bg.z)
-            integrand(x) = Blast._akima_interpolation(nz_vals, bg.z, x) * (1.0 - bg.χ[z_idx] / Blast.compute_χ(x, bg.cosmo)) * (5.0 * s_vals[z_idx] - 2.0)
+            integrand(x) = akima_interpolation(nz_vals, bg.z, x) * (1.0 - bg.χ[z_idx] / Blast.compute_χ(x, bg.cosmo)) * (5.0 * s_vals[z_idx] - 2.0)
             z_low = bg.z[z_idx]
             z_top = bg.z[end]
             integral, _ = quadgk(integrand, z_low, z_top)
@@ -128,7 +128,7 @@ end
     @test all(isfinite, nz_normed)
     # Each bin must integrate to 1 on the output grid
     for b in 1:size(nz_normed, 1)
-        nrm, _ = quadgk(x -> Blast._akima_interpolation(nz_normed[b, :], z_grid, x), first(z_grid), last(z_grid))
+        nrm, _ = quadgk(x -> akima_interpolation(nz_normed[b, :], z_grid, x), first(z_grid), last(z_grid))
         @test nrm ≈ 1.0 atol=1e-2
     end
 end
@@ -150,7 +150,7 @@ end
 
     nz_normed = Blast.prepare_nz_matrix(nz_smoothed, z_out, z_out)
     for b in 1:size(nz_normed, 1)
-        nrm, _ = quadgk(x -> Blast._akima_interpolation(nz_normed[b, :], z_out, x), first(z_out), last(z_out))
+        nrm, _ = quadgk(x -> akima_interpolation(nz_normed[b, :], z_out, x), first(z_out), last(z_out))
         @test nrm ≈ 1.0 atol=1e-2
     end
 end

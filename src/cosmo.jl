@@ -40,12 +40,12 @@ function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     # Dense sampling for accurate z(χ) inversion.
     # collect() materializes the LinRange as a Vector so Mooncake can build
     # a proper tangent for the captured closure field (z_of_χ_interp). The
-    # @from_chainrules wrapper on _akima_interpolation does not support
+    # @from_chainrules wrapper on akima_interpolation does not support
     # LinRange's RData{NamedTuple{start,stop,len,lendiv}} tangent shape.
     fine_z = collect(LinRange(T(0.0), T(Z_MAX_BACKGROUND), N_BG_FINE_GRID))
     fine_χ = r_z.(fine_z, Ref(cosmo))
-    
-    z_of_χ_interp(χ) = Blast._akima_interpolation(fine_z, fine_χ, χ)
+
+    z_of_χ_interp(χ) = akima_interpolation(fine_z, fine_χ, χ)
 
     z_nodes = z_of_χ_interp(χ_grid)
     

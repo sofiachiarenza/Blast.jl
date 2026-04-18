@@ -63,11 +63,11 @@ end
 
     @testset "Vector interpolation" begin
         # Interpolant should reproduce data values at original nodes
-        u_on_nodes = Blast._akima_interpolation(u, t, t)
+        u_on_nodes = akima_interpolation(u, t, t)
         @test u_on_nodes ≈ u rtol=1e-12
 
         # Output size should match query grid
-        u_interp = Blast._akima_interpolation(u, t, t_new)
+        u_interp = akima_interpolation(u, t, t_new)
         @test length(u_interp) == length(t_new)
         @test all(isfinite, u_interp)
     end
@@ -75,8 +75,8 @@ end
     @testset "Matrix interpolation" begin
         u_mat = hcat(sin.(t), cos.(t), sin.(2 .* t))
 
-        interp_mat = Blast._akima_interpolation(u_mat, t, t_new)
-        interp_cols = hcat([Blast._akima_interpolation(u_mat[:, i], t, t_new) for i in 1:size(u_mat, 2)]...)
+        interp_mat = akima_interpolation(u_mat, t, t_new)
+        interp_cols = hcat([akima_interpolation(u_mat[:, i], t, t_new) for i in 1:size(u_mat, 2)]...)
 
         @test size(interp_mat) == (length(t_new), size(u_mat, 2))
         @test interp_mat ≈ interp_cols rtol=1e-12

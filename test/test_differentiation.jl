@@ -14,7 +14,7 @@ using LinearAlgebra
     x2 = collect(LinRange(0.5, 4.5, 30))
 
     @testset "Gradient w.r.t. y (data values)" begin
-        f_interp(y_vals) = sum(Blast._akima_interpolation(y_vals, x1, x2))
+        f_interp(y_vals) = sum(akima_interpolation(y_vals, x1, x2))
         grad_fwd = DifferentiationInterface.gradient(f_interp, AutoForwardDiff(), y)
         grad_zyg = DifferentiationInterface.gradient(f_interp, AutoZygote(), y)
         grad_mc = DifferentiationInterface.gradient(f_interp, AutoMooncake(), y)
@@ -24,7 +24,7 @@ using LinearAlgebra
     end
 
     @testset "Gradient w.r.t. x1 (input grid)" begin
-        f_x1(x1_vals) = sum(Blast._akima_interpolation(y, x1_vals, x2))
+        f_x1(x1_vals) = sum(akima_interpolation(y, x1_vals, x2))
         grad_fwd = DifferentiationInterface.gradient(f_x1, AutoForwardDiff(), x1)
         grad_zyg = DifferentiationInterface.gradient(f_x1, AutoZygote(), x1)
         grad_mc = DifferentiationInterface.gradient(f_x1, AutoMooncake(), x1)
@@ -34,7 +34,7 @@ using LinearAlgebra
     end
 
     @testset "Gradient w.r.t. x2 (query points)" begin
-        f_x2(x2_vals) = sum(Blast._akima_interpolation(y, x1, x2_vals))
+        f_x2(x2_vals) = sum(akima_interpolation(y, x1, x2_vals))
         grad_fwd = DifferentiationInterface.gradient(f_x2, AutoForwardDiff(), x2)
         grad_zyg = DifferentiationInterface.gradient(f_x2, AutoZygote(), x2)
         grad_mc = DifferentiationInterface.gradient(f_x2, AutoMooncake(), x2)
@@ -46,7 +46,7 @@ using LinearAlgebra
     @testset "Matrix Akima AD" begin
         Y_mat = hcat(sin.(x1), cos.(x1), sin.(2 .* x1))
         
-        f_mat(Y) = sum(Blast._akima_interpolation(Y, x1, x2))
+        f_mat(Y) = sum(akima_interpolation(Y, x1, x2))
 
         grad_fwd = DifferentiationInterface.gradient(f_mat, AutoForwardDiff(), Y_mat)
         grad_zyg = DifferentiationInterface.gradient(f_mat, AutoZygote(), Y_mat)

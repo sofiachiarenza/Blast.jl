@@ -429,7 +429,7 @@ coordinate system `(χ, Rχ, k)` using pre-built Background interpolators.
 function transform_to_R_frame(matrix::AbstractArray{<:Any,2}, bg::Background)
     new_χs = make_grid(Blast.χ, Blast.R)
     x = bg.z_of_χ.(new_χs)
-    interp = Blast._akima_interpolation(matrix, Blast.z_lin, x)  
+    interp = akima_interpolation(matrix, Blast.z_lin, x)
     return reshape(interp, length(Blast.χ), length(Blast.R), size(interp, 2))
 end
 
