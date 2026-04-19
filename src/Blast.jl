@@ -6,7 +6,7 @@ using SpecialFunctions
 using StaticArrays
 using FFTW
 using NPZ
-using QuadGK
+using Integrals
 using Artifacts
 using PhysicalConstants
 using Memoization

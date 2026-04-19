@@ -19,16 +19,33 @@ Interpolate and normalize an n(z) matrix bin-by-bin onto the calculation grid.
 """
 function prepare_nz_matrix(nz::AbstractMatrix, z::AbstractVector, z_grid::AbstractVector)
     n_bins = size(nz, 1)
-    nz_normed = zeros(eltype(nz), n_bins, length(z_grid))
+    z_lo, z_hi = first(z_grid), last(z_grid)
 
-    for b in 1:n_bins
-        nz_norm_val, _ = quadgk(x -> akima_interpolation(nz[b,:], z, x), first(z_grid), last(z_grid))
+    # Per-bin normalization via Integrals.jl + QuadGKJL. SciMLSensitivity
+    # supplies the rrule, unlike raw QuadGK.quadgk whose adaptive step
+    # selection is primal-driven and gives wrong Dual-mode gradients.
+    # Parameter `p` must be a plain Array for clean pullbacks; fixed knots
+    # `z` are captured from the closure.
+    # sensealg pins the Mooncake-native VJP path (IntegralsMooncakeExt),
+    # avoiding the default ZygoteVJP which assumes scalar `p` and calls
+    # `only(Δ)` on a vector tangent.
+    sensealg = Integrals.ReCallVJP{Integrals.MooncakeVJP}(Integrals.MooncakeVJP())
+    norms = map(1:n_bins) do b
+        nz_row = nz[b, :]
+        prob = IntegralProblem((x, p) -> akima_interpolation(p, z, x),
+                               (z_lo, z_hi), nz_row)
+        nz_norm_val = solve(prob, QuadGKJL(); sensealg=sensealg).u
         nz_norm_val > 0 || throw(ArgumentError(
             "n(z) for bin $b integrates to zero or negative ($nz_norm_val); " *
             "check that your redshift distribution is non-negative and overlaps z_grid."))
-        nz_normed[b, :] = akima_interpolation(nz[b, :], z, z_grid) ./ nz_norm_val
+        nz_norm_val
     end
-    return nz_normed
+
+    # Vectorized Akima interpolation: ACE's matrix dispatch expects
+    # (length(z), n_bins) layout and returns (length(z_grid), n_bins).
+    interpolated = akima_interpolation(permutedims(nz), z, z_grid)
+    # Normalize each bin, then return to (n_bins, length(z_grid)) layout.
+    return permutedims(interpolated ./ reshape(norms, 1, :))
 end
 
 """

@@ -5,17 +5,20 @@
 #   get_Tm(pk, k, cosmo)           — matter transfer function     (setup.jl)
 #   NLA_model(bg; A, C1)           — NLA intrinsic alignment      (probes.jl)
 #   transform_to_R_frame(M, bg)    — (χ,R)–frame resampling       (setup.jl)
+#   prepare_nz_matrix(nz, z, zgrid) — bin-by-bin n(z) normalize   (probes.jl)
 #
 # None of these functions have hand-written ChainRules rrules — AD traces
-# through underlying Julia code (algebraic broadcast / Akima interpolation).
+# through underlying Julia code (algebraic broadcast / Akima interpolation,
+# or Integrals.jl + SciMLSensitivity for adaptive quadrature).
 #
 # Skip flags used:
 #   • get_PΦ w.r.t. k  →  skip_fd: adaptive FD step pushes k negative
 #     making (-k)^(ns-1) a complex domain error
 #   • get_PΦ w.r.t. As →  excluded (covered by test_diff_cosmo.jl;
 #     log-domain issue applies there too)
-#   • prepare_nz_matrix →  excluded: quadgk's adaptive step selection
-#     is driven by primal values → Dual-mode normalization gradient is wrong
+#   • prepare_nz_matrix →  skip_zygote: sensealg is pinned to MooncakeVJP
+#     for a clean Mooncake pullback; ZygoteVJP's `only(Δ)` assumption breaks
+#     on vector-parameter integrands. ForwardDiff and Mooncake both pass.
 # ─────────────────────────────────────────────────────────────────────────────
 
 using Test
@@ -115,17 +118,35 @@ const z_grid_D = LinRange(0.05, 1.8,  20)            # evaluation grid
     #    Zygote is skipped: reverse-mode fails with `UndefVarError: j` when
     #    tracing through reshape(…, length(Blast.R), …) on generated code.
     #    ForwardDiff and Mooncake both work.
-    #    (prepare_nz_matrix is excluded: quadgk adaptive step selection is
-    #    driven by primal values → Dual-mode normalization gradient is wrong.)
     # ======================================================================
     @testset "transform_to_R_frame w.r.t. matrix" begin
-        # Shape: (n_z_lin, n_k) where n_z_lin = length(Blast.z_lin) = 50
-    n_k = 6
-    nz_lin = length(Blast.z_lin)
-    M0 = rand(nz_lin, n_k)
+        n_k = 6
+        nz_lin = length(Blast.z_lin)
+        M0 = rand(nz_lin, n_k)
 
-    f(M) = sum(Blast.transform_to_R_frame(M, bg_D))
-    check_gradient(f, M0; skip_zygote=true)
-end
+        f(M) = sum(Blast.transform_to_R_frame(M, bg_D))
+        check_gradient(f, M0; skip_zygote=true)
+    end
+
+    # ======================================================================
+    # 7. prepare_nz_matrix(nz, z, z_grid) w.r.t. nz
+    #    Integrates the akima-interpolated n(z) over [z_grid[1], z_grid[end]]
+    #    bin-by-bin for normalization, then re-interpolates on z_grid.
+    #    Quadrature uses Integrals.jl + QuadGKJL with sensealg=MooncakeVJP
+    #    so Mooncake sees a clean pullback. (ZygoteVJP assumes scalar `p`
+    #    and calls `only(Δ)` on the vector tangent — hence skip_zygote.)
+    # ======================================================================
+    @testset "prepare_nz_matrix w.r.t. nz" begin
+        nz0 = abs.(rand(n_bins_D, n_zpts)) .+ 0.01
+        f(nz_flat) = sum(Blast.prepare_nz_matrix(
+            reshape(nz_flat, n_bins_D, n_zpts), collect(z_nz), collect(z_grid_D)))
+        nz_flat0 = vec(nz0)
+        # Adaptive quadrature: ForwardDiff propagates Duals through the
+        # primal integration; Mooncake computes an independent adjoint
+        # integration. Each is correct to its own quadrature reltol but
+        # they differ at ~1e-6, so AD-vs-AD tolerance is looser than usual.
+        check_gradient(f, nz_flat0; skip_zygote=true,
+                       rtol_ad=1e-5, rtol_fd=1e-4)
+    end
 
 end
