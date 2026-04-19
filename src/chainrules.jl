@@ -78,6 +78,32 @@ end
 # 5. LIMBER integration
 # =============================================================================
 
+# limber_eval(c, T_chi, T_k):
+#   B[k,j]      = Σ_n c[k,n] * T_chi[j,n]                      (= c * T_chi')
+#   result[i,j] = Σ_k T_k[i,k,j] * B[k,j]                      (@tullio contraction)
+#
+# Mooncake's auto-generated rule on the Tullio tiled-execution path throws a
+# MooncakeRuleCompilationError. Registering this ChainRules rrule as a
+# primitive via @from_chainrules lets Mooncake skip the body trace entirely.
+function rrule(::typeof(limber_eval), c::AbstractMatrix, T_chi::AbstractMatrix, T_k::AbstractArray{<:Any,3})
+    B = c * T_chi'
+    @tullio result[i, j] := T_k[i, k, j] * B[k, j]
+    proj_c = ProjectTo(c); proj_T_chi = ProjectTo(T_chi); proj_T_k = ProjectTo(T_k)
+    function limber_eval_pullback(ȳ)
+        ȳ = unthunk(ȳ)
+        # ∂L/∂B[k,j] = Σ_i T_k[i,k,j] * ȳ[i,j]
+        @tullio ∂B[k, j] := T_k[i, k, j] * ȳ[i, j]
+        # ∂L/∂T_k[i,k,j] = ȳ[i,j] * B[k,j]
+        @tullio ∂T_k[i, k, j] := ȳ[i, j] * B[k, j]
+        # ∂L/∂c = ∂B * T_chi   (from B = c * T_chi')
+        ∂c = ∂B * T_chi
+        # ∂L/∂T_chi = ∂B' * c
+        ∂T_chi = ∂B' * c
+        return (NoTangent(), proj_c(∂c), proj_T_chi(∂T_chi), proj_T_k(∂T_k))
+    end
+    return result, limber_eval_pullback
+end
+
 function rrule(::typeof(_limber_contraction), P_term::AbstractArray, K1::AbstractArray, K2::AbstractArray, weights::AbstractVector, Δχ::Number)
     Cℓ = _limber_contraction(P_term, K1, K2, weights, Δχ)
     proj_P = ProjectTo(P_term); proj_K1 = ProjectTo(K1); proj_K2 = ProjectTo(K2)

@@ -6,7 +6,7 @@ import Blast:
     get_clencurt_weights, simpson_weights_array,
     get_clencurt_weights_R_integration, simpson_weights_matrix,
     _combine_kernels_tullio, _compute_Cℓ_tullio, _compute_Cℓ_rsd_tullio,
-    _limber_contraction, w_ell_tullio
+    _limber_contraction, w_ell_tullio, limber_eval
 
 # Note: Akima interpolation and chebyshev_decomposition Mooncake rules live in
 # AbstractCosmologicalEmulators.jl's own MooncakeExt — we rely on those.
@@ -30,6 +30,7 @@ import Blast:
 @from_chainrules MinimalCtx Tuple{typeof(_compute_Cℓ_rsd_tullio), AbstractArray, AbstractArray, AbstractArray, AbstractArray, AbstractArray, AbstractArray, AbstractVector, AbstractVector, AbstractVector, Number, AbstractVector}
 
 @from_chainrules MinimalCtx Tuple{typeof(_limber_contraction), AbstractArray, AbstractArray, AbstractArray, AbstractVector, Number}
+@from_chainrules MinimalCtx Tuple{typeof(limber_eval), AbstractMatrix, AbstractMatrix, AbstractArray{<:Any, 3}}
 
 # =============================================================================
 # Projected matter density contraction

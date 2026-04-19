@@ -41,6 +41,6 @@ Random.seed!(4321)
         c0 = rand(size(T_k, 2), size(T_chi, 2))
 
         f(c) = sum(Blast.limber_eval(c, T_chi, T_k))
-        check_gradient(f, c0; skip_mooncake=true)
+        check_gradient(f, c0)
     end
 end

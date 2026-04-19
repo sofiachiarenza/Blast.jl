@@ -109,16 +109,12 @@ const z_grid_D = LinRange(0.05, 1.8,  20)            # evaluation grid
     # 6. transform_to_R_frame(matrix, bg) w.r.t. matrix
     #    Internally calls akima_interpolation(matrix, Blast.z_lin, x)
     #    (from AbstractCosmologicalEmulators) where x = bg.z_of_χ.(new_χs)
-    #    are fixed Float64 query points.
-    #    ACE's rrule for akima_interpolation covers ForwardDiff and Mooncake.
+    #    are fixed Float64 query points. ACE's matrix Akima dispatch
+    #    composes through _akima_slopes/_coefficients/_eval primitives,
+    #    each of which has a Mooncake rrule.
     #    Zygote is skipped: reverse-mode fails with `UndefVarError: j` when
     #    tracing through reshape(…, length(Blast.R), …) on generated code.
-    #    Mooncake is skipped: the matrix Akima pullback returns a Vector
-    #    tangent for the LinRange `t` argument; Mooncake has no
-    #    `increment_and_get_rdata!` for (NoFData, RData{LinRange fields}, Vector)
-    #    and throws.
-    #    ForwardDiff traces through the primal Akima arithmetic using Duals
-    #    (it doesn't invoke the rrule), so it works correctly.
+    #    ForwardDiff and Mooncake both work.
     #    (prepare_nz_matrix is excluded: quadgk adaptive step selection is
     #    driven by primal values → Dual-mode normalization gradient is wrong.)
     # ======================================================================
