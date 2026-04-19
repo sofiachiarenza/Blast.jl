@@ -54,6 +54,7 @@ global data = load_reference_data()
     include("test_diff_cosmo.jl")
     include("test_diff_setup.jl")
     include("test_diff_phase_e.jl")
+    include("test_diff_glue.jl")
 end
     
 end

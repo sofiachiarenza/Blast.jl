@@ -460,11 +460,15 @@ function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limbe
     
     T_m_limber_lin = get_Tm(pk_limber_lin, 10 .^ Blast.k_limber, bg.cosmo)
     P_limber_lin = P_ϕ_limber .* T_m_limber_lin .^ 2.
-    c_lin = chebyshev_decomposition(P.plan_limber, log10.(P_limber_lin)')
-    
+    # permutedims materializes the transpose into a plain Matrix, avoiding
+    # an Adjoint wrapper across the chebyshev_decomposition rrule boundary
+    # (Mooncake's upstream rule in AbstractCosmologicalEmulators doesn't
+    # support Adjoint tangents; plain Matrix works).
+    c_lin = chebyshev_decomposition(P.plan_limber, permutedims(log10.(P_limber_lin)))
+
     T_m_limber_nonlin = get_Tm(pk_limber_nonlin, 10 .^ Blast.k_limber, bg.cosmo)
     P_limber_nonlin = P_ϕ_limber .* T_m_limber_nonlin .^ 2.
-    c_nonlin = chebyshev_decomposition(P.plan_limber, log10.(P_limber_nonlin)')
+    c_nonlin = chebyshev_decomposition(P.plan_limber, permutedims(log10.(P_limber_nonlin)))
 
     T_z_limber = get_limber_coords_polynomials(P.plan_limber, bg.z)
 
