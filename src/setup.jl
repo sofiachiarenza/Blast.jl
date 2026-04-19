@@ -448,8 +448,8 @@ function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limbe
     transfer_func_χR = transform_to_R_frame(transfer_func, bg)
     transfer_func_χ1 = transfer_func_χR[:,end,:]
 
-    @tullio P_ϕTT[k, i, j] := P_ϕ[k] * transfer_func_χ1[i,k] * transfer_func_χR[i, j, k] 
-    @tullio P_ϕT[k, i, j] := P_ϕ[k]* transfer_func_χR[i, j, k]
+    P_ϕTT = _p_phi_TT_tullio(P_ϕ, transfer_func_χ1, transfer_func_χR)
+    P_ϕT  = _p_phi_T_tullio(P_ϕ, transfer_func_χR)
 
     c1 = build_coeff(cϕTT, P_ϕTT, P.plan_ϕTT)
     c2 = build_coeff(cϕT,  P_ϕT,  P.plan_ϕT)   
@@ -475,4 +475,24 @@ function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limbe
     Pδ_limber = P_nonlin_grid
 
     return PowerSpectrum(c1, c2, c3, ΔP_limber, Pδ_limber)
+end
+
+# ----------------------------------------------------------------------------
+# prepare_pk_workspace tensor products.  Both are pure outer-products (no
+# contraction), so these are really broadcasts dressed as @tullio.  We extract
+# them as named helpers and register rrules + Mooncake primitives so the AD
+# contract is explicit and stable under future Tullio/Mooncake changes.
+#
+#   P_ϕTT[k,i,j] = P_ϕ[k] · T_χ1[i,k] · T_χR[i,j,k]
+#   P_ϕT[k,i,j]  = P_ϕ[k]              · T_χR[i,j,k]
+# ----------------------------------------------------------------------------
+function _p_phi_TT_tullio(P_ϕ::AbstractVector, T_χ1::AbstractMatrix,
+                          T_χR::AbstractArray{<:Any, 3})
+    @tullio out[k, i, j] := P_ϕ[k] * T_χ1[i, k] * T_χR[i, j, k]
+    return out
+end
+
+function _p_phi_T_tullio(P_ϕ::AbstractVector, T_χR::AbstractArray{<:Any, 3})
+    @tullio out[k, i, j] := P_ϕ[k] * T_χR[i, j, k]
+    return out
 end

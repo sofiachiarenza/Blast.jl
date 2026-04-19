@@ -144,3 +144,152 @@ function rrule(::typeof(w_ell_tullio), c::AbstractArray{<:Any, 1}, T::AbstractAr
     return (y, w_ell_tullio_pullback_1)
 end
 
+# =============================================================================
+# prepare_pk_workspace tensor products (pure outer products, no contraction).
+#
+#   P_ϕTT[k,i,j] = P_ϕ[k] * T_χ1[i,k] * T_χR[i,j,k]
+#   P_ϕT[k,i,j]  = P_ϕ[k] * T_χR[i,j,k]
+# =============================================================================
+
+function rrule(::typeof(_p_phi_TT_tullio),
+               P_ϕ::AbstractVector, T_χ1::AbstractMatrix,
+               T_χR::AbstractArray{<:Any, 3})
+    y = _p_phi_TT_tullio(P_ϕ, T_χ1, T_χR)
+    proj_P = ProjectTo(P_ϕ); proj_T1 = ProjectTo(T_χ1); proj_TR = ProjectTo(T_χR)
+    function _p_phi_TT_pullback(ȳ)
+        ȳ = unthunk(ȳ)
+        # ∂L/∂P_ϕ[k]    = Σ_{i,j} ȳ[k,i,j] * T_χ1[i,k] * T_χR[i,j,k]
+        @tullio ∂P_ϕ[k]       := ȳ[k, i, j] * T_χ1[i, k] * T_χR[i, j, k]
+        # ∂L/∂T_χ1[i,k]  = Σ_j   ȳ[k,i,j] * P_ϕ[k]    * T_χR[i,j,k]
+        @tullio ∂T_χ1[i, k]   := ȳ[k, i, j] * P_ϕ[k]    * T_χR[i, j, k]
+        # ∂L/∂T_χR[i,j,k] =      ȳ[k,i,j] * P_ϕ[k]    * T_χ1[i,k]
+        @tullio ∂T_χR[i, j, k] := ȳ[k, i, j] * P_ϕ[k]    * T_χ1[i, k]
+        return (NoTangent(), proj_P(∂P_ϕ), proj_T1(∂T_χ1), proj_TR(∂T_χR))
+    end
+    return y, _p_phi_TT_pullback
+end
+
+function rrule(::typeof(_p_phi_T_tullio),
+               P_ϕ::AbstractVector, T_χR::AbstractArray{<:Any, 3})
+    y = _p_phi_T_tullio(P_ϕ, T_χR)
+    proj_P = ProjectTo(P_ϕ); proj_TR = ProjectTo(T_χR)
+    function _p_phi_T_pullback(ȳ)
+        ȳ = unthunk(ȳ)
+        # ∂L/∂P_ϕ[k]      = Σ_{i,j} ȳ[k,i,j] * T_χR[i,j,k]
+        @tullio ∂P_ϕ[k]        := ȳ[k, i, j] * T_χR[i, j, k]
+        # ∂L/∂T_χR[i,j,k] =        ȳ[k,i,j] * P_ϕ[k]
+        @tullio ∂T_χR[i, j, k] := ȳ[k, i, j] * P_ϕ[k]
+        return (NoTangent(), proj_P(∂P_ϕ), proj_TR(∂T_χR))
+    end
+    return y, _p_phi_T_pullback
+end
+
+# =============================================================================
+# CosmicShear / MagnificationBias kernel contractions.
+#
+# Let α = Δχ · prefac / C_LIGHT.  Then
+#
+#   K[b,i] = α · Σ_p H[p] · S[i,p] · χ[i] · (1+z[i]) · nz[b,p] · (χ[p]-χ[i])/χ[p]
+#   K̃[b,i] = α · Σ_p H[p] · S[i,p] · χ[i] · (1+z[i]) · nz[b,p] · (χ[p]-χ[i])/χ[p]
+#                                                                 · (5·s[b,p] - 2)
+#
+# χ appears in two roles (χ[i] as "observer", χ[p] as "source"), so ∂L/∂χ has
+# two additive contributions.  `simpson_matrix` is treated as NoTangent.
+# =============================================================================
+
+function rrule(::typeof(_cosmic_shear_kernel_tullio),
+               H::AbstractVector, χ::AbstractVector, z::AbstractVector,
+               nz_norm::AbstractMatrix, simpson_matrix::AbstractMatrix,
+               Δχ::Number, prefac::Number)
+    K = _cosmic_shear_kernel_tullio(H, χ, z, nz_norm, simpson_matrix, Δχ, prefac)
+    proj_H = ProjectTo(H); proj_χ = ProjectTo(χ); proj_z = ProjectTo(z)
+    proj_nz = ProjectTo(nz_norm)
+    function _cs_kernel_pullback(ȳ)
+        ȳ = unthunk(ȳ)
+        α = Δχ * prefac / C_LIGHT
+
+        # ∂L/∂nz[b,p] = α · Σ_i ȳ[b,i] · H[p] · S[i,p] · χ[i] · (1+z[i]) · (χ[p]-χ[i])/χ[p]
+        @tullio ∂nz[b, p] := α * ȳ[b, i] * H[p] * simpson_matrix[i, p] *
+                             χ[i] * (1.0 + z[i]) * (χ[p] - χ[i]) / χ[p]
+
+        # ∂L/∂H[p] = α · Σ_{b,i} ȳ[b,i] · S[i,p] · χ[i] · (1+z[i]) · nz[b,p] · (χ[p]-χ[i])/χ[p]
+        @tullio ∂H[p]     := α * ȳ[b, i] * simpson_matrix[i, p] *
+                             χ[i] * (1.0 + z[i]) * nz_norm[b, p] *
+                             (χ[p] - χ[i]) / χ[p]
+
+        # ∂L/∂z[i] = α · χ[i] · Σ_{b,p} ȳ[b,i] · H[p] · S[i,p] · nz[b,p] · (χ[p]-χ[i])/χ[p]
+        @tullio ∂z[i]     := α * ȳ[b, i] * H[p] * simpson_matrix[i, p] *
+                             χ[i] * nz_norm[b, p] * (χ[p] - χ[i]) / χ[p]
+
+        # χ dual role. Observer (q=i): d/dχ[q] {χ[q] · (χ[p] - χ[q])/χ[p]}
+        #                              = (χ[p] - 2·χ[q]) / χ[p]
+        @tullio ∂χ_obs[q] := α * ȳ[b, q] * H[p] * simpson_matrix[q, p] *
+                             (1.0 + z[q]) * nz_norm[b, p] *
+                             (χ[p] - 2.0 * χ[q]) / χ[p]
+        # Source (q=p):    d/dχ[q] {(χ[q] - χ[i])/χ[q]} = χ[i] / χ[q]^2
+        @tullio ∂χ_src[q] := α * ȳ[b, i] * H[q] * simpson_matrix[i, q] *
+                             χ[i] * (1.0 + z[i]) * nz_norm[b, q] *
+                             χ[i] / (χ[q] * χ[q])
+        ∂χ = ∂χ_obs .+ ∂χ_src
+
+        # K is linear in Δχ and in prefac → use K itself.
+        s_yK = sum(ȳ .* K)
+        ∂Δχ     = s_yK / Δχ
+        ∂prefac = s_yK / prefac
+
+        return (NoTangent(), proj_H(∂H), proj_χ(∂χ), proj_z(∂z),
+                proj_nz(∂nz), NoTangent(), ∂Δχ, ∂prefac)
+    end
+    return K, _cs_kernel_pullback
+end
+
+function rrule(::typeof(_magnification_bias_kernel_tullio),
+               H::AbstractVector, χ::AbstractVector, z::AbstractVector,
+               nz_norm::AbstractMatrix, s::AbstractMatrix,
+               simpson_matrix::AbstractMatrix, Δχ::Number, prefac::Number)
+    K = _magnification_bias_kernel_tullio(H, χ, z, nz_norm, s, simpson_matrix, Δχ, prefac)
+    proj_H = ProjectTo(H); proj_χ = ProjectTo(χ); proj_z = ProjectTo(z)
+    proj_nz = ProjectTo(nz_norm); proj_s = ProjectTo(s)
+    function _mb_kernel_pullback(ȳ)
+        ȳ = unthunk(ȳ)
+        α = Δχ * prefac / C_LIGHT
+
+        # Same pattern as CosmicShear but every partial (except ∂s itself)
+        # picks up the extra factor (5·s[b,p] - 2).
+        @tullio ∂nz[b, p] := α * ȳ[b, i] * H[p] * simpson_matrix[i, p] *
+                             χ[i] * (1.0 + z[i]) * (χ[p] - χ[i]) / χ[p] *
+                             (5.0 * s[b, p] - 2)
+
+        @tullio ∂H[p]     := α * ȳ[b, i] * simpson_matrix[i, p] *
+                             χ[i] * (1.0 + z[i]) * nz_norm[b, p] *
+                             (χ[p] - χ[i]) / χ[p] * (5.0 * s[b, p] - 2)
+
+        @tullio ∂z[i]     := α * ȳ[b, i] * H[p] * simpson_matrix[i, p] *
+                             χ[i] * nz_norm[b, p] * (χ[p] - χ[i]) / χ[p] *
+                             (5.0 * s[b, p] - 2)
+
+        # ∂L/∂s[b,p]: factor of 5 from d(5·s - 2)/ds.
+        @tullio ∂s[b, p]  := α * ȳ[b, i] * H[p] * simpson_matrix[i, p] *
+                             χ[i] * (1.0 + z[i]) * nz_norm[b, p] *
+                             (χ[p] - χ[i]) / χ[p] * 5.0
+
+        @tullio ∂χ_obs[q] := α * ȳ[b, q] * H[p] * simpson_matrix[q, p] *
+                             (1.0 + z[q]) * nz_norm[b, p] *
+                             (χ[p] - 2.0 * χ[q]) / χ[p] *
+                             (5.0 * s[b, p] - 2)
+        @tullio ∂χ_src[q] := α * ȳ[b, i] * H[q] * simpson_matrix[i, q] *
+                             χ[i] * (1.0 + z[i]) * nz_norm[b, q] *
+                             χ[i] / (χ[q] * χ[q]) *
+                             (5.0 * s[b, q] - 2)
+        ∂χ = ∂χ_obs .+ ∂χ_src
+
+        s_yK = sum(ȳ .* K)
+        ∂Δχ     = s_yK / Δχ
+        ∂prefac = s_yK / prefac
+
+        return (NoTangent(), proj_H(∂H), proj_χ(∂χ), proj_z(∂z),
+                proj_nz(∂nz), proj_s(∂s), NoTangent(), ∂Δχ, ∂prefac)
+    end
+    return K, _mb_kernel_pullback
+end
+

@@ -50,7 +50,7 @@ include("chainrules.jl")
 # ── Public API ────────────────────────────────────────────────────────────────
 # Cosmology
 export AbstractCosmology, w0waCDMCosmology
-export Background, ΛCDM, w0waCDM
+export Background, w0waCDM
 
 # Probes
 export AbstractCosmologicalProbes, AbstractComponents

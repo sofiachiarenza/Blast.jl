@@ -7,7 +7,6 @@ This page documents the current API of `Blast.jl`.
 ### Constructors
 
 ```@docs
-Blast.ΛCDM
 Blast.w0waCDM
 ```
 

@@ -2,7 +2,7 @@
 #
 # Tests differentiability of the public cosmo.jl API with respect to:
 #   (a) the redshift z
-#   (b) cosmological parameters (Ωm, H0, w0) passed through the ΛCDM / w0waCDM
+#   (b) cosmological parameters (Ωm, H0, w0) passed through the w0waCDM
 #       constructors
 #
 # Functions under test
@@ -33,7 +33,8 @@ using Blast
 @testset "Differentiation: Cosmo functions" begin
 
     # Fixed cosmology used as captured constant where not differentiated
-    cosmo_Λ = ΛCDM()
+    # (flat ΛCDM defaults: w0=-1, wa=0)
+    cosmo_Λ = w0waCDM()
 
     # Representative redshifts (avoid z=0 edge case in r_z lower limit)
     z0     = 0.5
@@ -59,11 +60,11 @@ using Blast
 
     # ======================================================================
     # 3. compute_hubble_factor w.r.t. Ωm
-    #    Tests AD through ΛCDM constructor + E_z
+    #    Tests AD through w0waCDM constructor + E_z
     # ======================================================================
-    @testset "compute_hubble_factor (ΛCDM) w.r.t. Ωm" begin
+    @testset "compute_hubble_factor (flat ΛCDM) w.r.t. Ωm" begin
         Ωm0 = [0.3156]
-        f(p) = Blast.compute_hubble_factor(z0, ΛCDM(Ωm=p[1]))
+        f(p) = Blast.compute_hubble_factor(z0, w0waCDM(Ωm=p[1]))
         check_gradient(f, Ωm0)
     end
 
@@ -71,9 +72,9 @@ using Blast
     # 4. compute_hubble_factor w.r.t. H0
     #    Tests h = H0/100 propagation through struct and E_z
     # ======================================================================
-    @testset "compute_hubble_factor (ΛCDM) w.r.t. H0" begin
+    @testset "compute_hubble_factor (flat ΛCDM) w.r.t. H0" begin
         H0_0 = [67.27]
-        f(p) = Blast.compute_hubble_factor(z0, ΛCDM(H0=p[1]))
+        f(p) = Blast.compute_hubble_factor(z0, w0waCDM(H0=p[1]))
         check_gradient(f, H0_0)
     end
 
@@ -92,9 +93,9 @@ using Blast
     #    GL quadrature of 1/E(z',cosmo(Ωm)) — gradient flows through
     #    the Ωm→ωc→Ωcb0 chain inside the integrand
     # ======================================================================
-    @testset "compute_χ (ΛCDM) w.r.t. Ωm" begin
+    @testset "compute_χ (flat ΛCDM) w.r.t. Ωm" begin
         Ωm0 = [0.3156]
-        f(p) = Blast.compute_χ(z0, ΛCDM(Ωm=p[1]))
+        f(p) = Blast.compute_χ(z0, w0waCDM(Ωm=p[1]))
         check_gradient(f, Ωm0)
     end
 
@@ -103,7 +104,7 @@ using Blast
     # ======================================================================
     @testset "get_Ωm w.r.t. Ωm" begin
         Ωm0 = [0.3156]
-        f(p) = Blast.get_Ωm(ΛCDM(Ωm=p[1]))
+        f(p) = Blast.get_Ωm(w0waCDM(Ωm=p[1]))
         check_gradient(f, Ωm0)
     end
 
@@ -112,7 +113,7 @@ using Blast
     # ======================================================================
     @testset "get_H0 w.r.t. H0" begin
         H0_0 = [67.27]
-        f(p) = Blast.get_H0(ΛCDM(H0=p[1]))
+        f(p) = Blast.get_H0(w0waCDM(H0=p[1]))
         check_gradient(f, H0_0)
     end
 
@@ -124,8 +125,87 @@ using Blast
     # ======================================================================
     @testset "get_As w.r.t. As" begin
         As0 = [2.12107e-9]
-        f(p) = Blast.get_As(ΛCDM(As=p[1]))
+        f(p) = Blast.get_As(w0waCDM(As=p[1]))
         check_gradient(f, As0; skip_fd=true)
+    end
+
+    # ======================================================================
+    # 10. Background(cosmo) end-to-end differentiability
+    #
+    #     Background packages z, χ, H, D, f on the global χ grid. D and f are
+    #     evaluated on a fixed Float64 fine-z grid (because ACE's growth-factor
+    #     ODE can't take Dual-valued `saveat`) and then Akima-interpolated at
+    #     the Dual z_nodes. The akima rrule then propagates the chain rule
+    #       dD/dp = (∂D/∂cosmo) + (∂D/∂z)·(∂z_nodes/∂cosmo)
+    #     correctly.
+    #
+    #     ForwardDiff and Mooncake are checked against a FiniteDifferences
+    #     reference. Zygote is currently skipped: the ChainRules rrule chain
+    #     through ACE's growth-factor solve raises an internal
+    #     `UndefVarError(:j)` inside Zygote, unrelated to Blast.
+    #
+    #     Tolerances are looser than the default `check_gradient` settings
+    #     because the limiting error is Akima interpolation on the
+    #     N_BG_FINE_GRID sampling (≈ 5e-4 on gradients in the worst case).
+    # ======================================================================
+    @testset "Background differentiability" begin
+
+        # ── vs H0 ────────────────────────────────────────────────────────
+        @testset "sum(bg.z) w.r.t. H0" begin
+            f(p) = sum(Background(w0waCDM(H0=p[1])).z)
+            check_gradient(f, [67.27]; skip_zygote=true,
+                           rtol_ad=1e-3, rtol_fd=1e-3)
+        end
+
+        @testset "sum(bg.H) w.r.t. H0" begin
+            f(p) = sum(Background(w0waCDM(H0=p[1])).H)
+            check_gradient(f, [67.27]; skip_zygote=true,
+                           rtol_ad=1e-3, rtol_fd=1e-3)
+        end
+
+        @testset "sum(bg.D) w.r.t. H0" begin
+            f(p) = sum(Background(w0waCDM(H0=p[1])).D)
+            check_gradient(f, [67.27]; skip_zygote=true,
+                           rtol_ad=1e-3, rtol_fd=1e-3)
+        end
+
+        @testset "sum(bg.f) w.r.t. H0" begin
+            f(p) = sum(Background(w0waCDM(H0=p[1])).f)
+            check_gradient(f, [67.27]; skip_zygote=true,
+                           rtol_ad=1e-3, rtol_fd=1e-3)
+        end
+
+        # ── vs Ωm ────────────────────────────────────────────────────────
+        @testset "sum(bg.H) w.r.t. Ωm" begin
+            f(p) = sum(Background(w0waCDM(Ωm=p[1])).H)
+            check_gradient(f, [0.3156]; skip_zygote=true,
+                           rtol_ad=1e-3, rtol_fd=1e-3)
+        end
+
+        @testset "sum(bg.D) w.r.t. Ωm" begin
+            f(p) = sum(Background(w0waCDM(Ωm=p[1])).D)
+            check_gradient(f, [0.3156]; skip_zygote=true,
+                           rtol_ad=1e-3, rtol_fd=1e-3)
+        end
+
+        @testset "sum(bg.f) w.r.t. Ωm" begin
+            f(p) = sum(Background(w0waCDM(Ωm=p[1])).f)
+            check_gradient(f, [0.3156]; skip_zygote=true,
+                           rtol_ad=1e-3, rtol_fd=1e-3)
+        end
+
+        # ── vs w0  (dark-energy equation of state) ────────────────────────
+        @testset "sum(bg.D) w.r.t. w0" begin
+            f(p) = sum(Background(w0waCDM(w0=p[1])).D)
+            check_gradient(f, [-1.0]; skip_zygote=true,
+                           rtol_ad=1e-3, rtol_fd=1e-3)
+        end
+
+        @testset "sum(bg.f) w.r.t. w0" begin
+            f(p) = sum(Background(w0waCDM(w0=p[1])).f)
+            check_gradient(f, [-1.0]; skip_zygote=true,
+                           rtol_ad=1e-3, rtol_fd=1e-3)
+        end
     end
 
 end

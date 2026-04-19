@@ -62,10 +62,10 @@ end
 
 """
     get_test_cosmo()
-Returns a standard ΛCDM cosmology for testing.
+Returns a standard (flat ΛCDM, w0=-1, wa=0) cosmology for testing.
 """
 function get_test_cosmo()
-    return ΛCDM(H0=67.27, Ωm=0.3156, Ωb=0.0492)
+    return w0waCDM(H0=67.27, Ωm=0.3156, Ωb=0.0492)
 end
 
 """

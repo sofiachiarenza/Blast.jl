@@ -236,7 +236,8 @@ A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)}.
     nz::Matrix{Float64} = zeros(1, 1)
     z::Vector{Float64} = zeros(1)
     nz_norm::Matrix{Float64} = zeros(1, 1)
-    A::Float64 = 1.72  # Standard NLA amplitude
+    A::Float64 = 1.72     # Standard NLA amplitude
+    C1::Float64 = 0.0134  # NLA coupling constant; almost always fixed
     A_IA::Matrix{Float64} = zeros(1, 1)
     Kernel::Matrix{Float64} = zeros(1, 1)
     ell_prefactor::Vector{Float64} = @. sqrt(factorial_frac(Blast.full_ℓ_range))
@@ -337,7 +338,21 @@ K_i^{\delta}(z) = \frac{H(z)}{c}\, b_i(z)\, \hat n_i(z).
 """
 function compute_kernel!(Component::NumberCounts, bg::Background) 
     check_and_normalize!(Component, bg.z)
-    Component.Kernel = @. Component.bias * (bg.H' / C_LIGHT) * Component.nz_norm
+    Component.Kernel = _number_counts_kernel(Component.bias, bg.H, Component.nz_norm)
+end
+
+# ----------------------------------------------------------------------------
+# NumberCounts kernel: pure broadcast.
+#
+#   K[b, i] = bias[b, i] · H[i] / c · nz_norm[b, i]
+#
+# Extracted so AD backends can differentiate the kernel math on its own.
+# Pure broadcast → no custom rrule needed; ForwardDiff / Zygote / Mooncake
+# all handle `.*`-style ops natively.
+# ----------------------------------------------------------------------------
+function _number_counts_kernel(bias::AbstractMatrix, H::AbstractVector,
+                               nz_norm::AbstractMatrix)
+    return @. bias * (H' / C_LIGHT) * nz_norm
 end
 
 @doc raw"""
@@ -354,17 +369,38 @@ K_i^{\gamma}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 """
 function compute_kernel!(Component::CosmicShear, bg::Background)
     check_and_normalize!(Component, bg.z)
-    n_bins = size(Component.nz_norm, 1)
-    
+
     H0 = get_H0(bg.cosmo)
     Ωm = get_Ωm(bg.cosmo)
     prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
-    
+
     simpson_matrix = simpson_weights_matrix(length(bg.z))
     Δχ = (bg.χ[end] - bg.χ[1]) / (length(bg.χ) - 1)
 
-    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.H[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * bg.χ[idx_zidx] * (1.0 + bg.z[idx_zidx]) * Component.nz_norm[idx_b, idx_zp] * (bg.χ[idx_zp] - bg.χ[idx_zidx]) / (bg.χ[idx_zp])
-    Component.Kernel = kernel
+    Component.Kernel = _cosmic_shear_kernel_tullio(
+        bg.H, bg.χ, bg.z, Component.nz_norm, simpson_matrix, Δχ, prefac)
+end
+
+# ----------------------------------------------------------------------------
+# CosmicShear kernel contraction
+#
+#   K[b, i] = Σ_p (Δχ · prefac / c) · H[p] · S[i, p] · χ[i] · (1 + z[i]) ·
+#                   n̂[b, p] · (χ[p] - χ[i]) / χ[p]
+#
+# Extracted for AD: a hand-written rrule lives in `src/chainrules.jl` and is
+# registered as a Mooncake primitive via `@from_chainrules` in MooncakeExt.
+# Mooncake's auto-differentiation of this Tullio works as of today, but the
+# custom rrule pins semantics, insulates against upstream Tullio/Mooncake
+# version drift, and gives predictable adjoint performance.
+# ----------------------------------------------------------------------------
+function _cosmic_shear_kernel_tullio(H::AbstractVector, χ::AbstractVector,
+                                     z::AbstractVector, nz_norm::AbstractMatrix,
+                                     simpson_matrix::AbstractMatrix,
+                                     Δχ::Number, prefac::Number)
+    @tullio K[b, i] := Δχ * (H[p] / C_LIGHT) * simpson_matrix[i, p] * prefac *
+                       χ[i] * (1.0 + z[i]) * nz_norm[b, p] *
+                       (χ[p] - χ[i]) / χ[p]
+    return K
 end
 
 @doc raw"""
@@ -382,10 +418,25 @@ function compute_kernel!(Component::CMBLensing, bg::Background)
     H0 = get_H0(bg.cosmo)
     Ωm = get_Ωm(bg.cosmo)
     prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
-    
-    χ_CMB = compute_χ(1090, bg.cosmo, order=120) 
-    kernel = @. prefac * bg.χ * (1. + bg.z) * (1 - bg.χ/χ_CMB)
-    Component.Kernel = reshape(kernel, 1, size(kernel,1))
+
+    χ_CMB = compute_χ(1090, bg.cosmo, order=120)
+    Component.Kernel = _cmb_lensing_kernel(bg.χ, bg.z, χ_CMB, prefac)
+end
+
+# ----------------------------------------------------------------------------
+# CMBLensing kernel: pure broadcast, source plane at recombination.
+#
+#   K[1, i] = prefac · χ[i] · (1 + z[i]) · (1 - χ[i] / χ_CMB)
+#
+# `χ_CMB` is treated as a plain Number input — differentiating wrt it
+# propagates the χ_CMB dependence, which tracks H0/Ωm sensitivity through
+# compute_χ(1090, cosmo) when the caller hooks that in.
+# Output is shaped (1, nχ) for consistency with multi-bin kernels.
+# ----------------------------------------------------------------------------
+function _cmb_lensing_kernel(χ::AbstractVector, z::AbstractVector,
+                             χ_CMB::Number, prefac::Number)
+    kernel = @. prefac * χ * (1 + z) * (1 - χ / χ_CMB)
+    return reshape(kernel, 1, length(kernel))
 end
 
 @doc raw"""
@@ -400,7 +451,19 @@ K_i^{\mathrm{RSD}}(z) = \frac{H(z)}{c}\, f(z)\, \hat n_i(z).
 """
 function compute_kernel!(Component::RedshiftSpaceDistortions, bg::Background) 
     check_and_normalize!(Component, bg.z)
-    Component.Kernel = @. bg.f' * (bg.H' / C_LIGHT) * Component.nz_norm
+    Component.Kernel = _rsd_kernel(bg.f, bg.H, Component.nz_norm)
+end
+
+# ----------------------------------------------------------------------------
+# RedshiftSpaceDistortions kernel: pure broadcast.
+#
+#   K[b, i] = f[i] · H[i] / c · nz_norm[b, i]
+#
+# Pure broadcast → AD-native; no custom rrule required.
+# ----------------------------------------------------------------------------
+function _rsd_kernel(f::AbstractVector, H::AbstractVector,
+                     nz_norm::AbstractMatrix)
+    return @. f' * (H' / C_LIGHT) * nz_norm
 end
 
 @doc raw"""
@@ -416,17 +479,37 @@ K_i^{\mu}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 """
 function compute_kernel!(Component::MagnificationBias, bg::Background)
     check_and_normalize!(Component, bg.z)
-    n_bins = size(Component.nz_norm, 1)
-    
+
     H0 = get_H0(bg.cosmo)
     Ωm = get_Ωm(bg.cosmo)
     prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
-    
+
     simpson_matrix = simpson_weights_matrix(length(bg.z))
     Δχ = (bg.χ[end] - bg.χ[1]) / (length(bg.χ) - 1)
 
-    @tullio kernel[idx_b, idx_zidx] := Δχ * (bg.H[idx_zp] / C_LIGHT) * simpson_matrix[idx_zidx, idx_zp] * prefac * bg.χ[idx_zidx] * (1.0 + bg.z[idx_zidx]) * Component.nz_norm[idx_b, idx_zp] * (bg.χ[idx_zp] - bg.χ[idx_zidx]) / (bg.χ[idx_zp]) * (5.0 * Component.s[idx_b, idx_zp] - 2)
-    Component.Kernel = kernel
+    Component.Kernel = _magnification_bias_kernel_tullio(
+        bg.H, bg.χ, bg.z, Component.nz_norm, Component.s,
+        simpson_matrix, Δχ, prefac)
+end
+
+# ----------------------------------------------------------------------------
+# MagnificationBias kernel contraction (CosmicShear + (5·s - 2) factor).
+#
+#   K[b, i] = Σ_p (Δχ · prefac / c) · H[p] · S[i, p] · χ[i] · (1 + z[i]) ·
+#                   n̂[b, p] · (χ[p] - χ[i]) / χ[p] · (5·s[b, p] - 2)
+#
+# Like `_cosmic_shear_kernel_tullio`, extracted so a hand-written rrule can
+# be registered as a Mooncake primitive (see `src/chainrules.jl`).
+# ----------------------------------------------------------------------------
+function _magnification_bias_kernel_tullio(H::AbstractVector, χ::AbstractVector,
+                                           z::AbstractVector, nz_norm::AbstractMatrix,
+                                           s::AbstractMatrix,
+                                           simpson_matrix::AbstractMatrix,
+                                           Δχ::Number, prefac::Number)
+    @tullio K[b, i] := Δχ * (H[p] / C_LIGHT) * simpson_matrix[i, p] * prefac *
+                       χ[i] * (1.0 + z[i]) * nz_norm[b, p] *
+                       (χ[p] - χ[i]) / χ[p] * (5.0 * s[b, p] - 2)
+    return K
 end
 
 @doc raw"""
@@ -442,15 +525,53 @@ A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)}.
 """
 function compute_kernel!(Component::IntrinsicAlignment, bg::Background) 
     check_and_normalize!(Component, bg.z)
-    
-    # Use NLA model if A_IA is uninitialized
-    if size(Component.A_IA) != (size(Component.nz_norm, 1), length(bg.z))
-        n_bins = size(Component.nz_norm, 1)
-        nla_vals = NLA_model(bg; A=Component.A)
-        Component.A_IA = repeat(nla_vals', n_bins, 1)
+
+    # Dispatch: user-supplied A_IA matrix (shape matches nz_norm × bg.z) vs
+    # NLA-model branch. The NLA branch composes A_IA construction and the
+    # kernel multiplication into one pure function so AD can flow wrt
+    # (A, C1, Ωm, bg.D, bg.H, nz_norm) without mutating Component.A_IA.
+    user_A_IA = size(Component.A_IA) == (size(Component.nz_norm, 1), length(bg.z))
+
+    if user_A_IA
+        Component.Kernel = _ia_kernel(Component.A_IA, bg.H, Component.nz_norm)
+    else
+        Component.Kernel = _ia_kernel_nla(Component.A, Component.C1,
+                                          get_Ωm(bg.cosmo), bg.D,
+                                          bg.H, Component.nz_norm)
     end
-    
-    Component.Kernel = @. Component.A_IA * (bg.H' / C_LIGHT) * Component.nz_norm
+end
+
+# ----------------------------------------------------------------------------
+# IntrinsicAlignment kernel: pure broadcast.
+#
+#   K[b, i] = A_IA[b, i] · H[i] / c · nz_norm[b, i]
+#
+# Used directly when the user provides a full A_IA matrix.
+# ----------------------------------------------------------------------------
+function _ia_kernel(A_IA::AbstractMatrix, H::AbstractVector,
+                    nz_norm::AbstractMatrix)
+    return @. A_IA * (H' / C_LIGHT) * nz_norm
+end
+
+# ----------------------------------------------------------------------------
+# IntrinsicAlignment kernel with inlined NLA amplitude model.
+#
+#   A_NLA(z) = -A · C1 · Ωm / D(z)                     (vector, length n_z)
+#   K[b, i]  = A_NLA[i] · H[i] / c · nz_norm[b, i]
+#
+# Composes NLA_model's math and _ia_kernel into a single pure function so
+# AD can differentiate wrt each of A, C1, Ωm, D, H, nz_norm independently
+# without the A_IA struct-field mutation that the multi-step path required.
+#
+# The `repeat(nla_vals', n_bins, 1)` matrix materialization is skipped —
+# `nla_vals'` broadcasts directly against the (n_bins, n_z) arrays, giving
+# the same result with one fewer allocation.
+# ----------------------------------------------------------------------------
+function _ia_kernel_nla(A::Number, C1::Number, Ωm::Number,
+                        D::AbstractVector, H::AbstractVector,
+                        nz_norm::AbstractMatrix)
+    nla_vals = @. -A * C1 * Ωm / D           # vector, length n_z
+    return @. nla_vals' * (H' / C_LIGHT) * nz_norm
 end
 
 @doc raw"""
@@ -467,8 +588,19 @@ function compute_kernel!(Component::IntegratedSachsWolfe, bg::Background)
     Ωm = get_Ωm(bg.cosmo)
     T_CMB = 2.726
     prefac = 3T_CMB * H0^2 * Ωm / C_LIGHT^3
-    kernel = @. prefac * bg.H * (1 - bg.f)
-    Component.Kernel = reshape(kernel, 1, size(kernel, 1))
+    Component.Kernel = _isw_kernel(bg.H, bg.f, prefac)
+end
+
+# ----------------------------------------------------------------------------
+# IntegratedSachsWolfe kernel: pure broadcast.
+#
+#   K[1, i] = prefac · H[i] · (1 - f[i])
+#
+# Output is shaped (1, nχ) for pipeline consistency.
+# ----------------------------------------------------------------------------
+function _isw_kernel(H::AbstractVector, f::AbstractVector, prefac::Number)
+    kernel = @. prefac * H * (1 - f)
+    return reshape(kernel, 1, length(kernel))
 end
 
 @doc raw"""
@@ -484,8 +616,24 @@ b_{\Phi,i}(z) = 2\,\delta_c\,\left[b_i(z)-p\right].
 """
 function compute_kernel!(Component::PrimordialNonGaussianity, bg::Background) 
     check_and_normalize!(Component, bg.z)
-    b_phi_vals = bΦ(Component.bias, Component.p)
-    Component.Kernel = @. (bg.H' / C_LIGHT) * Component.f_NL * b_phi_vals * Component.nz_norm
+    Component.Kernel = _png_kernel(bg.H, Component.f_NL, Component.bias,
+                                    Component.p, Component.nz_norm)
+end
+
+# ----------------------------------------------------------------------------
+# PrimordialNonGaussianity kernel: pure broadcast with bΦ helper inlined.
+#
+#   b_phi[b, i] = 2 · δ_c · (bias[b, i] - p)
+#   K[b, i]     = H[i] / c · f_NL · b_phi[b, i] · nz_norm[b, i]
+#
+# Takes bias and p directly (instead of a precomputed b_phi) so AD can flow
+# wrt either bias, f_NL, or p in isolation.
+# ----------------------------------------------------------------------------
+function _png_kernel(H::AbstractVector, f_NL::Number,
+                     bias::AbstractMatrix, p::Number,
+                     nz_norm::AbstractMatrix)
+    b_phi = bΦ(bias, p)
+    return @. (H' / C_LIGHT) * f_NL * b_phi * nz_norm
 end
 
 function compute_kernel!(Component::Nothing, bg::Background) 
