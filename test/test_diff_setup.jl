@@ -24,9 +24,6 @@ using Random
 using DifferentiationInterface
 using ADTypes
 
-include("test_diff_helpers.jl")
-include("test_fixtures.jl")
-
 Random.seed!(4321)
 
 # ─────────────────────────────────────────────────────────────────────────────

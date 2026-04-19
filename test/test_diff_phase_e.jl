@@ -2,8 +2,6 @@ using Test
 using Blast
 using Random
 
-include("test_diff_helpers.jl")
-
 Random.seed!(4321)
 
 @testset "Differentiation: Phase E (Chebyshev / Limber helpers)" begin

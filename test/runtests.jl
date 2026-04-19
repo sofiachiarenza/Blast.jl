@@ -16,6 +16,7 @@ using Blast
 
 # Shared test data and utilities
 include("test_fixtures.jl")
+include("test_diff_helpers.jl")
 global data = load_reference_data()
 
 @testset "Blast.jl Comprehensive Tests" begin

@@ -30,8 +30,6 @@
 using Test
 using Blast
 
-include("test_diff_helpers.jl")
-
 @testset "Differentiation: Cosmo functions" begin
 
     # Fixed cosmology used as captured constant where not differentiated

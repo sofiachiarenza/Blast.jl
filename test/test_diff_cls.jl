@@ -24,8 +24,6 @@ using Test
 using Blast
 using Random
 
-include("test_diff_helpers.jl")
-
 Random.seed!(1234)
 
 # Small dimensions — large enough to catch contraction bugs, small enough for FD
