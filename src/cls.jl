@@ -206,7 +206,9 @@ function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpe
     full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
 
     nbins = size(G.δ.Kernel, 1)
-    Cℓ_final = zeros(size(ℓ,1), nbins, nbins)
+    # eltype(full_Cℓ) threads ForwardDiff.Dual through when any input carries it;
+    # plain zeros(...) would silently strip Duals at the Cℓ_final[:,i,j] = ... assign.
+    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ,1), nbins, nbins)
     plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
 
     for i in 1:nbins
@@ -247,7 +249,8 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectru
     full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
 
     nbins = size(L.γ.Kernel, 1)
-    Cℓ_final = zeros(size(ℓ,1), nbins, nbins)
+    # eltype preserves ForwardDiff.Dual through the loop assignment (see GC branch).
+    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ,1), nbins, nbins)
     plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
 
     for i in 1:nbins
@@ -309,7 +312,8 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLens
 
     nbins_A = size(G.δ.Kernel, 1)
     nbins_B = size(L.γ.Kernel, 1)
-    Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
+    # eltype preserves ForwardDiff.Dual through the loop assignment (see GC branch).
+    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ,1), nbins_A, nbins_B)
     plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
 
     for i in 1:nbins_A
@@ -375,7 +379,8 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk:
 
     nbins_A = size(K.κ.Kernel, 1)
     nbins_B = size(G.δ.Kernel, 1)
-    Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
+    # eltype preserves ForwardDiff.Dual through the loop assignment (see GC branch).
+    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ,1), nbins_A, nbins_B)
     plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
 
     for i in 1:nbins_A
@@ -421,7 +426,8 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, L::WeakLensing, Pk::Powe
 
     nbins_A = size(K.κ.Kernel, 1)
     nbins_B = size(L.γ.Kernel, 1)
-    Cℓ_final = zeros(size(ℓ,1), nbins_A, nbins_B)
+    # eltype preserves ForwardDiff.Dual through the loop assignment (see GC branch).
+    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ,1), nbins_A, nbins_B)
     plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
 
     for i in 1:nbins_A

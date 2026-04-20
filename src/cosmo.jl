@@ -66,8 +66,13 @@ function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     #   dD_i/dp = (∂D/∂cosmo)(z)  +  (∂D/∂z)·(∂z_nodes/∂cosmo).
     # Same story for Mooncake: ACE's CI covers D_z(::Float64, ::cosmo) with
     # Mooncake, and Blast's akima has a Mooncake-registered rrule.
-    D_fine = D_z.(fine_z, Ref(cosmo))
-    f_fine = f_z.(fine_z, Ref(cosmo))
+    #
+    # Use the vectorized `D_f_z(::Vector, cosmo)` which does a SINGLE ODE
+    # solve with `saveat=fine_z`, returning both D and f arrays. The scalar
+    # broadcast `D_z.(fine_z, Ref(cosmo))` was doing 1000 independent ODE
+    # solves (plus another 1000 for f_z), accounting for ~400 ms and ~540 MiB
+    # per Background call. The vector solve takes ~0.5 ms, ~700 KiB.
+    D_fine, f_fine = D_f_z(fine_z, cosmo)
     # akima_interpolation signature is (values, knots, queries); fine_z is the
     # ascending knot grid, D_fine / f_fine are the values to interpolate.
     D_array = akima_interpolation(D_fine, fine_z, z_nodes)

@@ -21,16 +21,26 @@ function prepare_nz_matrix(nz::AbstractMatrix, z::AbstractVector, z_grid::Abstra
     n_bins = size(nz, 1)
     z_lo, z_hi = first(z_grid), last(z_grid)
 
-    # Per-bin normalization via Integrals.jl + QuadGKJL. SciMLSensitivity
-    # supplies the rrule, unlike raw QuadGK.quadgk whose adaptive step
-    # selection is primal-driven and gives wrong Dual-mode gradients.
-    # Parameter `p` must be a plain Array for clean pullbacks; fixed knots
-    # `z` are captured from the closure.
-    # sensealg pins the Mooncake-native VJP path (IntegralsMooncakeExt),
-    # avoiding the default ZygoteVJP which assumes scalar `p` and calls
-    # `only(Δ)` on a vector tangent.
+    norms = _compute_nz_norms(nz, z, z_lo, z_hi, n_bins)
+
+    # Vectorized Akima interpolation: ACE's matrix dispatch expects
+    # (length(z), n_bins) layout and returns (length(z_grid), n_bins).
+    interpolated = akima_interpolation(permutedims(nz), z, z_grid)
+    # Normalize each bin, then return to (n_bins, length(z_grid)) layout.
+    return permutedims(interpolated ./ reshape(norms, 1, :))
+end
+
+# Default path (Float64 bounds): Integrals.jl + QuadGKJL with MooncakeVJP.
+# SciMLSensitivity supplies the rrule, unlike raw QuadGK.quadgk whose
+# adaptive step selection is primal-driven and gives wrong Dual-mode
+# gradients. Parameter `p` must be a plain Array for clean pullbacks;
+# fixed knots `z` are captured from the closure.
+# sensealg pins the Mooncake-native VJP path (IntegralsMooncakeExt),
+# avoiding the default ZygoteVJP which assumes scalar `p` and calls
+# `only(Δ)` on a vector tangent.
+function _compute_nz_norms(nz, z, z_lo, z_hi, n_bins)
     sensealg = Integrals.ReCallVJP{Integrals.MooncakeVJP}(Integrals.MooncakeVJP())
-    norms = map(1:n_bins) do b
+    map(1:n_bins) do b
         nz_row = nz[b, :]
         prob = IntegralProblem((x, p) -> akima_interpolation(p, z, x),
                                (z_lo, z_hi), nz_row)
@@ -40,13 +50,38 @@ function prepare_nz_matrix(nz::AbstractMatrix, z::AbstractVector, z_grid::Abstra
             "check that your redshift distribution is non-negative and overlaps z_grid."))
         nz_norm_val
     end
-
-    # Vectorized Akima interpolation: ACE's matrix dispatch expects
-    # (length(z), n_bins) layout and returns (length(z_grid), n_bins).
-    interpolated = akima_interpolation(permutedims(nz), z, z_grid)
-    # Normalize each bin, then return to (n_bins, length(z_grid)) layout.
-    return permutedims(interpolated ./ reshape(norms, 1, :))
 end
+
+# ForwardDiff path: bounds are Dual (e.g. via Background{Dual} → bg.z).
+# QuadGK's kronrod weight precomputation has no method for Dual types, so we
+# substitute u = (z - a)/(b - a), dz = (b - a) du, yielding:
+#    ∫_a^b nz(z) dz = (b - a) ∫_0^1 nz(a + u·(b - a)) du
+# The substitution integral has Float64 bounds (QuadGK-safe), the Dual
+# dependence on bounds is captured by the closure and the (b - a) Jacobian.
+# Bound sensitivity is preserved exactly — differentiating (b-a)∫f(a+u(b-a))du
+# gives f(b)·b' - f(a)·a' + (b-a) ∂/∂params ∫…, matching the Leibniz rule.
+function _compute_nz_norms(nz, z,
+                           z_lo::Dual, z_hi::Dual, n_bins)
+    map(1:n_bins) do b
+        nz_row = nz[b, :]
+        prob = IntegralProblem(
+            (u, p) -> akima_interpolation(p, z, z_lo + u * (z_hi - z_lo)),
+            (0.0, 1.0), nz_row)
+        u_integral = solve(prob, QuadGKJL()).u
+        nz_norm_val = (z_hi - z_lo) * u_integral
+        value(nz_norm_val) > 0 || throw(ArgumentError(
+            "n(z) for bin $b integrates to zero or negative ($nz_norm_val); " *
+            "check that your redshift distribution is non-negative and overlaps z_grid."))
+        nz_norm_val
+    end
+end
+
+# Mixed Dual/Float64 or Float64/Dual bounds: both paths can coalesce via
+# promotion. Route through the Dual path to be safe.
+_compute_nz_norms(nz, z, z_lo::Dual, z_hi::Real, n_bins) =
+    _compute_nz_norms(nz, z, z_lo, convert(typeof(z_lo), z_hi), n_bins)
+_compute_nz_norms(nz, z, z_lo::Real, z_hi::Dual, n_bins) =
+    _compute_nz_norms(nz, z, convert(typeof(z_hi), z_lo), z_hi, n_bins)
 
 """
     smooth_nz(nz::AbstractMatrix, z::AbstractVector; z_out::AbstractVector=z, span::Real=0.02)
@@ -115,7 +150,7 @@ function NLA_model(bg::Background; A=1.72, C1=0.0134)
 end
 
 @doc raw"""
-    NumberCounts <: AbstractComponents
+    NumberCounts{T<:Real} <: AbstractComponents
 
 Galaxy number-counts density component.
 
@@ -124,15 +159,46 @@ This component stores the redshift distribution and linear bias entering
 ```math
 K_i^{\delta}(z) = \frac{H(z)}{c}\, b_i(z)\, \hat n_i(z).
 ```
+
+The type parameter `T` is the element type of the Dual-carrying fields
+(`nz`, `nz_norm`, `bias`, `Kernel`). It defaults to `Float64` and is
+inferred automatically from the input arrays by the keyword constructor,
+so `NumberCounts(nz=..., z=..., bias=...)` works as before. When any input
+is a `ForwardDiff.Dual`, `T` promotes accordingly and ForwardDiff can
+propagate Duals through the struct without being stripped by `convert`.
+
+The `z` knot grid, `ell_prefactor`, and `limber_factor` are always
+`Float64` — they're never differentiated wrt.
 """
-@kwdef mutable struct NumberCounts <: AbstractComponents
-    nz::Matrix{Float64} = zeros(1, 1)
-    z::Vector{Float64} = zeros(1)
-    nz_norm::Matrix{Float64} = zeros(1, 1)
-    bias::Matrix{Float64} = zeros(1, 1)
-    Kernel::Matrix{Float64} = zeros(1, 1)
-    ell_prefactor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
-    limber_factor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
+mutable struct NumberCounts{T<:Real} <: AbstractComponents
+    nz::Matrix{T}
+    z::Vector{Float64}
+    nz_norm::Matrix{T}
+    bias::Matrix{T}
+    Kernel::Matrix{T}
+    ell_prefactor::Vector{Float64}
+    limber_factor::Vector{Float64}
+end
+
+function NumberCounts(;
+    nz::AbstractMatrix            = zeros(Float64, 1, 1),
+    z::AbstractVector             = zeros(Float64, 1),
+    bias::AbstractMatrix          = zeros(Float64, 1, 1),
+    nz_norm::AbstractMatrix       = zeros(eltype(nz), 1, 1),
+    Kernel::AbstractMatrix        = zeros(eltype(bias), 1, 1),
+    ell_prefactor::AbstractVector = ones(size(Blast.full_ℓ_range, 1)),
+    limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1)),
+)
+    T = promote_type(eltype(nz), eltype(bias), eltype(nz_norm), eltype(Kernel))
+    NumberCounts{T}(
+        convert(Matrix{T},       nz),
+        convert(Vector{Float64}, z),
+        convert(Matrix{T},       nz_norm),
+        convert(Matrix{T},       bias),
+        convert(Matrix{T},       Kernel),
+        convert(Vector{Float64}, ell_prefactor),
+        convert(Vector{Float64}, limber_factor),
+    )
 end
 has_nz(::NumberCounts) = true
 
@@ -147,13 +213,32 @@ K_i^{\gamma}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 \frac{\chi(z')-\chi}{\chi(z')}.
 ```
 """
-@kwdef mutable struct CosmicShear <: AbstractComponents
-    nz::Matrix{Float64} = zeros(1, 1)
-    z::Vector{Float64} = zeros(1)
-    nz_norm::Matrix{Float64} = zeros(1, 1)
-    Kernel::Matrix{Float64} = zeros(1, 1)
-    ell_prefactor::Vector{Float64} = @. sqrt(factorial_frac(Blast.full_ℓ_range))
-    limber_factor::Vector{Float64} = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
+mutable struct CosmicShear{T<:Real} <: AbstractComponents
+    nz::Matrix{T}
+    z::Vector{Float64}
+    nz_norm::Matrix{T}
+    Kernel::Matrix{T}
+    ell_prefactor::Vector{Float64}
+    limber_factor::Vector{Float64}
+end
+
+function CosmicShear(;
+    nz::AbstractMatrix            = zeros(Float64, 1, 1),
+    z::AbstractVector             = zeros(Float64, 1),
+    nz_norm::AbstractMatrix       = zeros(eltype(nz), 1, 1),
+    Kernel::AbstractMatrix        = zeros(eltype(nz), 1, 1),
+    ell_prefactor::AbstractVector = sqrt.(factorial_frac.(Blast.full_ℓ_range)),
+    limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2),
+)
+    T = promote_type(eltype(nz), eltype(nz_norm), eltype(Kernel))
+    CosmicShear{T}(
+        convert(Matrix{T},       nz),
+        convert(Vector{Float64}, z),
+        convert(Matrix{T},       nz_norm),
+        convert(Matrix{T},       Kernel),
+        convert(Vector{Float64}, ell_prefactor),
+        convert(Vector{Float64}, limber_factor),
+    )
 end
 has_nz(::CosmicShear) = true
 
@@ -167,10 +252,23 @@ K^{\kappa_{\mathrm{CMB}}}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 \left(1 - \frac{\chi}{\chi_*}\right).
 ```
 """
-@kwdef mutable struct CMBLensing <: AbstractComponents
-    Kernel::Matrix{Float64} = zeros(1, 1)
-    ell_prefactor::Vector{Float64} = @. Blast.full_ℓ_range * (Blast.full_ℓ_range + 1)
-    limber_factor::Vector{Float64} = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
+mutable struct CMBLensing{T<:Real} <: AbstractComponents
+    Kernel::Matrix{T}
+    ell_prefactor::Vector{Float64}
+    limber_factor::Vector{Float64}
+end
+
+function CMBLensing(;
+    Kernel::AbstractMatrix        = zeros(Float64, 1, 1),
+    ell_prefactor::AbstractVector = Blast.full_ℓ_range .* (Blast.full_ℓ_range .+ 1),
+    limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2),
+)
+    T = eltype(Kernel)
+    CMBLensing{T}(
+        convert(Matrix{T},       Kernel),
+        convert(Vector{Float64}, ell_prefactor),
+        convert(Vector{Float64}, limber_factor),
+    )
 end
 
 @doc raw"""
@@ -182,14 +280,35 @@ Redshift-space distortion component with kernel
 K_i^{\mathrm{RSD}}(z) = \frac{H(z)}{c}\, f(z)\, \hat n_i(z).
 ```
 """
-@kwdef mutable struct RedshiftSpaceDistortions <: AbstractComponents
-    nz::Matrix{Float64} = zeros(1, 1)
-    z::Vector{Float64} = zeros(1)
-    nz_norm::Matrix{Float64} = zeros(1, 1)
-    growth_rate::Vector{Float64} = zeros(1)
-    Kernel::Matrix{Float64} = zeros(1, 1)
-    ell_prefactor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
-    limber_factor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
+mutable struct RedshiftSpaceDistortions{T<:Real} <: AbstractComponents
+    nz::Matrix{T}
+    z::Vector{Float64}
+    nz_norm::Matrix{T}
+    growth_rate::Vector{T}
+    Kernel::Matrix{T}
+    ell_prefactor::Vector{Float64}
+    limber_factor::Vector{Float64}
+end
+
+function RedshiftSpaceDistortions(;
+    nz::AbstractMatrix            = zeros(Float64, 1, 1),
+    z::AbstractVector             = zeros(Float64, 1),
+    nz_norm::AbstractMatrix       = zeros(eltype(nz), 1, 1),
+    growth_rate::AbstractVector   = zeros(eltype(nz), 1),
+    Kernel::AbstractMatrix        = zeros(eltype(nz), 1, 1),
+    ell_prefactor::AbstractVector = ones(size(Blast.full_ℓ_range, 1)),
+    limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1)),
+)
+    T = promote_type(eltype(nz), eltype(nz_norm), eltype(growth_rate), eltype(Kernel))
+    RedshiftSpaceDistortions{T}(
+        convert(Matrix{T},       nz),
+        convert(Vector{Float64}, z),
+        convert(Matrix{T},       nz_norm),
+        convert(Vector{T},       growth_rate),
+        convert(Matrix{T},       Kernel),
+        convert(Vector{Float64}, ell_prefactor),
+        convert(Vector{Float64}, limber_factor),
+    )
 end
 has_nz(::RedshiftSpaceDistortions) = true
 
@@ -206,14 +325,35 @@ K_i^{\mu}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 \frac{\chi(z')-\chi}{\chi(z')}\,\left[5 s_i(z')-2\right].
 ```
 """
-@kwdef mutable struct MagnificationBias <: AbstractComponents
-    nz::Matrix{Float64} = zeros(1, 1)
-    z::Vector{Float64} = zeros(1)
-    nz_norm::Matrix{Float64} = zeros(1, 1)
-    s::Matrix{Float64} = zeros(1, 1)
-    Kernel::Matrix{Float64} = zeros(1, 1)
-    ell_prefactor::Vector{Float64} = @. Blast.full_ℓ_range * (Blast.full_ℓ_range + 1)
-    limber_factor::Vector{Float64} = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
+mutable struct MagnificationBias{T<:Real} <: AbstractComponents
+    nz::Matrix{T}
+    z::Vector{Float64}
+    nz_norm::Matrix{T}
+    s::Matrix{T}
+    Kernel::Matrix{T}
+    ell_prefactor::Vector{Float64}
+    limber_factor::Vector{Float64}
+end
+
+function MagnificationBias(;
+    nz::AbstractMatrix            = zeros(Float64, 1, 1),
+    z::AbstractVector             = zeros(Float64, 1),
+    nz_norm::AbstractMatrix       = zeros(eltype(nz), 1, 1),
+    s::AbstractMatrix             = zeros(eltype(nz), 1, 1),
+    Kernel::AbstractMatrix        = zeros(eltype(nz), 1, 1),
+    ell_prefactor::AbstractVector = Blast.full_ℓ_range .* (Blast.full_ℓ_range .+ 1),
+    limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2),
+)
+    T = promote_type(eltype(nz), eltype(nz_norm), eltype(s), eltype(Kernel))
+    MagnificationBias{T}(
+        convert(Matrix{T},       nz),
+        convert(Vector{Float64}, z),
+        convert(Matrix{T},       nz_norm),
+        convert(Matrix{T},       s),
+        convert(Matrix{T},       Kernel),
+        convert(Vector{Float64}, ell_prefactor),
+        convert(Vector{Float64}, limber_factor),
+    )
 end
 has_nz(::MagnificationBias) = true
 
@@ -232,16 +372,41 @@ K_i^{\mathrm{IA}}(z) = \frac{H(z)}{c}\, A_{\mathrm{IA},i}(z)\, \hat n_i(z),
 A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)}.
 ```
 """
-@kwdef mutable struct IntrinsicAlignment <: AbstractComponents
-    nz::Matrix{Float64} = zeros(1, 1)
-    z::Vector{Float64} = zeros(1)
-    nz_norm::Matrix{Float64} = zeros(1, 1)
-    A::Float64 = 1.72     # Standard NLA amplitude
-    C1::Float64 = 0.0134  # NLA coupling constant; almost always fixed
-    A_IA::Matrix{Float64} = zeros(1, 1)
-    Kernel::Matrix{Float64} = zeros(1, 1)
-    ell_prefactor::Vector{Float64} = @. sqrt(factorial_frac(Blast.full_ℓ_range))
-    limber_factor::Vector{Float64} = (Blast.full_ℓ_range .+ 0.5) .^ (-2)
+mutable struct IntrinsicAlignment{T<:Real} <: AbstractComponents
+    nz::Matrix{T}
+    z::Vector{Float64}
+    nz_norm::Matrix{T}
+    A::T                 # Standard NLA amplitude (differentiable)
+    C1::Float64          # NLA coupling constant; fixed
+    A_IA::Matrix{T}
+    Kernel::Matrix{T}
+    ell_prefactor::Vector{Float64}
+    limber_factor::Vector{Float64}
+end
+
+function IntrinsicAlignment(;
+    nz::AbstractMatrix            = zeros(Float64, 1, 1),
+    z::AbstractVector             = zeros(Float64, 1),
+    nz_norm::AbstractMatrix       = zeros(eltype(nz), 1, 1),
+    A::Real                       = 1.72,
+    C1::Real                      = 0.0134,
+    A_IA::AbstractMatrix          = zeros(eltype(nz), 1, 1),
+    Kernel::AbstractMatrix        = zeros(eltype(nz), 1, 1),
+    ell_prefactor::AbstractVector = sqrt.(factorial_frac.(Blast.full_ℓ_range)),
+    limber_factor::AbstractVector = (Blast.full_ℓ_range .+ 0.5) .^ (-2),
+)
+    T = promote_type(eltype(nz), eltype(nz_norm), typeof(A), eltype(A_IA), eltype(Kernel))
+    IntrinsicAlignment{T}(
+        convert(Matrix{T},       nz),
+        convert(Vector{Float64}, z),
+        convert(Matrix{T},       nz_norm),
+        convert(T,               A),
+        convert(Float64,         C1),
+        convert(Matrix{T},       A_IA),
+        convert(Matrix{T},       Kernel),
+        convert(Vector{Float64}, ell_prefactor),
+        convert(Vector{Float64}, limber_factor),
+    )
 end
 has_nz(::IntrinsicAlignment) = true
 
@@ -255,11 +420,26 @@ gravitational potential:
 K^{\mathrm{ISW}}(z) = \frac{3 T_{\mathrm{CMB}} H_0^2 \Omega_m}{c^3}\, H(z)\, \left[1-f(z)\right].
 ```
 """
-@kwdef mutable struct IntegratedSachsWolfe <: AbstractComponents
-    growth_rate::Vector{Float64} = zeros(1)
-    Kernel::Matrix{Float64} = zeros(1, 1)
-    ell_prefactor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
-    limber_factor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
+mutable struct IntegratedSachsWolfe{T<:Real} <: AbstractComponents
+    growth_rate::Vector{T}
+    Kernel::Matrix{T}
+    ell_prefactor::Vector{Float64}
+    limber_factor::Vector{Float64}
+end
+
+function IntegratedSachsWolfe(;
+    growth_rate::AbstractVector   = zeros(Float64, 1),
+    Kernel::AbstractMatrix        = zeros(eltype(growth_rate), 1, 1),
+    ell_prefactor::AbstractVector = ones(size(Blast.full_ℓ_range, 1)),
+    limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1)),
+)
+    T = promote_type(eltype(growth_rate), eltype(Kernel))
+    IntegratedSachsWolfe{T}(
+        convert(Vector{T},       growth_rate),
+        convert(Matrix{T},       Kernel),
+        convert(Vector{Float64}, ell_prefactor),
+        convert(Vector{Float64}, limber_factor),
+    )
 end
 
 @doc raw"""
@@ -274,16 +454,41 @@ K_i^{\mathrm{PNG}}(z) = \frac{H(z)}{c}\, f_{\mathrm{NL}}\, b_{\Phi,i}(z)\, \hat 
 b_{\Phi,i}(z) = 2\,\delta_c\,\left[b_i(z)-p\right].
 ```
 """
-@kwdef mutable struct PrimordialNonGaussianity <: AbstractComponents
-    nz::Matrix{Float64} = zeros(1, 1)
-    z::Vector{Float64} = zeros(1)
-    nz_norm::Matrix{Float64} = zeros(1, 1)
-    bias::Matrix{Float64} = zeros(1, 1)
-    f_NL::Float64 = 0.0
-    p::Float64 = 0.0
-    Kernel::Matrix{Float64} = zeros(1, 1)
-    ell_prefactor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
-    limber_factor::Vector{Float64} = ones(size(Blast.full_ℓ_range, 1))
+mutable struct PrimordialNonGaussianity{T<:Real} <: AbstractComponents
+    nz::Matrix{T}
+    z::Vector{Float64}
+    nz_norm::Matrix{T}
+    bias::Matrix{T}
+    f_NL::T               # local-type fNL amplitude (differentiable)
+    p::Float64            # tracer-type parameter; fixed
+    Kernel::Matrix{T}
+    ell_prefactor::Vector{Float64}
+    limber_factor::Vector{Float64}
+end
+
+function PrimordialNonGaussianity(;
+    nz::AbstractMatrix            = zeros(Float64, 1, 1),
+    z::AbstractVector             = zeros(Float64, 1),
+    nz_norm::AbstractMatrix       = zeros(eltype(nz), 1, 1),
+    bias::AbstractMatrix          = zeros(eltype(nz), 1, 1),
+    f_NL::Real                    = 0.0,
+    p::Real                       = 0.0,
+    Kernel::AbstractMatrix        = zeros(eltype(bias), 1, 1),
+    ell_prefactor::AbstractVector = ones(size(Blast.full_ℓ_range, 1)),
+    limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1)),
+)
+    T = promote_type(eltype(nz), eltype(nz_norm), eltype(bias), typeof(f_NL), eltype(Kernel))
+    PrimordialNonGaussianity{T}(
+        convert(Matrix{T},       nz),
+        convert(Vector{Float64}, z),
+        convert(Matrix{T},       nz_norm),
+        convert(Matrix{T},       bias),
+        convert(T,               f_NL),
+        convert(Float64,         p),
+        convert(Matrix{T},       Kernel),
+        convert(Vector{Float64}, ell_prefactor),
+        convert(Vector{Float64}, limber_factor),
+    )
 end
 has_nz(::PrimordialNonGaussianity) = true
 
@@ -645,19 +850,150 @@ end
 
 Compute and store all kernels for the components of `probe` on the `Background` grid.
 """
-function evaluate_components!(GC::GalaxyClustering, bg::Background)
+# ────────────────────────────────────────────────────────────────────────────
+# _promote_eltype (Phase B)
+#
+# When `bg::Background{U}` carries a wider eltype than a component was
+# constructed with (U = Dual from ForwardDiff-ing cosmology parameters,
+# component T = Float64), `compute_kernel!` would try to write `Matrix{Dual}`
+# into `Matrix{Float64}` — silently stripping the Duals. This helper widens
+# the component's T parameter by constructing a fresh struct with `convert`-ed
+# fields *before* `compute_kernel!` runs.
+#
+# When T ≥ U (the common case — Float64 bg, Float64 components), returns the
+# original struct unchanged (compile-time short-circuit).
+# ────────────────────────────────────────────────────────────────────────────
+_promote_eltype(::Nothing, ::Type) = nothing
+
+function _promote_eltype(C::NumberCounts{T}, ::Type{U}) where {T, U}
+    W = promote_type(T, U)
+    W == T && return C
+    NumberCounts{W}(
+        convert(Matrix{W}, C.nz),
+        C.z,
+        convert(Matrix{W}, C.nz_norm),
+        convert(Matrix{W}, C.bias),
+        convert(Matrix{W}, C.Kernel),
+        C.ell_prefactor,
+        C.limber_factor,
+    )
+end
+
+function _promote_eltype(C::CosmicShear{T}, ::Type{U}) where {T, U}
+    W = promote_type(T, U)
+    W == T && return C
+    CosmicShear{W}(
+        convert(Matrix{W}, C.nz),
+        C.z,
+        convert(Matrix{W}, C.nz_norm),
+        convert(Matrix{W}, C.Kernel),
+        C.ell_prefactor,
+        C.limber_factor,
+    )
+end
+
+function _promote_eltype(C::CMBLensing{T}, ::Type{U}) where {T, U}
+    W = promote_type(T, U)
+    W == T && return C
+    CMBLensing{W}(
+        convert(Matrix{W}, C.Kernel),
+        C.ell_prefactor,
+        C.limber_factor,
+    )
+end
+
+function _promote_eltype(C::RedshiftSpaceDistortions{T}, ::Type{U}) where {T, U}
+    W = promote_type(T, U)
+    W == T && return C
+    RedshiftSpaceDistortions{W}(
+        convert(Matrix{W}, C.nz),
+        C.z,
+        convert(Matrix{W}, C.nz_norm),
+        convert(Vector{W}, C.growth_rate),
+        convert(Matrix{W}, C.Kernel),
+        C.ell_prefactor,
+        C.limber_factor,
+    )
+end
+
+function _promote_eltype(C::MagnificationBias{T}, ::Type{U}) where {T, U}
+    W = promote_type(T, U)
+    W == T && return C
+    MagnificationBias{W}(
+        convert(Matrix{W}, C.nz),
+        C.z,
+        convert(Matrix{W}, C.nz_norm),
+        convert(Matrix{W}, C.s),
+        convert(Matrix{W}, C.Kernel),
+        C.ell_prefactor,
+        C.limber_factor,
+    )
+end
+
+function _promote_eltype(C::IntrinsicAlignment{T}, ::Type{U}) where {T, U}
+    W = promote_type(T, U)
+    W == T && return C
+    IntrinsicAlignment{W}(
+        convert(Matrix{W}, C.nz),
+        C.z,
+        convert(Matrix{W}, C.nz_norm),
+        convert(W, C.A),
+        C.C1,
+        convert(Matrix{W}, C.A_IA),
+        convert(Matrix{W}, C.Kernel),
+        C.ell_prefactor,
+        C.limber_factor,
+    )
+end
+
+function _promote_eltype(C::IntegratedSachsWolfe{T}, ::Type{U}) where {T, U}
+    W = promote_type(T, U)
+    W == T && return C
+    IntegratedSachsWolfe{W}(
+        convert(Vector{W}, C.growth_rate),
+        convert(Matrix{W}, C.Kernel),
+        C.ell_prefactor,
+        C.limber_factor,
+    )
+end
+
+function _promote_eltype(C::PrimordialNonGaussianity{T}, ::Type{U}) where {T, U}
+    W = promote_type(T, U)
+    W == T && return C
+    PrimordialNonGaussianity{W}(
+        convert(Matrix{W}, C.nz),
+        C.z,
+        convert(Matrix{W}, C.nz_norm),
+        convert(Matrix{W}, C.bias),
+        convert(W, C.f_NL),
+        C.p,
+        convert(Matrix{W}, C.Kernel),
+        C.ell_prefactor,
+        C.limber_factor,
+    )
+end
+
+function evaluate_components!(GC::GalaxyClustering, bg::Background{U}) where {U}
+    GC.δ   = _promote_eltype(GC.δ, U)
+    GC.RSD = _promote_eltype(GC.RSD, U)
+    GC.μ   = _promote_eltype(GC.μ, U)
+    GC.PNG = _promote_eltype(GC.PNG, U)
     compute_kernel!(GC.δ, bg)
     compute_kernel!(GC.RSD, bg)
     compute_kernel!(GC.μ, bg)
     compute_kernel!(GC.PNG, bg)
 end
 
-function evaluate_components!(WL::WeakLensing, bg::Background)
+function evaluate_components!(WL::WeakLensing, bg::Background{U}) where {U}
+    WL.γ  = _promote_eltype(WL.γ,  U)
+    WL.IA = _promote_eltype(WL.IA, U)
     compute_kernel!(WL.γ, bg)
     compute_kernel!(WL.IA, bg)
 end
 
-function evaluate_components!(cmb::CMB, bg::Background)
+function evaluate_components!(cmb::CMB, bg::Background{U}) where {U}
+    cmb.κ   = _promote_eltype(cmb.κ,   U)
+    cmb.ISW = _promote_eltype(cmb.ISW, U)
     compute_kernel!(cmb.κ, bg)
     compute_kernel!(cmb.ISW, bg)
 end

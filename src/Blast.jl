@@ -28,6 +28,7 @@ if !isnothing(cosmo_ext)
     const r_z = cosmo_ext.r_z
     const D_z = cosmo_ext.D_z
     const f_z = cosmo_ext.f_z
+    const D_f_z = cosmo_ext.D_f_z
 else
     @error "BackgroundCosmologyExt extension not loaded. Differentiable background will not be available."
 end

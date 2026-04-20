@@ -73,11 +73,11 @@ Random.seed!(9876)
         end
 
         bias0 = ones(nz_bins * length(bg.z))
-        # ForwardDiff fails at NumberCounts(bias=...) construction —
-        # struct field bias::Matrix{Float64} cannot hold Duals. Mooncake
-        # handles this via its tape-based reverse mode. (See plan notes.)
+        # Post-Phase-A: struct is NumberCounts{T<:Real}, so ForwardDiff
+        # Duals thread through bias → Kernel → Cℓ without being stripped.
+        # Agreement with Mooncake is ~1e-12 (machine precision).
         check_gradient(f, bias0;
-                       skip_forward=true,
+                       skip_forward=false,
                        skip_zygote=true,
                        rtol_fd=1e-4)
     end
@@ -167,8 +167,9 @@ Random.seed!(9876)
         end
 
         A0 = [1.72]
+        # Post-Phase-A: IntrinsicAlignment{T<:Real} with A::T allows FW.
         check_gradient(f_A, A0;
-                       skip_forward=true,
+                       skip_forward=false,
                        skip_zygote=true,
                        rtol_fd=1e-4)
     end
@@ -220,8 +221,9 @@ Random.seed!(9876)
         # element-wise; Mooncake and FD agree to 4-5 digits per entry but
         # the norm-based isapprox trips on near-zero entries with atol=0.
         # atol=1e-12 catches that without loosening rtol.
+        # Post-Phase-A: ForwardDiff now works through the GC×WL cross path.
         check_gradient(f_cross, bias0;
-                       skip_forward=true,
+                       skip_forward=false,
                        skip_zygote=true,
                        rtol_fd=1e-4,
                        atol=1e-12)
@@ -241,8 +243,9 @@ Random.seed!(9876)
     # Plans are built outside f (FFT plans — cosmo-invariant). We build a
     # minimal W inline inside f so no mutation leaks across calls.
     #
-    # Runtime: first-time Mooncake tape compile is ~8 min; FD reference
-    # ~25 s. Agreement is ~1e-8 relative (rtol_fd=1e-4 is very loose).
+    # Runtime: first-time Mooncake tape compile is ~8 min; ForwardDiff (post
+    # Phase B) ~15 s; FD reference ~25 s. Agreement vs FD is ~1e-8 relative
+    # for both AD backends (rtol_fd=1e-4 is very loose).
     # ---------------------------------------------------------------------
     @testset "GC auto-spectrum wrt cosmology (Ωm, H0, w0)" begin
         gc_template = Blast.GalaxyClustering(
@@ -272,8 +275,14 @@ Random.seed!(9876)
         end
 
         p0 = [0.3156, 67.27, -1.0]
+        # ForwardDiff through cosmology is enabled as of Phase B:
+        #   - PowerSpectrum{T} and 17 w_*{T} structs parametrized
+        #   - evaluate_components! promotes component T against bg eltype
+        #   - prepare_nz_matrix uses u-substitution for Dual bounds
+        #     (QuadGK can't form Dual kronrod weights directly)
+        # FW gradient vs FD agrees to ~1e-8 relative — well inside rtol_fd=1e-4.
+        # FW runs in ~15s vs Mooncake's ~8min tape compile.
         check_gradient(f_cosmo, p0;
-                       skip_forward=true,
                        skip_zygote=true,
                        rtol_fd=1e-4)
     end

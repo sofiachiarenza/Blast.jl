@@ -378,12 +378,25 @@ the Limber approximation.
 - `ΔP_limber`: A 2D array of the non-linear correction to the matter power spectrum.  
 - `Pδ_limber`: A 2D array of the total matter power spectrum.
 """
-@kwdef mutable struct PowerSpectrum
-    cϕTT::cϕTT{Float64}
-    cϕT::Union{cϕT{Float64}, Nothing}
-    cϕ::Union{cϕ{Float64}, Nothing}
-    ΔP_limber::Matrix{Float64}
-    Pδ_limber::Matrix{Float64}
+mutable struct PowerSpectrum{T<:Real}
+    cϕTT::cϕTT{T}
+    cϕT::Union{cϕT{T}, Nothing}
+    cϕ::Union{cϕ{T}, Nothing}
+    ΔP_limber::Matrix{T}
+    Pδ_limber::Matrix{T}
+end
+
+# Outer constructor: infer T from cϕTT (which is always present), promote
+# ΔP_limber/Pδ_limber to match. cϕT/cϕ may be Nothing — they're typed via
+# the struct's Union{..., Nothing}.
+function PowerSpectrum(cϕTT::cϕTT{T},
+                       cϕT::Union{cϕT{T}, Nothing},
+                       cϕ::Union{cϕ{T}, Nothing},
+                       ΔP_limber::AbstractMatrix,
+                       Pδ_limber::AbstractMatrix) where {T<:Real}
+    PowerSpectrum{T}(cϕTT, cϕT, cϕ,
+                     convert(Matrix{T}, ΔP_limber),
+                     convert(Matrix{T}, Pδ_limber))
 end
 
 """
@@ -428,7 +441,13 @@ coordinate system `(χ, Rχ, k)` using pre-built Background interpolators.
 """
 function transform_to_R_frame(matrix::AbstractArray{<:Any,2}, bg::Background)
     new_χs = make_grid(Blast.χ, Blast.R)
-    x = bg.z_of_χ.(new_χs)
+    # Pass the whole χ vector to the z_of_χ akima closure in ONE call rather
+    # than scalar-broadcasting (`bg.z_of_χ.(new_χs)`). The dotted form
+    # rebuilt the akima coefficient arrays (b, c, d of length ~1000) on every
+    # single one of the 6144 scalar queries, costing ~100 ms and ~1 GiB per
+    # Background evaluation. The vector form shares a single setup across
+    # queries via `_akima_eval(..., tq::AbstractArray)` — ~1 ms, ~200 KiB.
+    x = bg.z_of_χ(new_χs)
     interp = akima_interpolation(matrix, Blast.z_lin, x)
     return reshape(interp, length(Blast.χ), length(Blast.R), size(interp, 2))
 end

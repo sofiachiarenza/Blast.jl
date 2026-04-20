@@ -43,7 +43,12 @@ Precompute the Chebyshev basis polynomials for the coordinate axis (usually reds
 function get_limber_coords_polynomials(plan::ChebyshevPlan, coords::AbstractVector)
     K_chi = plan.K[2]
     chi_min = last(plan.nodes[2]); chi_max = first(plan.nodes[2])
-    return chebyshev_polynomials(coords, chi_min, chi_max, K_chi)
+    # ACE's `chebyshev_polynomials(::AbstractVector{T}, ::T, ::T, ::Int)` requires
+    # all three first arguments to share a concrete type. Under ForwardDiff
+    # through cosmology, `coords` (= bg.z) carries Duals while plan bounds are
+    # Float64; promote the bounds to match.
+    T = eltype(coords)
+    return chebyshev_polynomials(coords, T(chi_min), T(chi_max), K_chi)
 end
 
 """

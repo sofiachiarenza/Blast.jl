@@ -48,162 +48,214 @@ function compute_w!(w::Nothing, c::PowerSpectrum)
     return nothing
 end
 
-@kwdef mutable struct w_2_00_ϕTT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_00
-    w::Array{Float64, 3} = zeros(1, 1, 1)
+# ────────────────────────────────────────────────────────────────────────────
+# Parametric w_* structs (Phase B).
+#
+# Each struct now carries a type parameter T matching the element type of `w`.
+# `T̃` is always `Array{Float64, 4}` — it's a reference to one of the precomputed
+# `T_tildes.T_*` constants, never differentiated wrt.
+#
+# `compute_w!(w::w_*, c::PowerSpectrum)` is replaced by a functional
+# `compute_w(w, c)` that returns a fresh struct of the appropriate eltype. The
+# container-level `compute_w!(W::ProjectedMatterDensity, c)` reassigns fields
+# with the result — no in-place mutation of `w.w`. This eliminates the
+# Dual→Float64 strip when `c.cϕTT.coefs` carries Duals (ForwardDiff through
+# cosmology parameters).
+# ────────────────────────────────────────────────────────────────────────────
+
+mutable struct w_2_00_ϕTT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_00_ϕTT() = w_2_00_ϕTT{Float64}(T_tildes.T_2_00, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_00_ϕTT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+    return w_2_00_ϕTT{eltype(result)}(w.T̃, result)
 end
 
-function compute_w!(w::w_2_00_ϕTT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+mutable struct w_minus2_00_ϕTT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_minus2_00_ϕTT() = w_minus2_00_ϕTT{Float64}(T_tildes.T_minus2_00, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_minus2_00_ϕTT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+    return w_minus2_00_ϕTT{eltype(result)}(w.T̃, result)
 end
 
-@kwdef mutable struct w_minus2_00_ϕTT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_minus2_00
-    w::Array{Float64, 3} = zeros(1, 1, 1)
+mutable struct w_0_00_ϕTT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_0_00_ϕTT() = w_0_00_ϕTT{Float64}(T_tildes.T_0_00, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_0_00_ϕTT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+    return w_0_00_ϕTT{eltype(result)}(w.T̃, result)
 end
 
-function compute_w!(w::w_minus2_00_ϕTT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+mutable struct w_0_02_ϕTT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_0_02_ϕTT() = w_0_02_ϕTT{Float64}(T_tildes.T_0_02, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_0_02_ϕTT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+    return w_0_02_ϕTT{eltype(result)}(w.T̃, result)
 end
 
-@kwdef mutable struct w_0_00_ϕTT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_0_00
-    w::Array{Float64, 3} = zeros(1, 1, 1)
+mutable struct w_0_20_ϕTT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_0_20_ϕTT() = w_0_20_ϕTT{Float64}(T_tildes.T_0_20, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_0_20_ϕTT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+    return w_0_20_ϕTT{eltype(result)}(w.T̃, result)
 end
 
-function compute_w!(w::w_0_00_ϕTT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+mutable struct w_2_02_ϕTT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_02_ϕTT() = w_2_02_ϕTT{Float64}(T_tildes.T_2_02, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_02_ϕTT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+    return w_2_02_ϕTT{eltype(result)}(w.T̃, result)
 end
 
-@kwdef mutable struct w_0_02_ϕTT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_0_02
-    w::Array{Float64, 3} = zeros(1, 1, 1)
+mutable struct w_2_20_ϕTT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_20_ϕTT() = w_2_20_ϕTT{Float64}(T_tildes.T_2_20, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_20_ϕTT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+    return w_2_20_ϕTT{eltype(result)}(w.T̃, result)
 end
 
-function compute_w!(w::w_0_02_ϕTT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+mutable struct w_2_22_ϕTT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_22_ϕTT() = w_2_22_ϕTT{Float64}(T_tildes.T_2_22, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_22_ϕTT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+    return w_2_22_ϕTT{eltype(result)}(w.T̃, result)
 end
 
-@kwdef mutable struct w_0_20_ϕTT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_0_20
-    w::Array{Float64, 3} = zeros(1, 1, 1)
+mutable struct w_2_00_ϕT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_00_ϕT() = w_2_00_ϕT{Float64}(T_tildes.T_2_00, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_00_ϕT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕT.coefs, w.T̃)
+    return w_2_00_ϕT{eltype(result)}(w.T̃, result)
 end
 
-function compute_w!(w::w_0_20_ϕTT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+mutable struct w_2_00_ϕT_R1{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_00_ϕT_R1() = w_2_00_ϕT_R1{Float64}(T_tildes.T_2_00, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_00_ϕT_R1, c::PowerSpectrum)
+    coefs_R1 = c.cϕT.coefs[:, :, end]
+    result   = w_ell_tullio(coefs_R1, w.T̃)
+    return w_2_00_ϕT_R1{eltype(result)}(w.T̃, result)
 end
 
-@kwdef mutable struct w_2_02_ϕTT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_02
-    w::Array{Float64, 3} = zeros(1, 1, 1)
+mutable struct w_0_00_ϕT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_0_00_ϕT() = w_0_00_ϕT{Float64}(T_tildes.T_0_00, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_0_00_ϕT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕT.coefs, w.T̃)
+    return w_0_00_ϕT{eltype(result)}(w.T̃, result)
 end
 
-function compute_w!(w::w_2_02_ϕTT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+mutable struct w_0_00_ϕT_R1{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_0_00_ϕT_R1() = w_0_00_ϕT_R1{Float64}(T_tildes.T_0_00, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_0_00_ϕT_R1, c::PowerSpectrum)
+    coefs_R1 = c.cϕT.coefs[:, :, end]
+    result   = w_ell_tullio(coefs_R1, w.T̃)
+    return w_0_00_ϕT_R1{eltype(result)}(w.T̃, result)
 end
 
-@kwdef mutable struct w_2_20_ϕTT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_20
-    w::Array{Float64, 3} = zeros(1, 1, 1)
+mutable struct w_2_02_ϕT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_02_ϕT() = w_2_02_ϕT{Float64}(T_tildes.T_2_02, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_02_ϕT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕT.coefs, w.T̃)
+    return w_2_02_ϕT{eltype(result)}(w.T̃, result)
 end
 
-function compute_w!(w::w_2_20_ϕTT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+mutable struct w_2_02_ϕT_R1{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_02_ϕT_R1() = w_2_02_ϕT_R1{Float64}(T_tildes.T_2_02, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_02_ϕT_R1, c::PowerSpectrum)
+    coefs_R1 = c.cϕT.coefs[:, :, end]
+    result   = w_ell_tullio(coefs_R1, w.T̃)
+    return w_2_02_ϕT_R1{eltype(result)}(w.T̃, result)
 end
 
-@kwdef mutable struct w_2_22_ϕTT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_22
-    w::Array{Float64, 3} = zeros(1, 1, 1)
+mutable struct w_2_20_ϕT{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_20_ϕT() = w_2_20_ϕT{Float64}(T_tildes.T_2_20, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_20_ϕT, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕT.coefs, w.T̃)
+    return w_2_20_ϕT{eltype(result)}(w.T̃, result)
 end
 
-function compute_w!(w::w_2_22_ϕTT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕTT.coefs, w.T̃)
+mutable struct w_2_20_ϕT_R1{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_20_ϕT_R1() = w_2_20_ϕT_R1{Float64}(T_tildes.T_2_20, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_20_ϕT_R1, c::PowerSpectrum)
+    coefs_R1 = c.cϕT.coefs[:, :, end]
+    result   = w_ell_tullio(coefs_R1, w.T̃)
+    return w_2_20_ϕT_R1{eltype(result)}(w.T̃, result)
 end
 
-@kwdef mutable struct w_2_00_ϕT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_00
-    w::Array{Float64, 3} = zeros(1, 1, 1)
+mutable struct w_2_00_ϕ{T<:Real} <: ProjectedMatterDensityComponent
+    T̃::Array{Float64, 4}
+    w::Array{T, 3}
+end
+w_2_00_ϕ() = w_2_00_ϕ{Float64}(T_tildes.T_2_00, zeros(Float64, 1, 1, 1))
+
+function compute_w(w::w_2_00_ϕ, c::PowerSpectrum)
+    result = w_ell_tullio(c.cϕ.coefs, w.T̃)
+    return w_2_00_ϕ{eltype(result)}(w.T̃, result)
 end
 
-function compute_w!(w::w_2_00_ϕT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕT.coefs, w.T̃)
-end
-
-@kwdef mutable struct w_2_00_ϕT_R1 <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_00
-    w::Array{Float64, 3} = zeros(1, 1, 1)
-end
-
-function compute_w!(w::w_2_00_ϕT_R1, c::PowerSpectrum)
-    coefs_R1 = c.cϕT.coefs[:,:, end]
-    w.w = w_ell_tullio(coefs_R1, w.T̃)
-end
-
-@kwdef mutable struct w_0_00_ϕT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_0_00
-    w::Array{Float64, 3} = zeros(1, 1, 1)
-end
-
-function compute_w!(w::w_0_00_ϕT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕT.coefs, w.T̃)
-end
-
-@kwdef mutable struct w_0_00_ϕT_R1 <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_0_00
-    w::Array{Float64, 3} = zeros(1, 1, 1)
-end
-
-function compute_w!(w::w_0_00_ϕT_R1, c::PowerSpectrum)
-    coefs_R1 = c.cϕT.coefs[:,:, end]
-    w.w = w_ell_tullio(coefs_R1, w.T̃)
-end
-
-@kwdef mutable struct w_2_02_ϕT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_02
-    w::Array{Float64, 3} = zeros(1, 1, 1)
-end
-
-function compute_w!(w::w_2_02_ϕT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕT.coefs, w.T̃)
-end
-
-@kwdef mutable struct w_2_02_ϕT_R1 <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_02
-    w::Array{Float64, 3} = zeros(1, 1, 1)
-end
-
-function compute_w!(w::w_2_02_ϕT_R1, c::PowerSpectrum)
-    coefs_R1 = c.cϕT.coefs[:,:, end]
-    w.w = w_ell_tullio(coefs_R1, w.T̃)
-end
-
-@kwdef mutable struct w_2_20_ϕT <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_20
-    w::Array{Float64, 3} = zeros(1, 1, 1)
-end
-
-function compute_w!(w::w_2_20_ϕT, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕT.coefs, w.T̃)
-end
-
-@kwdef mutable struct w_2_20_ϕT_R1 <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_20
-    w::Array{Float64, 3} = zeros(1, 1, 1)
-end
-
-function compute_w!(w::w_2_20_ϕT_R1, c::PowerSpectrum)
-    coefs_R1 = c.cϕT.coefs[:,:,end]
-    w.w = w_ell_tullio(coefs_R1, w.T̃)
-end
-
-@kwdef mutable struct w_2_00_ϕ <: ProjectedMatterDensityComponent
-    T̃ = T_tildes.T_2_00
-    w::Array{Float64, 3} = zeros(1, 1, 1)
-end
-
-function compute_w!(w::w_2_00_ϕ, c::PowerSpectrum)
-    w.w = w_ell_tullio(c.cϕ.coefs, w.T̃)
-end
+# Nothing-carrying components: absent contribution, no-op.
+compute_w(::Nothing, ::PowerSpectrum) = nothing
 
 """
     ProjectedMatterDensity
@@ -243,21 +295,25 @@ end
 Compute all active projected matter density components.
 """
 function compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
-    compute_w!(W.w_2_00_ϕTT, c)
-    compute_w!(W.w_minus2_00_ϕTT, c)
-    compute_w!(W.w_0_00_ϕTT, c)
-    compute_w!(W.w_0_02_ϕTT, c)
-    compute_w!(W.w_0_20_ϕTT, c)
-    compute_w!(W.w_2_02_ϕTT, c)
-    compute_w!(W.w_2_20_ϕTT, c)
-    compute_w!(W.w_2_22_ϕTT, c)
-    compute_w!(W.w_2_00_ϕT, c)
-    compute_w!(W.w_2_00_ϕT_R1, c)
-    compute_w!(W.w_0_00_ϕT, c)
-    compute_w!(W.w_0_00_ϕT_R1, c)
-    compute_w!(W.w_2_02_ϕT, c)
-    compute_w!(W.w_2_02_ϕT_R1, c)
-    compute_w!(W.w_2_20_ϕT, c)
-    compute_w!(W.w_2_20_ϕT_R1, c)
-    compute_w!(W.w_2_00_ϕ, c)
+    # Reassign each field to a freshly-constructed w_*{T} where T matches
+    # the eltype of the Tullio result (Float64 for primal / Dual under FW).
+    # Skips Nothing fields via the compute_w(::Nothing, ...) method above.
+    W.w_2_00_ϕTT     = compute_w(W.w_2_00_ϕTT,     c)
+    W.w_minus2_00_ϕTT = compute_w(W.w_minus2_00_ϕTT, c)
+    W.w_0_00_ϕTT     = compute_w(W.w_0_00_ϕTT,     c)
+    W.w_0_02_ϕTT     = compute_w(W.w_0_02_ϕTT,     c)
+    W.w_0_20_ϕTT     = compute_w(W.w_0_20_ϕTT,     c)
+    W.w_2_02_ϕTT     = compute_w(W.w_2_02_ϕTT,     c)
+    W.w_2_20_ϕTT     = compute_w(W.w_2_20_ϕTT,     c)
+    W.w_2_22_ϕTT     = compute_w(W.w_2_22_ϕTT,     c)
+    W.w_2_00_ϕT      = compute_w(W.w_2_00_ϕT,      c)
+    W.w_2_00_ϕT_R1   = compute_w(W.w_2_00_ϕT_R1,   c)
+    W.w_0_00_ϕT      = compute_w(W.w_0_00_ϕT,      c)
+    W.w_0_00_ϕT_R1   = compute_w(W.w_0_00_ϕT_R1,   c)
+    W.w_2_02_ϕT      = compute_w(W.w_2_02_ϕT,      c)
+    W.w_2_02_ϕT_R1   = compute_w(W.w_2_02_ϕT_R1,   c)
+    W.w_2_20_ϕT      = compute_w(W.w_2_20_ϕT,      c)
+    W.w_2_20_ϕT_R1   = compute_w(W.w_2_20_ϕT_R1,   c)
+    W.w_2_00_ϕ       = compute_w(W.w_2_00_ϕ,       c)
+    return W
 end
