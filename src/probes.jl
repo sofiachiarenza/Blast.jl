@@ -429,7 +429,7 @@ K^{\mathrm{ISW}}(z) = \frac{3 T_{\mathrm{CMB}} H_0^2 \Omega_m}{c^3}\, H(z)\, \le
 function compute_kernel!(Component::IntegratedSachsWolfe, bg::Background) 
     H0 = get_H0(bg.cosmo)
     Ωm = get_Ωm(bg.cosmo)
-    T_CMB = 2.726
+    T_CMB = 2.7255
     prefac = 3T_CMB * H0^2 * Ωm / C_LIGHT^3
     kernel = @. prefac * bg.H * (1 - bg.f)
     Component.Kernel = reshape(kernel, 1, size(kernel, 1))

@@ -150,7 +150,7 @@ end
 A flat ΛCDM cosmological model with fixed w0=-1 and wa=0.
 Maps standard parameters to AbstractCosmologicalEmulators format.
 """
-function ΛCDM(; H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, Ωk=0.0)
+function ΛCDM(; H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, mnu=0.06, Ωk=0.0)
     h = H0 / 100.0
     return w0waCDMCosmology(
         ωb = Ωb * h^2,
@@ -159,7 +159,7 @@ function ΛCDM(; H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, Ωk
         h = h,
         nₛ = ns,
         ln10Aₛ = log(1e10 * As),
-        mν = 0.06,
+        mν = mnu,
         w0 = -1.0,
         wa = 0.0
     )
