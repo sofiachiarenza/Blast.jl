@@ -36,6 +36,20 @@ function _setup_limber_plan()
     return plan_limber, T_k, plan_ℓ
 end
 
+# Unequal-time (ϕTT) FFT plan over (k, χ, R). Identical for every SetUp.
+function _setup_plan_ϕTT()
+    return prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1;
+                                  size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)),
+                                  dim=1)
+end
+
+# Primordial (ϕ) FFT plan over k only. Needed when PNG is active.
+function _setup_plan_ϕ()
+    return prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1;
+                                  size_nd=(size(Blast.k_cheb, 1),),
+                                  dim=1)
+end
+
 """
     SetUp(probes...)
 
@@ -47,144 +61,114 @@ for the given set of cosmological probes.
 - `P::FFTPlans`: Pre-allocated FFT plans used for Chebyshev decomposition.
 """
 function SetUp(G::GalaxyClustering)
-    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = _setup_plan_ϕTT()
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    w_δ = w_2_00_ϕTT()
-    w_μ_B = nothing
-    w_μ_A = nothing
-    w_μxRSD_A = nothing
-    w_μxRSD_B = nothing
-    w_RSD_A = nothing
-    w_RSD_B = nothing
-    w_RSD_C = nothing
-    w_PNG_A = nothing
-    w_PNG_B = nothing
-    w_μxPNG_A = nothing
-    w_μxPNG_B = nothing
-    w_RSDxPNG_A = nothing
-    w_RSDxPNG_C = nothing
-    w_RSDxPNG_B = nothing
-    w_RSDxPNG_D = nothing
-    w_PNG_C = nothing
+    # ProjectedMatterDensity is @kwdef with all fields defaulting to `nothing`;
+    # assigning only the active fields by name avoids the 17-arg positional
+    # constructor (which is fragile to field reorders) and the 17 local
+    # `nothing` initializers.
+    W = ProjectedMatterDensity()
+    W.w_2_00_ϕTT = w_2_00_ϕTT()  # δ (always)
 
     if !isnothing(G.RSD)
-        w_RSD_A = w_2_02_ϕTT()
-        w_RSD_B = w_2_20_ϕTT()
-        w_RSD_C = w_2_22_ϕTT()
+        W.w_2_02_ϕTT = w_2_02_ϕTT()
+        W.w_2_20_ϕTT = w_2_20_ϕTT()
+        W.w_2_22_ϕTT = w_2_22_ϕTT()
     end
 
     if !isnothing(G.μ)
-        w_μ_A = w_0_00_ϕTT()
-        w_μ_B = w_minus2_00_ϕTT()
+        W.w_0_00_ϕTT = w_0_00_ϕTT()
+        W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()
     end
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1),), dim=1)
-        w_PNG_A = w_2_00_ϕT()
-        w_PNG_B = w_2_00_ϕT_R1()
-        w_PNG_C = w_2_00_ϕ()
+        plan_ϕ = _setup_plan_ϕ()
+        W.w_2_00_ϕT = w_2_00_ϕT()
+        W.w_2_00_ϕT_R1 = w_2_00_ϕT_R1()
+        W.w_2_00_ϕ = w_2_00_ϕ()
     end
 
     if !isnothing(G.RSD) && !isnothing(G.μ)
-        w_μxRSD_A = w_0_02_ϕTT()
-        w_μxRSD_B = w_0_20_ϕTT()
+        W.w_0_02_ϕTT = w_0_02_ϕTT()
+        W.w_0_20_ϕTT = w_0_20_ϕTT()
     end
 
     if !isnothing(G.RSD) && !isnothing(G.PNG)
-        w_RSDxPNG_A = w_2_02_ϕT()
-        w_RSDxPNG_B = w_2_20_ϕT()
-        w_RSDxPNG_C = w_2_02_ϕT_R1()
-        w_RSDxPNG_D = w_2_20_ϕT_R1()
+        W.w_2_02_ϕT = w_2_02_ϕT()
+        W.w_2_20_ϕT = w_2_20_ϕT()
+        W.w_2_02_ϕT_R1 = w_2_02_ϕT_R1()
+        W.w_2_20_ϕT_R1 = w_2_20_ϕT_R1()
     end
 
     if !isnothing(G.μ) && !isnothing(G.PNG)
-        w_μxPNG_A = w_0_00_ϕT()
-        w_μxPNG_B = w_0_00_ϕT_R1()
+        W.w_0_00_ϕT = w_0_00_ϕT()
+        W.w_0_00_ϕT_R1 = w_0_00_ϕT_R1()
     end
-    
+
     Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
-    W = ProjectedMatterDensity(w_δ, w_μ_B, w_μ_A, w_μxRSD_A, w_μxRSD_B, w_RSD_A, w_RSD_B, w_RSD_C, w_PNG_A, w_PNG_B, 
-                                w_μxPNG_A, w_μxPNG_B, w_RSDxPNG_A, w_RSDxPNG_C, w_RSDxPNG_B, w_RSDxPNG_D, w_PNG_C)
     return W, Plans
 end
 
 function SetUp(L::WeakLensing)
-    
-    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = _setup_plan_ϕTT()
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    w_γ = w_minus2_00_ϕTT()    
-    
+    W = ProjectedMatterDensity()
+    W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()  # γ (always)
+
     Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
-    W = ProjectedMatterDensity(nothing, w_γ, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing)
     return W, Plans
 end
 
 function SetUp(G::GalaxyClustering, L::WeakLensing)
-    
-    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = _setup_plan_ϕTT()
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    w_δ = w_2_00_ϕTT()
-    w_μ_B = w_minus2_00_ϕTT()
-    w_μ_A = w_0_00_ϕTT()
-    w_μxRSD_A = nothing
-    w_μxRSD_B = nothing
-    w_RSD_A = nothing
-    w_RSD_B = nothing
-    w_RSD_C = nothing
-    w_PNG_A = nothing
-    w_PNG_B = nothing
-    w_μxPNG_A = nothing
-    w_μxPNG_B = nothing
-    w_RSDxPNG_A = nothing
-    w_RSDxPNG_C = nothing
-    w_RSDxPNG_B = nothing
-    w_RSDxPNG_D = nothing
-    w_PNG_C = nothing
+    W = ProjectedMatterDensity()
+    W.w_2_00_ϕTT = w_2_00_ϕTT()            # δ
+    W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()  # γ (always under L)
+    W.w_0_00_ϕTT = w_0_00_ϕTT()            # δ×γ cross (always under G×L)
 
     if !isnothing(G.RSD)
-        w_RSD_A = w_2_02_ϕTT()
-        w_RSD_B = w_2_20_ϕTT()
-        w_RSD_C = w_2_22_ϕTT()
+        W.w_2_02_ϕTT = w_2_02_ϕTT()
+        W.w_2_20_ϕTT = w_2_20_ϕTT()
+        W.w_2_22_ϕTT = w_2_22_ϕTT()
     end
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1),), dim=1)
-        w_PNG_A = w_2_00_ϕT()
-        w_PNG_B = w_2_00_ϕT_R1()
-        w_PNG_C = w_2_00_ϕ()
+        plan_ϕ = _setup_plan_ϕ()
+        W.w_2_00_ϕT = w_2_00_ϕT()
+        W.w_2_00_ϕT_R1 = w_2_00_ϕT_R1()
+        W.w_2_00_ϕ = w_2_00_ϕ()
     end
 
     if !isnothing(G.RSD) && (!isnothing(G.μ) || !isnothing(L.γ))
-        w_μxRSD_A = w_0_02_ϕTT()
-        w_μxRSD_B = w_0_20_ϕTT()
+        W.w_0_02_ϕTT = w_0_02_ϕTT()
+        W.w_0_20_ϕTT = w_0_20_ϕTT()
     end
 
     if !isnothing(G.RSD) && !isnothing(G.PNG)
-        w_RSDxPNG_A = w_2_02_ϕT()
-        w_RSDxPNG_B = w_2_20_ϕT()
-        w_RSDxPNG_C = w_2_02_ϕT_R1()
-        w_RSDxPNG_D = w_2_20_ϕT_R1()
+        W.w_2_02_ϕT = w_2_02_ϕT()
+        W.w_2_20_ϕT = w_2_20_ϕT()
+        W.w_2_02_ϕT_R1 = w_2_02_ϕT_R1()
+        W.w_2_20_ϕT_R1 = w_2_20_ϕT_R1()
     end
 
     if (!isnothing(G.μ) || !isnothing(L.γ)) && !isnothing(G.PNG)
-        w_μxPNG_A = w_0_00_ϕT()
-        w_μxPNG_B = w_0_00_ϕT_R1()
+        W.w_0_00_ϕT = w_0_00_ϕT()
+        W.w_0_00_ϕT_R1 = w_0_00_ϕT_R1()
     end
-    
+
     Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
-    W = ProjectedMatterDensity(w_δ, w_μ_B, w_μ_A, w_μxRSD_A, w_μxRSD_B, w_RSD_A, w_RSD_B, w_RSD_C, w_PNG_A, w_PNG_B, 
-                                w_μxPNG_A, w_μxPNG_B, w_RSDxPNG_A, w_RSDxPNG_C, w_RSDxPNG_B, w_RSDxPNG_D, w_PNG_C)
     return W, Plans
 end
 
@@ -193,68 +177,51 @@ function SetUp(L::WeakLensing, G::GalaxyClustering)
 end
 
 function SetUp(G::GalaxyClustering, C::CMB)
-    
-    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = _setup_plan_ϕTT()
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    w_δ = w_2_00_ϕTT()
-    w_μ_B = nothing
-    w_μ_A = w_0_00_ϕTT()
-    w_μxRSD_A = nothing
-    w_μxRSD_B = nothing
-    w_RSD_A = nothing
-    w_RSD_B = nothing
-    w_RSD_C = nothing
-    w_PNG_A = nothing
-    w_PNG_B = nothing
-    w_μxPNG_A = nothing
-    w_μxPNG_B = nothing
-    w_RSDxPNG_A = nothing
-    w_RSDxPNG_C = nothing
-    w_RSDxPNG_B = nothing
-    w_RSDxPNG_D = nothing
-    w_PNG_C = nothing
+    W = ProjectedMatterDensity()
+    W.w_2_00_ϕTT = w_2_00_ϕTT()  # δ
+    W.w_0_00_ϕTT = w_0_00_ϕTT()  # κ×δ cross (always under G×C)
 
     if !isnothing(G.RSD)
-        w_RSD_A = w_2_02_ϕTT()
-        w_RSD_B = w_2_20_ϕTT()
-        w_RSD_C = w_2_22_ϕTT()
+        W.w_2_02_ϕTT = w_2_02_ϕTT()
+        W.w_2_20_ϕTT = w_2_20_ϕTT()
+        W.w_2_22_ϕTT = w_2_22_ϕTT()
     end
 
     if !isnothing(G.μ)
-        w_μ_B = w_minus2_00_ϕTT()
+        W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()
     end
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1),), dim=1)
-        w_PNG_A = w_2_00_ϕT()
-        w_PNG_B = w_2_00_ϕT_R1()
-        w_PNG_C = w_2_00_ϕ()
+        plan_ϕ = _setup_plan_ϕ()
+        W.w_2_00_ϕT = w_2_00_ϕT()
+        W.w_2_00_ϕT_R1 = w_2_00_ϕT_R1()
+        W.w_2_00_ϕ = w_2_00_ϕ()
     end
 
     if !isnothing(G.RSD) && (!isnothing(G.μ) || !isnothing(C.κ))
-        w_μxRSD_A = w_0_02_ϕTT()
-        w_μxRSD_B = w_0_20_ϕTT()
+        W.w_0_02_ϕTT = w_0_02_ϕTT()
+        W.w_0_20_ϕTT = w_0_20_ϕTT()
     end
 
     if !isnothing(G.RSD) && !isnothing(G.PNG)
-        w_RSDxPNG_A = w_2_02_ϕT()
-        w_RSDxPNG_B = w_2_20_ϕT()
-        w_RSDxPNG_C = w_2_02_ϕT_R1()
-        w_RSDxPNG_D = w_2_20_ϕT_R1()
+        W.w_2_02_ϕT = w_2_02_ϕT()
+        W.w_2_20_ϕT = w_2_20_ϕT()
+        W.w_2_02_ϕT_R1 = w_2_02_ϕT_R1()
+        W.w_2_20_ϕT_R1 = w_2_20_ϕT_R1()
     end
 
     if (!isnothing(G.μ) || !isnothing(C.κ)) && !isnothing(G.PNG)
-        w_μxPNG_A = w_0_00_ϕT()
-        w_μxPNG_B = w_0_00_ϕT_R1()
+        W.w_0_00_ϕT = w_0_00_ϕT()
+        W.w_0_00_ϕT_R1 = w_0_00_ϕT_R1()
     end
-    
+
     Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
-    W = ProjectedMatterDensity(w_δ, w_μ_B, w_μ_A, w_μxRSD_A, w_μxRSD_B, w_RSD_A, w_RSD_B, w_RSD_C, w_PNG_A, w_PNG_B, 
-                                w_μxPNG_A, w_μxPNG_B, w_RSDxPNG_A, w_RSDxPNG_C, w_RSDxPNG_B, w_RSDxPNG_D, w_PNG_C)
     return W, Plans
 end
 
@@ -263,16 +230,15 @@ function SetUp(C::CMB, G::GalaxyClustering)
 end
 
 function SetUp(L::WeakLensing, C::CMB)
-    
-    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = _setup_plan_ϕTT()
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    w_γ = w_minus2_00_ϕTT()    
-    
+    W = ProjectedMatterDensity()
+    W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()  # γ (always); κ×γ cross also uses this
+
     Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
-    W = ProjectedMatterDensity(nothing, w_γ, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing)
     return W, Plans
 end
 
@@ -281,66 +247,50 @@ function SetUp(C::CMB, L::WeakLensing)
 end
 
 function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
-    
-    plan_ϕTT = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1), size(Blast.χ, 1), size(Blast.R, 1)), dim=1)
+    plan_ϕTT = _setup_plan_ϕTT()
     plan_ϕT = nothing
     plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    w_δ = w_2_00_ϕTT()
-    # w_minus2_00_ϕTT is always needed: γ×γ (L auto), κ×κ (C auto), γ×κ (L×C cross)
-    w_μ_B = w_minus2_00_ϕTT()
-    # w_0_00_ϕTT is always needed: δ×γ, δ×IA (G×L cross), δ×κ (G×C cross)
-    w_μ_A = w_0_00_ϕTT()
-    w_μxRSD_A = nothing
-    w_μxRSD_B = nothing
-    w_RSD_A = nothing
-    w_RSD_B = nothing
-    w_RSD_C = nothing
-    w_PNG_A = nothing
-    w_PNG_B = nothing
-    w_μxPNG_A = nothing
-    w_μxPNG_B = nothing
-    w_RSDxPNG_A = nothing
-    w_RSDxPNG_C = nothing
-    w_RSDxPNG_B = nothing
-    w_RSDxPNG_D = nothing
-    w_PNG_C = nothing
+    W = ProjectedMatterDensity()
+    W.w_2_00_ϕTT = w_2_00_ϕTT()  # δ
+    # w_minus2_00_ϕTT always needed: γ×γ (L auto), γ×κ (L×C cross)
+    W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()
+    # w_0_00_ϕTT always needed: δ×γ, δ×IA (G×L cross), δ×κ (G×C cross)
+    W.w_0_00_ϕTT = w_0_00_ϕTT()
 
     if !isnothing(G.RSD)
-        w_RSD_A = w_2_02_ϕTT()
-        w_RSD_B = w_2_20_ϕTT()
-        w_RSD_C = w_2_22_ϕTT()
+        W.w_2_02_ϕTT = w_2_02_ϕTT()
+        W.w_2_20_ϕTT = w_2_20_ϕTT()
+        W.w_2_22_ϕTT = w_2_22_ϕTT()
     end
 
     if !isnothing(G.PNG)
         plan_ϕT = plan_ϕTT
-        plan_ϕ = prepare_chebyshev_plan(minimum(k_cheb), maximum(k_cheb), length(k_cheb) - 1; size_nd=(size(Blast.k_cheb, 1),), dim=1)
-        w_PNG_A = w_2_00_ϕT()
-        w_PNG_B = w_2_00_ϕT_R1()
-        w_PNG_C = w_2_00_ϕ()
+        plan_ϕ = _setup_plan_ϕ()
+        W.w_2_00_ϕT = w_2_00_ϕT()
+        W.w_2_00_ϕT_R1 = w_2_00_ϕT_R1()
+        W.w_2_00_ϕ = w_2_00_ϕ()
     end
 
     if !isnothing(G.RSD) && (!isnothing(G.μ) || !isnothing(L.γ))
-        w_μxRSD_A = w_0_02_ϕTT()
-        w_μxRSD_B = w_0_20_ϕTT()
+        W.w_0_02_ϕTT = w_0_02_ϕTT()
+        W.w_0_20_ϕTT = w_0_20_ϕTT()
     end
 
     if !isnothing(G.RSD) && !isnothing(G.PNG)
-        w_RSDxPNG_A = w_2_02_ϕT()
-        w_RSDxPNG_B = w_2_20_ϕT()
-        w_RSDxPNG_C = w_2_02_ϕT_R1()
-        w_RSDxPNG_D = w_2_20_ϕT_R1()
+        W.w_2_02_ϕT = w_2_02_ϕT()
+        W.w_2_20_ϕT = w_2_20_ϕT()
+        W.w_2_02_ϕT_R1 = w_2_02_ϕT_R1()
+        W.w_2_20_ϕT_R1 = w_2_20_ϕT_R1()
     end
 
     if (!isnothing(G.μ) || !isnothing(L.γ)) && !isnothing(G.PNG)
-        w_μxPNG_A = w_0_00_ϕT()
-        w_μxPNG_B = w_0_00_ϕT_R1()
+        W.w_0_00_ϕT = w_0_00_ϕT()
+        W.w_0_00_ϕT_R1 = w_0_00_ϕT_R1()
     end
-    
+
     Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
-    W = ProjectedMatterDensity(w_δ, w_μ_B, w_μ_A, w_μxRSD_A, w_μxRSD_B, w_RSD_A, w_RSD_B, w_RSD_C, w_PNG_A, w_PNG_B, 
-                                w_μxPNG_A, w_μxPNG_B, w_RSDxPNG_A, w_RSDxPNG_C, w_RSDxPNG_B, w_RSDxPNG_D, w_PNG_C)
     return W, Plans
 end
 

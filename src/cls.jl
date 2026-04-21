@@ -73,6 +73,25 @@ function _compute_Cℓ_rsd_tullio(W_A_r1, W_B, pmj02, W_A, W_B_r1, pmj20, w_χ, 
     return Cℓ
 end
 
+# Shared finalize step: given `full_Cℓ` stacked on `full_ℓ_range`, interpolate
+# onto the requested ℓ grid via a Chebyshev decomposition of ℓ² · C_ℓ (the
+# ℓ² weighting smooths the spectrum before decomposition; we divide it back
+# out after chebinterp_native). Called by every `get_Cℓ(ℓ, ...)` mixing the
+# non-Limber and Limber paths.
+#
+# `eltype(full_Cℓ)` is used for the zeros(...) initializer so ForwardDiff.Dual
+# threads through the loop assignment; plain `zeros(...)` would silently strip
+# Duals at the `Cℓ_final[:, i, j] = ...` store.
+function _finalize_Cℓ(full_Cℓ, ℓ, nbins_A::Integer, nbins_B::Integer, P::Union{FFTPlans, Nothing})
+    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ, 1), nbins_A, nbins_B)
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
+    for i in 1:nbins_A, j in 1:nbins_B
+        c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:, i, j] .* (Blast.full_ℓ_range .^ 2.)))
+        Cℓ_final[:, i, j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ .^ 2)
+    end
+    return Cℓ_final
+end
+
 """
     compute_Cℓ(Component1, Component2, w, bg)
 """
@@ -206,18 +225,7 @@ function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpe
     full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
 
     nbins = size(G.δ.Kernel, 1)
-    # eltype(full_Cℓ) threads ForwardDiff.Dual through when any input carries it;
-    # plain zeros(...) would silently strip Duals at the Cℓ_final[:,i,j] = ... assign.
-    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ,1), nbins, nbins)
-    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
-
-    for i in 1:nbins
-        for j in 1:nbins
-            c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
-            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ.^2)
-        end
-    end
-    return Cℓ_final
+    return _finalize_Cℓ(full_Cℓ, ℓ, nbins, nbins, P)
 end
 
 ## Weak lensing auto
@@ -249,17 +257,7 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectru
     full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
 
     nbins = size(L.γ.Kernel, 1)
-    # eltype preserves ForwardDiff.Dual through the loop assignment (see GC branch).
-    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ,1), nbins, nbins)
-    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
-
-    for i in 1:nbins
-        for j in 1:nbins
-            c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
-            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ.^2)
-        end
-    end
-    return Cℓ_final
+    return _finalize_Cℓ(full_Cℓ, ℓ, nbins, nbins, P)
 end
 
 ## Cross clustering-lensing
@@ -312,17 +310,7 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLens
 
     nbins_A = size(G.δ.Kernel, 1)
     nbins_B = size(L.γ.Kernel, 1)
-    # eltype preserves ForwardDiff.Dual through the loop assignment (see GC branch).
-    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ,1), nbins_A, nbins_B)
-    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
-
-    for i in 1:nbins_A
-        for j in 1:nbins_B
-            c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
-            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ.^2)
-        end
-    end
-    return Cℓ_final
+    return _finalize_Cℓ(full_Cℓ, ℓ, nbins_A, nbins_B, P)
 end
 
 function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
@@ -379,17 +367,7 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk:
 
     nbins_A = size(K.κ.Kernel, 1)
     nbins_B = size(G.δ.Kernel, 1)
-    # eltype preserves ForwardDiff.Dual through the loop assignment (see GC branch).
-    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ,1), nbins_A, nbins_B)
-    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
-
-    for i in 1:nbins_A
-        for j in 1:nbins_B
-            c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
-            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ.^2)
-        end
-    end
-    return Cℓ_final
+    return _finalize_Cℓ(full_Cℓ, ℓ, nbins_A, nbins_B, P)
 end
 
 function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
@@ -426,17 +404,7 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, L::WeakLensing, Pk::Powe
 
     nbins_A = size(K.κ.Kernel, 1)
     nbins_B = size(L.γ.Kernel, 1)
-    # eltype preserves ForwardDiff.Dual through the loop assignment (see GC branch).
-    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ,1), nbins_A, nbins_B)
-    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
-
-    for i in 1:nbins_A
-        for j in 1:nbins_B
-            c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:,i,j].*(Blast.full_ℓ_range .^ 2.)))
-            Cℓ_final[:,i,j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ.^2)
-        end
-    end
-    return Cℓ_final
+    return _finalize_Cℓ(full_Cℓ, ℓ, nbins_A, nbins_B, P)
 end
 
 function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, S::WeakLensing, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)

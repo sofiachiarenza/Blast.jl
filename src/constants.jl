@@ -7,7 +7,13 @@ const H_0_CONV = 100.0
 
 # ── Background redshift grid parameters ───────────────────────────────────────
 # Number of fine redshift points used to build the z(χ) inversion spline.
-const N_BG_FINE_GRID = 1000
+# N=100 is deliberately chosen: akima convergence on bg.H/D/f is ~4e-6 relative
+# vs N=1000 (well below cosmic variance), while Background() is ~7.6x faster
+# (4.44 ms → 0.58 ms). The gain flows through to the Mooncake tape: T5 MC
+# gradient drops proportionally because the r_z-broadcast over fine_z is the
+# dominant cost inside Background.  See benchmark/bg_fine_grid_sweep.jl for
+# the full accuracy-vs-speed table.
+const N_BG_FINE_GRID = 100
 # Maximum redshift considered in the background spline.
 const Z_MAX_BACKGROUND = 5.0
 
