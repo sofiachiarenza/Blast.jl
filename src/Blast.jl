@@ -6,7 +6,6 @@ using SpecialFunctions
 using StaticArrays
 using FFTW
 using NPZ
-using Integrals
 using Artifacts
 using PhysicalConstants
 using Memoization
@@ -83,16 +82,8 @@ end
 
 function __init__()
     Tdir = artifact"T_tildes"
-    global T_tildes = T̃(
-        npzread(joinpath(Tdir, "T_tildes_artifact/T_2_00.npz")),
-        npzread(joinpath(Tdir, "T_tildes_artifact/T_0_00.npz")),
-        npzread(joinpath(Tdir, "T_tildes_artifact/T_minus2_00.npz")),
-        npzread(joinpath(Tdir, "T_tildes_artifact/T_0_02.npz")),
-        npzread(joinpath(Tdir, "T_tildes_artifact/T_0_20.npz")),
-        npzread(joinpath(Tdir, "T_tildes_artifact/T_2_02.npz")),
-        npzread(joinpath(Tdir, "T_tildes_artifact/T_2_20.npz")),
-        npzread(joinpath(Tdir, "T_tildes_artifact/T_2_22.npz"))
-    )
+    paths = joinpath.(Tdir, "T_tildes_artifact", string.(fieldnames(T̃)) .* ".npz")
+    global T_tildes = T̃(npzread.(paths)...)
 end
 
 end # module Blast

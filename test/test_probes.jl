@@ -181,3 +181,71 @@ end
     @test cs_fast.Kernel ≈ cs_safe.Kernel rtol=1e-2 atol=1e-6
     @test μ_fast.Kernel ≈ μ_safe.Kernel rtol=1e-2 atol=1e-6
 end
+
+@testset "Probes: kernel closed-form primal regression" begin
+    # Closed-form regression tests for the four component kernels that
+    # previously had AD-rule coverage only (no primal-value check):
+    # RSD, IntrinsicAlignment (both A_IA and NLA branches), ISW, PNG.
+    # Each expected formula is computed independently of the kernel helper
+    # to catch accidental sign flips, missing factors, or swapped arguments.
+    cosmo = get_test_cosmo()
+    bg = get_test_bg(cosmo)
+
+    z = collect(bg.z)
+    n_bg = length(z)
+    n_bins = 2
+    nz = zeros(n_bins, n_bg)
+    nz[1, :] .= @. exp(-((z - 0.8)^2) / 0.05)
+    nz[2, :] .= @. exp(-((z - 1.6)^2) / 0.08)
+
+    # --- RSD: K[b,i] = f[i] · H[i] / c · nz_norm[b,i] ---------------------
+    rsd = Blast.RedshiftSpaceDistortions(nz=copy(nz), z=copy(z))
+    Blast.compute_kernel!(rsd, bg)
+
+    expected_rsd = @. bg.f' * (bg.H' / Blast.C_LIGHT) * rsd.nz_norm
+    @test rsd.Kernel ≈ expected_rsd
+    @test size(rsd.Kernel) == (n_bins, n_bg)
+
+    # --- IA (user A_IA matrix): K[b,i] = A_IA[b,i] · H[i]/c · nz_norm[b,i] -
+    A_IA = 0.5 .+ rand(n_bins, n_bg)
+    ia_user = Blast.IntrinsicAlignment(nz=copy(nz), z=copy(z), A_IA=copy(A_IA))
+    Blast.compute_kernel!(ia_user, bg)
+
+    expected_ia_user = @. A_IA * (bg.H' / Blast.C_LIGHT) * ia_user.nz_norm
+    @test ia_user.Kernel ≈ expected_ia_user
+
+    # --- IA (NLA branch): A_NLA(z) = -A · C1 · Ωm / D(z)
+    #                     K[b,i]   = A_NLA[i] · H[i]/c · nz_norm[b,i] ------
+    A, C1 = 1.72, 0.0134
+    ia_nla = Blast.IntrinsicAlignment(nz=copy(nz), z=copy(z), A=A, C1=C1)
+    Blast.compute_kernel!(ia_nla, bg)
+
+    Ωm = Blast.get_Ωm(bg.cosmo)
+    nla_vals = @. -A * C1 * Ωm / bg.D
+    expected_ia_nla = @. nla_vals' * (bg.H' / Blast.C_LIGHT) * ia_nla.nz_norm
+    @test ia_nla.Kernel ≈ expected_ia_nla
+
+    # --- ISW: prefac = 3·T_CMB·H0²·Ωm / c³
+    #          K[1,i] = prefac · H[i] · (1 - f[i]) -------------------------
+    isw = Blast.IntegratedSachsWolfe()
+    Blast.compute_kernel!(isw, bg)
+
+    H0 = Blast.get_H0(bg.cosmo)
+    T_CMB = 2.726
+    prefac = 3 * T_CMB * H0^2 * Ωm / Blast.C_LIGHT^3
+    expected_isw = reshape(@.(prefac * bg.H * (1 - bg.f)), 1, n_bg)
+    @test isw.Kernel ≈ expected_isw
+    @test size(isw.Kernel) == (1, n_bg)
+
+    # --- PNG: bΦ[b,i] = 2·δ_c·(bias[b,i] - p), δ_c=1.686
+    #          K[b,i] = H[i]/c · f_NL · bΦ[b,i] · nz_norm[b,i] -------------
+    bias = 1.5 .+ rand(n_bins, n_bg)
+    f_NL, p = 0.5, 0.0
+    png = Blast.PrimordialNonGaussianity(nz=copy(nz), z=copy(z),
+                                          bias=copy(bias), f_NL=f_NL, p=p)
+    Blast.compute_kernel!(png, bg)
+
+    b_phi = @. 2 * 1.686 * (bias - p)
+    expected_png = @. (bg.H' / Blast.C_LIGHT) * f_NL * b_phi * png.nz_norm
+    @test png.Kernel ≈ expected_png
+end

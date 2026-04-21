@@ -89,6 +89,17 @@ using Blast
     end
 
     # ======================================================================
+    # 5b. compute_hubble_factor w.r.t. wa  (evolution of dark energy EoS)
+    #     wa enters E_z via (1+z)^(3(1+w0+wa)) · exp(-3·wa·z/(1+z)).
+    #     Every other test uses wa=0; this locks in non-trivial wa differentiability.
+    # ======================================================================
+    @testset "compute_hubble_factor (w0waCDM) w.r.t. wa" begin
+        wa_0 = [0.1]
+        f(p) = Blast.compute_hubble_factor(z0, w0waCDM(wa=p[1]))
+        check_gradient(f, wa_0)
+    end
+
+    # ======================================================================
     # 6. compute_χ w.r.t. Ωm
     #    GL quadrature of 1/E(z',cosmo(Ωm)) — gradient flows through
     #    the Ωm→ωc→Ωcb0 chain inside the integrand

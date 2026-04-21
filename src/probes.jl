@@ -865,112 +865,65 @@ Compute and store all kernels for the components of `probe` on the `Background` 
 # ────────────────────────────────────────────────────────────────────────────
 _promote_eltype(::Nothing, ::Type) = nothing
 
-function _promote_eltype(C::NumberCounts{T}, ::Type{U}) where {T, U}
-    W = promote_type(T, U)
-    W == T && return C
-    NumberCounts{W}(
-        convert(Matrix{W}, C.nz),
-        C.z,
-        convert(Matrix{W}, C.nz_norm),
-        convert(Matrix{W}, C.bias),
-        convert(Matrix{W}, C.Kernel),
-        C.ell_prefactor,
-        C.limber_factor,
-    )
-end
+# Table driving the 8 `_promote_eltype` methods below. Each entry gives a
+# component's struct name and its field order, annotated by how each field
+# should be handled when constructing a widened-eltype copy:
+#
+#   :T_mat    → convert(Matrix{W}, C.field)   (T-parametric matrix)
+#   :T_vec    → convert(Vector{W}, C.field)   (T-parametric vector)
+#   :T_scalar → convert(W,         C.field)   (T-parametric scalar)
+#   :keep     → C.field                       (pass-through: Float64 arrays,
+#                                              fixed scalars like C1 and p)
+#
+# The @eval loop below expands one method per row. Field order must match
+# the positional constructor of each struct — that is the spec.
+const _PROMOTE_COMPONENTS = (
+    (:NumberCounts, (
+        (:nz, :T_mat), (:z, :keep), (:nz_norm, :T_mat), (:bias, :T_mat),
+        (:Kernel, :T_mat), (:ell_prefactor, :keep), (:limber_factor, :keep),
+    )),
+    (:CosmicShear, (
+        (:nz, :T_mat), (:z, :keep), (:nz_norm, :T_mat), (:Kernel, :T_mat),
+        (:ell_prefactor, :keep), (:limber_factor, :keep),
+    )),
+    (:CMBLensing, (
+        (:Kernel, :T_mat), (:ell_prefactor, :keep), (:limber_factor, :keep),
+    )),
+    (:RedshiftSpaceDistortions, (
+        (:nz, :T_mat), (:z, :keep), (:nz_norm, :T_mat), (:growth_rate, :T_vec),
+        (:Kernel, :T_mat), (:ell_prefactor, :keep), (:limber_factor, :keep),
+    )),
+    (:MagnificationBias, (
+        (:nz, :T_mat), (:z, :keep), (:nz_norm, :T_mat), (:s, :T_mat),
+        (:Kernel, :T_mat), (:ell_prefactor, :keep), (:limber_factor, :keep),
+    )),
+    (:IntrinsicAlignment, (
+        (:nz, :T_mat), (:z, :keep), (:nz_norm, :T_mat), (:A, :T_scalar),
+        (:C1, :keep), (:A_IA, :T_mat), (:Kernel, :T_mat),
+        (:ell_prefactor, :keep), (:limber_factor, :keep),
+    )),
+    (:IntegratedSachsWolfe, (
+        (:growth_rate, :T_vec), (:Kernel, :T_mat),
+        (:ell_prefactor, :keep), (:limber_factor, :keep),
+    )),
+    (:PrimordialNonGaussianity, (
+        (:nz, :T_mat), (:z, :keep), (:nz_norm, :T_mat), (:bias, :T_mat),
+        (:f_NL, :T_scalar), (:p, :keep), (:Kernel, :T_mat),
+        (:ell_prefactor, :keep), (:limber_factor, :keep),
+    )),
+)
 
-function _promote_eltype(C::CosmicShear{T}, ::Type{U}) where {T, U}
-    W = promote_type(T, U)
-    W == T && return C
-    CosmicShear{W}(
-        convert(Matrix{W}, C.nz),
-        C.z,
-        convert(Matrix{W}, C.nz_norm),
-        convert(Matrix{W}, C.Kernel),
-        C.ell_prefactor,
-        C.limber_factor,
-    )
-end
-
-function _promote_eltype(C::CMBLensing{T}, ::Type{U}) where {T, U}
-    W = promote_type(T, U)
-    W == T && return C
-    CMBLensing{W}(
-        convert(Matrix{W}, C.Kernel),
-        C.ell_prefactor,
-        C.limber_factor,
-    )
-end
-
-function _promote_eltype(C::RedshiftSpaceDistortions{T}, ::Type{U}) where {T, U}
-    W = promote_type(T, U)
-    W == T && return C
-    RedshiftSpaceDistortions{W}(
-        convert(Matrix{W}, C.nz),
-        C.z,
-        convert(Matrix{W}, C.nz_norm),
-        convert(Vector{W}, C.growth_rate),
-        convert(Matrix{W}, C.Kernel),
-        C.ell_prefactor,
-        C.limber_factor,
-    )
-end
-
-function _promote_eltype(C::MagnificationBias{T}, ::Type{U}) where {T, U}
-    W = promote_type(T, U)
-    W == T && return C
-    MagnificationBias{W}(
-        convert(Matrix{W}, C.nz),
-        C.z,
-        convert(Matrix{W}, C.nz_norm),
-        convert(Matrix{W}, C.s),
-        convert(Matrix{W}, C.Kernel),
-        C.ell_prefactor,
-        C.limber_factor,
-    )
-end
-
-function _promote_eltype(C::IntrinsicAlignment{T}, ::Type{U}) where {T, U}
-    W = promote_type(T, U)
-    W == T && return C
-    IntrinsicAlignment{W}(
-        convert(Matrix{W}, C.nz),
-        C.z,
-        convert(Matrix{W}, C.nz_norm),
-        convert(W, C.A),
-        C.C1,
-        convert(Matrix{W}, C.A_IA),
-        convert(Matrix{W}, C.Kernel),
-        C.ell_prefactor,
-        C.limber_factor,
-    )
-end
-
-function _promote_eltype(C::IntegratedSachsWolfe{T}, ::Type{U}) where {T, U}
-    W = promote_type(T, U)
-    W == T && return C
-    IntegratedSachsWolfe{W}(
-        convert(Vector{W}, C.growth_rate),
-        convert(Matrix{W}, C.Kernel),
-        C.ell_prefactor,
-        C.limber_factor,
-    )
-end
-
-function _promote_eltype(C::PrimordialNonGaussianity{T}, ::Type{U}) where {T, U}
-    W = promote_type(T, U)
-    W == T && return C
-    PrimordialNonGaussianity{W}(
-        convert(Matrix{W}, C.nz),
-        C.z,
-        convert(Matrix{W}, C.nz_norm),
-        convert(Matrix{W}, C.bias),
-        convert(W, C.f_NL),
-        C.p,
-        convert(Matrix{W}, C.Kernel),
-        C.ell_prefactor,
-        C.limber_factor,
-    )
+for (_struct, _fields) in _PROMOTE_COMPONENTS
+    _args = [_kind === :T_mat    ? :(convert(Matrix{W}, C.$_field)) :
+             _kind === :T_vec    ? :(convert(Vector{W}, C.$_field)) :
+             _kind === :T_scalar ? :(convert(W,         C.$_field)) :
+                                    :(C.$_field)
+             for (_field, _kind) in _fields]
+    @eval function _promote_eltype(C::$_struct{T}, ::Type{U}) where {T, U}
+        W = promote_type(T, U)
+        W == T && return C
+        $_struct{W}($(_args...))
+    end
 end
 
 function evaluate_components!(GC::GalaxyClustering, bg::Background{U}) where {U}
