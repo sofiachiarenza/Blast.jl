@@ -91,7 +91,7 @@ Blast.transform_to_R_frame
 ```@docs
 Blast.ProjectedMatterDensityComponent
 Blast.ProjectedMatterDensity
-Blast.compute_w!
+Blast.compute_w
 Blast.w_ell_tullio
 ```
 
