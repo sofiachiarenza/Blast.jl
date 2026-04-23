@@ -53,10 +53,10 @@ end
     @test !isnothing(W_comb.w_minus2_00_ϕTT) # γ is now present
 end
 
-@testset "Setup: compute_w! populates active fields" begin
-    # Direct unit test for compute_w!: for every non-nothing w_*_ϕTT/ϕT/ϕ
+@testset "Setup: compute_w populates active fields" begin
+    # Direct unit test for compute_w: for every non-nothing w_*_ϕTT/ϕT/ϕ
     # field in W, its coefs array must be finite and non-zero after
-    # compute_w! runs. Catches dispatch/mutation leaks that would pass
+    # compute_w runs. Catches dispatch/mutation leaks that would pass
     # through get_Cℓ (because the result still broadcasts to 0. on missing
     # components) but fail silently here.
     cosmo = get_test_cosmo()
@@ -83,11 +83,11 @@ end
     W, Plans = Blast.SetUp(gc, wl, cmb)
     PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber_lin,
                                      pk_limber_nonlin, bg)
-    Blast.compute_w!(W, PS)
+    W = Blast.compute_w(W, PS)
 
     # Enumerate every field of W; skip the ones left as `nothing` for this
     # probe configuration. Every active field must have finite, non-zero
-    # coefs after compute_w!.
+    # coefs after compute_w.
     n_active = 0
     for name in fieldnames(typeof(W))
         field = getfield(W, name)

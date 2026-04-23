@@ -44,10 +44,6 @@ Each component stores:
 """
 abstract type ProjectedMatterDensityComponent end
 
-function compute_w!(w::Nothing, c::PowerSpectrum)
-    return nothing
-end
-
 # ────────────────────────────────────────────────────────────────────────────
 # Parametric w_* structs (Phase B).
 #
@@ -126,51 +122,60 @@ is not required.
 The container is populated during setup and filled by calling `compute_w!`
 with a `PowerSpectrum` object.
 """
-@kwdef mutable struct ProjectedMatterDensity <: AbstractProjectedMatterDensity
-    w_2_00_ϕTT::Union{w_2_00_ϕTT, Nothing} = nothing
-    w_minus2_00_ϕTT::Union{w_minus2_00_ϕTT, Nothing} = nothing
-    w_0_00_ϕTT::Union{w_0_00_ϕTT, Nothing} = nothing
-    w_0_02_ϕTT::Union{w_0_02_ϕTT, Nothing} = nothing
-    w_0_20_ϕTT::Union{w_0_20_ϕTT, Nothing} = nothing
-    w_2_02_ϕTT::Union{w_2_02_ϕTT, Nothing} = nothing
-    w_2_20_ϕTT::Union{w_2_20_ϕTT, Nothing} = nothing
-    w_2_22_ϕTT::Union{w_2_22_ϕTT, Nothing} = nothing
-    w_2_00_ϕT::Union{w_2_00_ϕT, Nothing} = nothing
-    w_2_00_ϕT_R1::Union{w_2_00_ϕT_R1, Nothing} = nothing
-    w_0_00_ϕT::Union{w_0_00_ϕT, Nothing} = nothing
-    w_0_00_ϕT_R1::Union{w_0_00_ϕT_R1, Nothing} = nothing
-    w_2_02_ϕT::Union{w_2_02_ϕT, Nothing} = nothing
-    w_2_02_ϕT_R1::Union{w_2_02_ϕT_R1, Nothing} = nothing
-    w_2_20_ϕT::Union{w_2_20_ϕT, Nothing} = nothing
-    w_2_20_ϕT_R1::Union{w_2_20_ϕT_R1, Nothing} = nothing
-    w_2_00_ϕ::Union{w_2_00_ϕ, Nothing} = nothing
-end 
+@kwdef mutable struct ProjectedMatterDensity{
+    T1, T2, T3, T4, T5, T6, T7, T8, T9,
+    T10, T11, T12, T13, T14, T15, T16, T17
+} <: AbstractProjectedMatterDensity
+    w_2_00_ϕTT::T1         = nothing
+    w_minus2_00_ϕTT::T2    = nothing
+    w_0_00_ϕTT::T3         = nothing
+    w_0_02_ϕTT::T4         = nothing
+    w_0_20_ϕTT::T5         = nothing
+    w_2_02_ϕTT::T6         = nothing
+    w_2_20_ϕTT::T7         = nothing
+    w_2_22_ϕTT::T8         = nothing
+    w_2_00_ϕT::T9          = nothing
+    w_2_00_ϕT_R1::T10      = nothing
+    w_0_00_ϕT::T11         = nothing
+    w_0_00_ϕT_R1::T12      = nothing
+    w_2_02_ϕT::T13         = nothing
+    w_2_02_ϕT_R1::T14      = nothing
+    w_2_20_ϕT::T15         = nothing
+    w_2_20_ϕT_R1::T16      = nothing
+    w_2_00_ϕ::T17          = nothing
+end
 
 """
-    compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
+    compute_w(W::ProjectedMatterDensity, c::PowerSpectrum)
 
-Compute all active projected matter density components.
+Compute all active projected matter density components and return a fresh
+`ProjectedMatterDensity` whose field eltypes track the eltype of `c` (Float64
+for primal, Dual under ForwardDiff). This is functional (no mutation): the
+input `W` is unchanged. Required because `ProjectedMatterDensity` is
+parameterized on each field's concrete type, so an AD eltype change cannot
+be absorbed by in-place reassignment.
+
+Nothing-valued fields stay `nothing` via the `compute_w(::Nothing, ...)`
+method above.
 """
-function compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
-    # Reassign each field to a freshly-constructed w_*{T} where T matches
-    # the eltype of the Tullio result (Float64 for primal / Dual under FW).
-    # Skips Nothing fields via the compute_w(::Nothing, ...) method above.
-    W.w_2_00_ϕTT     = compute_w(W.w_2_00_ϕTT,     c)
-    W.w_minus2_00_ϕTT = compute_w(W.w_minus2_00_ϕTT, c)
-    W.w_0_00_ϕTT     = compute_w(W.w_0_00_ϕTT,     c)
-    W.w_0_02_ϕTT     = compute_w(W.w_0_02_ϕTT,     c)
-    W.w_0_20_ϕTT     = compute_w(W.w_0_20_ϕTT,     c)
-    W.w_2_02_ϕTT     = compute_w(W.w_2_02_ϕTT,     c)
-    W.w_2_20_ϕTT     = compute_w(W.w_2_20_ϕTT,     c)
-    W.w_2_22_ϕTT     = compute_w(W.w_2_22_ϕTT,     c)
-    W.w_2_00_ϕT      = compute_w(W.w_2_00_ϕT,      c)
-    W.w_2_00_ϕT_R1   = compute_w(W.w_2_00_ϕT_R1,   c)
-    W.w_0_00_ϕT      = compute_w(W.w_0_00_ϕT,      c)
-    W.w_0_00_ϕT_R1   = compute_w(W.w_0_00_ϕT_R1,   c)
-    W.w_2_02_ϕT      = compute_w(W.w_2_02_ϕT,      c)
-    W.w_2_02_ϕT_R1   = compute_w(W.w_2_02_ϕT_R1,   c)
-    W.w_2_20_ϕT      = compute_w(W.w_2_20_ϕT,      c)
-    W.w_2_20_ϕT_R1   = compute_w(W.w_2_20_ϕT_R1,   c)
-    W.w_2_00_ϕ       = compute_w(W.w_2_00_ϕ,       c)
-    return W
+function compute_w(W::ProjectedMatterDensity, c::PowerSpectrum)
+    return ProjectedMatterDensity(
+        w_2_00_ϕTT      = compute_w(W.w_2_00_ϕTT,      c),
+        w_minus2_00_ϕTT = compute_w(W.w_minus2_00_ϕTT, c),
+        w_0_00_ϕTT      = compute_w(W.w_0_00_ϕTT,      c),
+        w_0_02_ϕTT      = compute_w(W.w_0_02_ϕTT,      c),
+        w_0_20_ϕTT      = compute_w(W.w_0_20_ϕTT,      c),
+        w_2_02_ϕTT      = compute_w(W.w_2_02_ϕTT,      c),
+        w_2_20_ϕTT      = compute_w(W.w_2_20_ϕTT,      c),
+        w_2_22_ϕTT      = compute_w(W.w_2_22_ϕTT,      c),
+        w_2_00_ϕT       = compute_w(W.w_2_00_ϕT,       c),
+        w_2_00_ϕT_R1    = compute_w(W.w_2_00_ϕT_R1,    c),
+        w_0_00_ϕT       = compute_w(W.w_0_00_ϕT,       c),
+        w_0_00_ϕT_R1    = compute_w(W.w_0_00_ϕT_R1,    c),
+        w_2_02_ϕT       = compute_w(W.w_2_02_ϕT,       c),
+        w_2_02_ϕT_R1    = compute_w(W.w_2_02_ϕT_R1,    c),
+        w_2_20_ϕT       = compute_w(W.w_2_20_ϕT,       c),
+        w_2_20_ϕT_R1    = compute_w(W.w_2_20_ϕT_R1,    c),
+        w_2_00_ϕ        = compute_w(W.w_2_00_ϕ,        c),
+    )
 end

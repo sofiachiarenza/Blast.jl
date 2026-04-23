@@ -65,7 +65,7 @@ export IntrinsicAlignment, IntegratedSachsWolfe, PrimordialNonGaussianity
 export SetUp, FFTPlans, PowerSpectrum, ProjectedMatterDensity
 
 # Core functions
-export evaluate_components!, compute_kernel!, compute_w!
+export evaluate_components!, compute_kernel!, compute_w
 export prepare_pk_workspace, get_Cℓ
 # ─────────────────────────────────────────────────────────────────────────────
 

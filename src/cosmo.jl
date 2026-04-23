@@ -18,8 +18,8 @@ The χ grid is assumed to be **uniformly spaced**. Kernel computations
 (`compute_kernel!` for `CosmicShear` and `MagnificationBias`) rely on this
 assumption when constructing the Simpson weight matrices.
 """
-struct Background{T, F}
-    cosmo::AbstractCosmology
+struct Background{T, F, C<:AbstractCosmology}
+    cosmo::C
     z::Vector{T}
     χ::Vector{T}
     H::Vector{T}
@@ -29,14 +29,68 @@ struct Background{T, F}
 end
 
 """
-    Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
+    _make_z_of_χ(fine_z, fine_χ)
 
-Construct a Background snapshot by finding the redshifts corresponding to a target χ grid.
+Builds the `z(χ)` akima closure inside a function barrier so that the
+captured `fine_z` / `fine_χ` land as concrete field types on the closure
+struct instead of the abstract `<:AbstractVector{T}` shapes that inference
+leaves behind when the closure is constructed directly in `Background`.
+"""
+_make_z_of_χ(fine_z::AbstractVector{Tz}, fine_χ::AbstractVector{Tχ}) where {Tz, Tχ} =
+    χ -> akima_interpolation(fine_z, fine_χ, χ)
+
+"""
+    Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
+    Background{T}(cosmo::AbstractCosmology; χ_grid=Blast.χ) where {T}
+
+Construct a Background snapshot by finding the redshifts corresponding to a
+target χ grid.
+
+The **typed form** `Background{T}(cosmo)` pins the element type `T` at the
+call site and produces a fully-inferred `Background{T, F, C}`. Use it when
+downstream code (e.g. `f_full`) is sensitive to type stability — the
+upstream `w0waCDMCosmology` declares its parameter fields as `::Number`,
+so the untyped form below cannot be inferred to a concrete `T`.
+
+The **untyped form** `Background(cosmo)` auto-detects `T` at runtime from
+the computed arrays (needed for the ForwardDiff/Mooncake paths where
+`cosmo` carries `Dual` parameters). It runs identically to the typed form
+but its return type is `Background` UnionAll at the caller, which will
+cascade runtime dispatch downstream.
 """
 function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     issorted(χ_grid) || throw(ArgumentError(
         "χ_grid must be monotonically increasing (got minimum at index $(argmin(χ_grid)))"))
+    # Runtime T detection: evaluate the cosmology-dependent broadcasts, then
+    # promote their eltypes against χ_grid. Only used by the AD path where
+    # `cosmo.h` is a `Dual` and Float64-pinning would `convert`-fail.
+    fine_z = collect(LinRange(0.0, Float64(Z_MAX_BACKGROUND), N_BG_FINE_GRID))
+    fine_χ_raw = r_z.(fine_z, Ref(cosmo))
+    H_array_raw = H_0_CONV .* cosmo.h .* E_z.(fine_z, Ref(cosmo))
+    T = promote_type(eltype(χ_grid), eltype(fine_χ_raw), eltype(H_array_raw))
+    return _build_background(T, cosmo, collect(χ_grid))
+end
 
+function Background{T}(cosmo::C; χ_grid=Blast.χ) where {T, C<:AbstractCosmology}
+    issorted(χ_grid) || throw(ArgumentError(
+        "χ_grid must be monotonically increasing (got minimum at index $(argmin(χ_grid)))"))
+    return _build_background(T, cosmo, collect(χ_grid))
+end
+
+"""
+    _build_background(::Type{T}, cosmo::C, χ_grid_vec::Vector{V}) where {T, C, V}
+
+Function barrier that actually constructs the Background, specialized on
+the concrete `T`, `C`, and `V`. The explicit `C` / `V` type parameters are
+load-bearing: Julia's default specialization heuristic skips specializing
+on a slot whose declared type is an abstract supertype like
+`::AbstractCosmology`, which would leave inference with
+`typeof(cosmo)::w0waCDMCosmology` (the UnionAll — abstract!) instead of
+`typeof(cosmo)::w0waCDMCosmology{Float64}`. Capturing `C` in the where
+clause forces specialization on the concrete cosmology type.
+"""
+function _build_background(::Type{T}, cosmo::C,
+                           χ_grid_vec::Vector{V}) where {T, C<:AbstractCosmology, V}
     # `fine_z` is a pure Float64 sampling grid (no cosmology dependence), used
     # for two independent interpolations below.  `collect()` materializes the
     # LinRange as a Vector so Mooncake can build a proper tangent; the
@@ -44,13 +98,21 @@ function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     # RData{NamedTuple{…}} tangent shape a raw LinRange produces.
     fine_z = collect(LinRange(0.0, Float64(Z_MAX_BACKGROUND), N_BG_FINE_GRID))
 
-    # (1) Invert z ↔ χ on the fine grid.
-    fine_χ = r_z.(fine_z, Ref(cosmo))
-    z_of_χ_interp(χ) = akima_interpolation(fine_z, fine_χ, χ)
-    z_nodes = z_of_χ_interp(χ_grid)
+    # (1) Invert z ↔ χ on the fine grid. `convert(Vector{T}, …)` re-concretizes
+    # what upstream `r_z(::Float64, ::w0waCDMCosmology)::Any` leaves abstract.
+    fine_χ_raw = r_z.(fine_z, Ref(cosmo))
+    fine_χ = convert(Vector{T}, fine_χ_raw)
+    # Build the closure inside a function barrier: local closures in Julia
+    # capture their free vars with the types inference gave the *caller's*
+    # locals. Here `fine_χ` is a `Vector{T}` so the closure's field types are
+    # concrete, giving `Background{T, F, C}` a concrete `F`.
+    z_of_χ_interp = _make_z_of_χ(fine_z, fine_χ)
+    z_nodes_raw = z_of_χ_interp(χ_grid_vec)
+    z_nodes = convert(Vector{T}, z_nodes_raw)
 
     # (2) H(z) has no ODE inside — safe to broadcast directly over Dual z_nodes.
-    H_array = H_0_CONV .* cosmo.h .* E_z.(z_nodes, Ref(cosmo))
+    H_array_raw = H_0_CONV .* cosmo.h .* E_z.(z_nodes, Ref(cosmo))
+    H_array = convert(Vector{T}, H_array_raw)
 
     # (3) D(z) and f(z) are computed via an ODE solve inside ACE's D_z / f_z.
     # That solver's `saveat` can't accept Dual-valued query points (saveat of
@@ -68,31 +130,20 @@ function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     # Mooncake, and Blast's akima has a Mooncake-registered rrule.
     #
     # Use the vectorized `D_f_z(::Vector, cosmo)` which does a SINGLE ODE
-    # solve with `saveat=fine_z`, returning both D and f arrays. The scalar
-    # broadcast `D_z.(fine_z, Ref(cosmo))` was doing 1000 independent ODE
-    # solves (plus another 1000 for f_z), accounting for ~400 ms and ~540 MiB
-    # per Background call. The vector solve takes ~0.5 ms, ~700 KiB.
+    # solve with `saveat=fine_z`, returning both D and f arrays.
     D_fine, f_fine = D_f_z(fine_z, cosmo)
     # akima_interpolation signature is (values, knots, queries); fine_z is the
     # ascending knot grid, D_fine / f_fine are the values to interpolate.
-    D_array = akima_interpolation(D_fine, fine_z, z_nodes)
-    f_array = akima_interpolation(f_fine, fine_z, z_nodes)
+    D_array = convert(Vector{T}, akima_interpolation(D_fine, fine_z, z_nodes))
+    f_array = convert(Vector{T}, akima_interpolation(f_fine, fine_z, z_nodes))
 
-    # Promote the common element type across cosmology-dependent arrays and
-    # the user-supplied χ grid. When `cosmo` carries Dual fields, H/D/f/z_nodes
-    # are `Vector{Dual}` while χ_grid is typically `Vector{Float64}` — using a
-    # single promoted `T` upcasts χ_grid so every struct field has matching
-    # eltype.
-    T = promote_type(eltype(χ_grid), eltype(H_array), eltype(z_nodes),
-                     eltype(D_array), eltype(f_array))
-
-    return Background{T, typeof(z_of_χ_interp)}(
+    return Background{T, typeof(z_of_χ_interp), typeof(cosmo)}(
         cosmo,
-        convert(Vector{T}, z_nodes),
-        convert(Vector{T}, collect(χ_grid)),
-        convert(Vector{T}, H_array),
-        convert(Vector{T}, D_array),
-        convert(Vector{T}, f_array),
+        z_nodes,
+        convert(Vector{T}, χ_grid_vec),
+        H_array,
+        D_array,
+        f_array,
         z_of_χ_interp
     )
 end
@@ -189,6 +240,43 @@ Returns the spectral index ns.
 function get_ns(cosmo::AbstractCosmology)
     return cosmo.nₛ
 end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Typed accessors dispatched on Background{T}
+#
+# `w0waCDMCosmology` (owned by the AbstractCosmologicalEmulators extension)
+# is non-parametric with every parameter field declared `::Number`. Direct
+# field access therefore returns `::Any`, and the `cosmo`-dispatched
+# accessors above inherit that abstract return type.
+#
+# Inference-poisoning cascades from those accessors into every
+# `compute_kernel!` that needs `H0` or `Ωm` (CosmicShear, CMBLensing,
+# MagnificationBias, IntrinsicAlignment-NLA), which in turn makes
+# `evaluate_components!(::WeakLensing)` and `f_full` inferred as `Any`.
+#
+# `Background{T}` already carries the concrete element type `T` on its
+# eltype-bearing fields (`z`, `χ`, `H`, `D`, `f`) by construction. Routing
+# cosmology-parameter reads through `Background{T}` therefore pins the
+# return type at `T`, re-concretizing the downstream kernels.
+#
+# The `convert(T, …)` is runtime-free when the input is already ::T
+# (identity), and correctly promotes when `cosmo.h` is a `Dual` but the
+# Background's `T` is `Dual` as well (the usual ForwardDiff path).
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTE on the `::T` typeassert: the trailing `::T` is load-bearing, not
+# decorative. Without it, `convert(T, H_0_CONV * bg.cosmo.h)` comes back as
+# `::Any` because `H_0_CONV * bg.cosmo.h` has already collapsed to `::Any`
+# (Float64 * Number -> Any) before `convert` runs, and inference does not
+# specialize the generic `convert(::Type{T}, ::Any)` back down to `T` when
+# `T` is a method type-variable captured by the outer `where`. The
+# post-convert typeassert forces the return type to `T` so every downstream
+# consumer sees a concrete scalar.
+get_H0(bg::Background{T}) where {T} = (convert(T, H_0_CONV * bg.cosmo.h))::T
+get_Ωm(bg::Background{T}) where {T} = (convert(T, (bg.cosmo.ωb + bg.cosmo.ωc) / bg.cosmo.h^2))::T
+get_Ωb(bg::Background{T}) where {T} = (convert(T, bg.cosmo.ωb / bg.cosmo.h^2))::T
+get_Ωc(bg::Background{T}) where {T} = (convert(T, bg.cosmo.ωc / bg.cosmo.h^2))::T
+get_As(bg::Background{T}) where {T} = (convert(T, exp(bg.cosmo.ln10Aₛ) / 1e10))::T
+get_ns(bg::Background{T}) where {T} = (convert(T, bg.cosmo.nₛ))::T
 
 
 """

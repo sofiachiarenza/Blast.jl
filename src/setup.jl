@@ -13,13 +13,22 @@ These plans are reused across power spectrum evaluations to avoid repeated FFTW 
 - `T_k_limber`: Precomputed k-basis polynomials for the Limber grid.
 - `plan_ℓ`: Plan for the final C_ℓ interpolation.
 """
-@kwdef mutable struct FFTPlans 
-    plan_ϕTT::ChebyshevPlan 
-    plan_ϕT::Union{ChebyshevPlan, Nothing} = nothing
-    plan_ϕ::Union{ChebyshevPlan, Nothing} = nothing
-    plan_limber::ChebyshevPlan
+# Parametrized on each plan's concrete type so every field access infers to
+# a concrete plan, not the abstract `ChebyshevPlan` UnionAll. Without this,
+# `prepare_pk_workspace(::FFTPlans, …)` could not infer its return to
+# `PowerSpectrum{T}` — only to the bare `PowerSpectrum` UnionAll — which
+# poisoned `f_full`'s inference all the way to the top.
+@kwdef mutable struct FFTPlans{PϕTT<:ChebyshevPlan,
+                               PϕT<:Union{ChebyshevPlan, Nothing},
+                               Pϕ<:Union{ChebyshevPlan, Nothing},
+                               PL<:ChebyshevPlan,
+                               Pℓ<:ChebyshevPlan}
+    plan_ϕTT::PϕTT
+    plan_ϕT::PϕT = nothing
+    plan_ϕ::Pϕ = nothing
+    plan_limber::PL
     T_k_limber::Array{Float64, 3}
-    plan_ℓ::ChebyshevPlan
+    plan_ℓ::Pℓ
 end
 
 function _setup_limber_plan()
@@ -62,52 +71,38 @@ for the given set of cosmological probes.
 """
 function SetUp(G::GalaxyClustering)
     plan_ϕTT = _setup_plan_ϕTT()
-    plan_ϕT = nothing
-    plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    # ProjectedMatterDensity is @kwdef with all fields defaulting to `nothing`;
-    # assigning only the active fields by name avoids the 17-arg positional
-    # constructor (which is fragile to field reorders) and the 17 local
-    # `nothing` initializers.
-    W = ProjectedMatterDensity()
-    W.w_2_00_ϕTT = w_2_00_ϕTT()  # δ (always)
+    # Each `have_*` folds to a compile-time constant once G's concrete type
+    # params are known, so every ternary below is const-propagated away and
+    # the returned `ProjectedMatterDensity{...}` has fully concrete type
+    # parameters (never `Union{T, Nothing}` nor UnionAll).
+    have_RSD = !isnothing(G.RSD)
+    have_μ   = !isnothing(G.μ)
+    have_PNG = !isnothing(G.PNG)
 
-    if !isnothing(G.RSD)
-        W.w_2_02_ϕTT = w_2_02_ϕTT()
-        W.w_2_20_ϕTT = w_2_20_ϕTT()
-        W.w_2_22_ϕTT = w_2_22_ϕTT()
-    end
+    plan_ϕT = have_PNG ? plan_ϕTT : nothing
+    plan_ϕ  = have_PNG ? _setup_plan_ϕ() : nothing
 
-    if !isnothing(G.μ)
-        W.w_0_00_ϕTT = w_0_00_ϕTT()
-        W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()
-    end
-
-    if !isnothing(G.PNG)
-        plan_ϕT = plan_ϕTT
-        plan_ϕ = _setup_plan_ϕ()
-        W.w_2_00_ϕT = w_2_00_ϕT()
-        W.w_2_00_ϕT_R1 = w_2_00_ϕT_R1()
-        W.w_2_00_ϕ = w_2_00_ϕ()
-    end
-
-    if !isnothing(G.RSD) && !isnothing(G.μ)
-        W.w_0_02_ϕTT = w_0_02_ϕTT()
-        W.w_0_20_ϕTT = w_0_20_ϕTT()
-    end
-
-    if !isnothing(G.RSD) && !isnothing(G.PNG)
-        W.w_2_02_ϕT = w_2_02_ϕT()
-        W.w_2_20_ϕT = w_2_20_ϕT()
-        W.w_2_02_ϕT_R1 = w_2_02_ϕT_R1()
-        W.w_2_20_ϕT_R1 = w_2_20_ϕT_R1()
-    end
-
-    if !isnothing(G.μ) && !isnothing(G.PNG)
-        W.w_0_00_ϕT = w_0_00_ϕT()
-        W.w_0_00_ϕT_R1 = w_0_00_ϕT_R1()
-    end
+    W = ProjectedMatterDensity(
+        w_2_00_ϕTT      = w_2_00_ϕTT(),  # δ (always)
+        w_minus2_00_ϕTT = have_μ ? w_minus2_00_ϕTT() : nothing,
+        w_0_00_ϕTT      = have_μ ? w_0_00_ϕTT() : nothing,
+        w_0_02_ϕTT      = (have_RSD && have_μ) ? w_0_02_ϕTT() : nothing,
+        w_0_20_ϕTT      = (have_RSD && have_μ) ? w_0_20_ϕTT() : nothing,
+        w_2_02_ϕTT      = have_RSD ? w_2_02_ϕTT() : nothing,
+        w_2_20_ϕTT      = have_RSD ? w_2_20_ϕTT() : nothing,
+        w_2_22_ϕTT      = have_RSD ? w_2_22_ϕTT() : nothing,
+        w_2_00_ϕT       = have_PNG ? w_2_00_ϕT() : nothing,
+        w_2_00_ϕT_R1    = have_PNG ? w_2_00_ϕT_R1() : nothing,
+        w_0_00_ϕT       = (have_μ && have_PNG) ? w_0_00_ϕT() : nothing,
+        w_0_00_ϕT_R1    = (have_μ && have_PNG) ? w_0_00_ϕT_R1() : nothing,
+        w_2_02_ϕT       = (have_RSD && have_PNG) ? w_2_02_ϕT() : nothing,
+        w_2_02_ϕT_R1    = (have_RSD && have_PNG) ? w_2_02_ϕT_R1() : nothing,
+        w_2_20_ϕT       = (have_RSD && have_PNG) ? w_2_20_ϕT() : nothing,
+        w_2_20_ϕT_R1    = (have_RSD && have_PNG) ? w_2_20_ϕT_R1() : nothing,
+        w_2_00_ϕ        = have_PNG ? w_2_00_ϕ() : nothing,
+    )
 
     Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
     return W, Plans
@@ -115,58 +110,47 @@ end
 
 function SetUp(L::WeakLensing)
     plan_ϕTT = _setup_plan_ϕTT()
-    plan_ϕT = nothing
-    plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    W = ProjectedMatterDensity()
-    W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()  # γ (always)
+    W = ProjectedMatterDensity(
+        w_minus2_00_ϕTT = w_minus2_00_ϕTT(),  # γ (always under L)
+    )
 
-    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
+    Plans = FFTPlans(plan_ϕTT, nothing, nothing, plan_limber, T_k, plan_ℓ)
     return W, Plans
 end
 
 function SetUp(G::GalaxyClustering, L::WeakLensing)
     plan_ϕTT = _setup_plan_ϕTT()
-    plan_ϕT = nothing
-    plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    W = ProjectedMatterDensity()
-    W.w_2_00_ϕTT = w_2_00_ϕTT()            # δ
-    W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()  # γ (always under L)
-    W.w_0_00_ϕTT = w_0_00_ϕTT()            # δ×γ cross (always under G×L)
+    have_RSD = !isnothing(G.RSD)
+    have_μ   = !isnothing(G.μ)
+    have_PNG = !isnothing(G.PNG)
+    have_γ   = !isnothing(L.γ)  # always true — L.γ is required
 
-    if !isnothing(G.RSD)
-        W.w_2_02_ϕTT = w_2_02_ϕTT()
-        W.w_2_20_ϕTT = w_2_20_ϕTT()
-        W.w_2_22_ϕTT = w_2_22_ϕTT()
-    end
+    plan_ϕT = have_PNG ? plan_ϕTT : nothing
+    plan_ϕ  = have_PNG ? _setup_plan_ϕ() : nothing
 
-    if !isnothing(G.PNG)
-        plan_ϕT = plan_ϕTT
-        plan_ϕ = _setup_plan_ϕ()
-        W.w_2_00_ϕT = w_2_00_ϕT()
-        W.w_2_00_ϕT_R1 = w_2_00_ϕT_R1()
-        W.w_2_00_ϕ = w_2_00_ϕ()
-    end
-
-    if !isnothing(G.RSD) && (!isnothing(G.μ) || !isnothing(L.γ))
-        W.w_0_02_ϕTT = w_0_02_ϕTT()
-        W.w_0_20_ϕTT = w_0_20_ϕTT()
-    end
-
-    if !isnothing(G.RSD) && !isnothing(G.PNG)
-        W.w_2_02_ϕT = w_2_02_ϕT()
-        W.w_2_20_ϕT = w_2_20_ϕT()
-        W.w_2_02_ϕT_R1 = w_2_02_ϕT_R1()
-        W.w_2_20_ϕT_R1 = w_2_20_ϕT_R1()
-    end
-
-    if (!isnothing(G.μ) || !isnothing(L.γ)) && !isnothing(G.PNG)
-        W.w_0_00_ϕT = w_0_00_ϕT()
-        W.w_0_00_ϕT_R1 = w_0_00_ϕT_R1()
-    end
+    W = ProjectedMatterDensity(
+        w_2_00_ϕTT      = w_2_00_ϕTT(),            # δ
+        w_minus2_00_ϕTT = w_minus2_00_ϕTT(),       # γ
+        w_0_00_ϕTT      = w_0_00_ϕTT(),            # δ×γ cross
+        w_0_02_ϕTT      = (have_RSD && (have_μ || have_γ)) ? w_0_02_ϕTT() : nothing,
+        w_0_20_ϕTT      = (have_RSD && (have_μ || have_γ)) ? w_0_20_ϕTT() : nothing,
+        w_2_02_ϕTT      = have_RSD ? w_2_02_ϕTT() : nothing,
+        w_2_20_ϕTT      = have_RSD ? w_2_20_ϕTT() : nothing,
+        w_2_22_ϕTT      = have_RSD ? w_2_22_ϕTT() : nothing,
+        w_2_00_ϕT       = have_PNG ? w_2_00_ϕT() : nothing,
+        w_2_00_ϕT_R1    = have_PNG ? w_2_00_ϕT_R1() : nothing,
+        w_0_00_ϕT       = ((have_μ || have_γ) && have_PNG) ? w_0_00_ϕT() : nothing,
+        w_0_00_ϕT_R1    = ((have_μ || have_γ) && have_PNG) ? w_0_00_ϕT_R1() : nothing,
+        w_2_02_ϕT       = (have_RSD && have_PNG) ? w_2_02_ϕT() : nothing,
+        w_2_02_ϕT_R1    = (have_RSD && have_PNG) ? w_2_02_ϕT_R1() : nothing,
+        w_2_20_ϕT       = (have_RSD && have_PNG) ? w_2_20_ϕT() : nothing,
+        w_2_20_ϕT_R1    = (have_RSD && have_PNG) ? w_2_20_ϕT_R1() : nothing,
+        w_2_00_ϕ        = have_PNG ? w_2_00_ϕ() : nothing,
+    )
 
     Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
     return W, Plans
@@ -178,48 +162,35 @@ end
 
 function SetUp(G::GalaxyClustering, C::CMB)
     plan_ϕTT = _setup_plan_ϕTT()
-    plan_ϕT = nothing
-    plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    W = ProjectedMatterDensity()
-    W.w_2_00_ϕTT = w_2_00_ϕTT()  # δ
-    W.w_0_00_ϕTT = w_0_00_ϕTT()  # κ×δ cross (always under G×C)
+    have_RSD = !isnothing(G.RSD)
+    have_μ   = !isnothing(G.μ)
+    have_PNG = !isnothing(G.PNG)
+    have_κ   = !isnothing(C.κ)  # always true — C.κ is required
 
-    if !isnothing(G.RSD)
-        W.w_2_02_ϕTT = w_2_02_ϕTT()
-        W.w_2_20_ϕTT = w_2_20_ϕTT()
-        W.w_2_22_ϕTT = w_2_22_ϕTT()
-    end
+    plan_ϕT = have_PNG ? plan_ϕTT : nothing
+    plan_ϕ  = have_PNG ? _setup_plan_ϕ() : nothing
 
-    if !isnothing(G.μ)
-        W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()
-    end
-
-    if !isnothing(G.PNG)
-        plan_ϕT = plan_ϕTT
-        plan_ϕ = _setup_plan_ϕ()
-        W.w_2_00_ϕT = w_2_00_ϕT()
-        W.w_2_00_ϕT_R1 = w_2_00_ϕT_R1()
-        W.w_2_00_ϕ = w_2_00_ϕ()
-    end
-
-    if !isnothing(G.RSD) && (!isnothing(G.μ) || !isnothing(C.κ))
-        W.w_0_02_ϕTT = w_0_02_ϕTT()
-        W.w_0_20_ϕTT = w_0_20_ϕTT()
-    end
-
-    if !isnothing(G.RSD) && !isnothing(G.PNG)
-        W.w_2_02_ϕT = w_2_02_ϕT()
-        W.w_2_20_ϕT = w_2_20_ϕT()
-        W.w_2_02_ϕT_R1 = w_2_02_ϕT_R1()
-        W.w_2_20_ϕT_R1 = w_2_20_ϕT_R1()
-    end
-
-    if (!isnothing(G.μ) || !isnothing(C.κ)) && !isnothing(G.PNG)
-        W.w_0_00_ϕT = w_0_00_ϕT()
-        W.w_0_00_ϕT_R1 = w_0_00_ϕT_R1()
-    end
+    W = ProjectedMatterDensity(
+        w_2_00_ϕTT      = w_2_00_ϕTT(),     # δ
+        w_minus2_00_ϕTT = have_μ ? w_minus2_00_ϕTT() : nothing,
+        w_0_00_ϕTT      = w_0_00_ϕTT(),     # κ×δ cross (always under G×C)
+        w_0_02_ϕTT      = (have_RSD && (have_μ || have_κ)) ? w_0_02_ϕTT() : nothing,
+        w_0_20_ϕTT      = (have_RSD && (have_μ || have_κ)) ? w_0_20_ϕTT() : nothing,
+        w_2_02_ϕTT      = have_RSD ? w_2_02_ϕTT() : nothing,
+        w_2_20_ϕTT      = have_RSD ? w_2_20_ϕTT() : nothing,
+        w_2_22_ϕTT      = have_RSD ? w_2_22_ϕTT() : nothing,
+        w_2_00_ϕT       = have_PNG ? w_2_00_ϕT() : nothing,
+        w_2_00_ϕT_R1    = have_PNG ? w_2_00_ϕT_R1() : nothing,
+        w_0_00_ϕT       = ((have_μ || have_κ) && have_PNG) ? w_0_00_ϕT() : nothing,
+        w_0_00_ϕT_R1    = ((have_μ || have_κ) && have_PNG) ? w_0_00_ϕT_R1() : nothing,
+        w_2_02_ϕT       = (have_RSD && have_PNG) ? w_2_02_ϕT() : nothing,
+        w_2_02_ϕT_R1    = (have_RSD && have_PNG) ? w_2_02_ϕT_R1() : nothing,
+        w_2_20_ϕT       = (have_RSD && have_PNG) ? w_2_20_ϕT() : nothing,
+        w_2_20_ϕT_R1    = (have_RSD && have_PNG) ? w_2_20_ϕT_R1() : nothing,
+        w_2_00_ϕ        = have_PNG ? w_2_00_ϕ() : nothing,
+    )
 
     Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
     return W, Plans
@@ -231,14 +202,13 @@ end
 
 function SetUp(L::WeakLensing, C::CMB)
     plan_ϕTT = _setup_plan_ϕTT()
-    plan_ϕT = nothing
-    plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    W = ProjectedMatterDensity()
-    W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()  # γ (always); κ×γ cross also uses this
+    W = ProjectedMatterDensity(
+        w_minus2_00_ϕTT = w_minus2_00_ϕTT(),  # γ (always); κ×γ cross uses this
+    )
 
-    Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
+    Plans = FFTPlans(plan_ϕTT, nothing, nothing, plan_limber, T_k, plan_ℓ)
     return W, Plans
 end
 
@@ -248,47 +218,36 @@ end
 
 function SetUp(G::GalaxyClustering, L::WeakLensing, C::CMB)
     plan_ϕTT = _setup_plan_ϕTT()
-    plan_ϕT = nothing
-    plan_ϕ = nothing
     plan_limber, T_k, plan_ℓ = _setup_limber_plan()
 
-    W = ProjectedMatterDensity()
-    W.w_2_00_ϕTT = w_2_00_ϕTT()  # δ
-    # w_minus2_00_ϕTT always needed: γ×γ (L auto), γ×κ (L×C cross)
-    W.w_minus2_00_ϕTT = w_minus2_00_ϕTT()
-    # w_0_00_ϕTT always needed: δ×γ, δ×IA (G×L cross), δ×κ (G×C cross)
-    W.w_0_00_ϕTT = w_0_00_ϕTT()
+    have_RSD = !isnothing(G.RSD)
+    have_μ   = !isnothing(G.μ)
+    have_PNG = !isnothing(G.PNG)
+    have_γ   = !isnothing(L.γ)  # always true — L.γ required
+    have_κ   = !isnothing(C.κ)  # always true — C.κ required
 
-    if !isnothing(G.RSD)
-        W.w_2_02_ϕTT = w_2_02_ϕTT()
-        W.w_2_20_ϕTT = w_2_20_ϕTT()
-        W.w_2_22_ϕTT = w_2_22_ϕTT()
-    end
+    plan_ϕT = have_PNG ? plan_ϕTT : nothing
+    plan_ϕ  = have_PNG ? _setup_plan_ϕ() : nothing
 
-    if !isnothing(G.PNG)
-        plan_ϕT = plan_ϕTT
-        plan_ϕ = _setup_plan_ϕ()
-        W.w_2_00_ϕT = w_2_00_ϕT()
-        W.w_2_00_ϕT_R1 = w_2_00_ϕT_R1()
-        W.w_2_00_ϕ = w_2_00_ϕ()
-    end
-
-    if !isnothing(G.RSD) && (!isnothing(G.μ) || !isnothing(L.γ))
-        W.w_0_02_ϕTT = w_0_02_ϕTT()
-        W.w_0_20_ϕTT = w_0_20_ϕTT()
-    end
-
-    if !isnothing(G.RSD) && !isnothing(G.PNG)
-        W.w_2_02_ϕT = w_2_02_ϕT()
-        W.w_2_20_ϕT = w_2_20_ϕT()
-        W.w_2_02_ϕT_R1 = w_2_02_ϕT_R1()
-        W.w_2_20_ϕT_R1 = w_2_20_ϕT_R1()
-    end
-
-    if (!isnothing(G.μ) || !isnothing(L.γ)) && !isnothing(G.PNG)
-        W.w_0_00_ϕT = w_0_00_ϕT()
-        W.w_0_00_ϕT_R1 = w_0_00_ϕT_R1()
-    end
+    W = ProjectedMatterDensity(
+        w_2_00_ϕTT      = w_2_00_ϕTT(),             # δ
+        w_minus2_00_ϕTT = w_minus2_00_ϕTT(),        # γ×γ, γ×κ
+        w_0_00_ϕTT      = w_0_00_ϕTT(),             # δ×γ, δ×IA, δ×κ
+        w_0_02_ϕTT      = (have_RSD && (have_μ || have_γ)) ? w_0_02_ϕTT() : nothing,
+        w_0_20_ϕTT      = (have_RSD && (have_μ || have_γ)) ? w_0_20_ϕTT() : nothing,
+        w_2_02_ϕTT      = have_RSD ? w_2_02_ϕTT() : nothing,
+        w_2_20_ϕTT      = have_RSD ? w_2_20_ϕTT() : nothing,
+        w_2_22_ϕTT      = have_RSD ? w_2_22_ϕTT() : nothing,
+        w_2_00_ϕT       = have_PNG ? w_2_00_ϕT() : nothing,
+        w_2_00_ϕT_R1    = have_PNG ? w_2_00_ϕT_R1() : nothing,
+        w_0_00_ϕT       = ((have_μ || have_γ) && have_PNG) ? w_0_00_ϕT() : nothing,
+        w_0_00_ϕT_R1    = ((have_μ || have_γ) && have_PNG) ? w_0_00_ϕT_R1() : nothing,
+        w_2_02_ϕT       = (have_RSD && have_PNG) ? w_2_02_ϕT() : nothing,
+        w_2_02_ϕT_R1    = (have_RSD && have_PNG) ? w_2_02_ϕT_R1() : nothing,
+        w_2_20_ϕT       = (have_RSD && have_PNG) ? w_2_20_ϕT() : nothing,
+        w_2_20_ϕT_R1    = (have_RSD && have_PNG) ? w_2_20_ϕT_R1() : nothing,
+        w_2_00_ϕ        = have_PNG ? w_2_00_ϕ() : nothing,
+    )
 
     Plans = FFTPlans(plan_ϕTT, plan_ϕT, plan_ϕ, plan_limber, T_k, plan_ℓ)
     return W, Plans
@@ -369,6 +328,23 @@ function get_PΦ(k::AbstractArray{<:Any,1}, cosmo::AbstractCosmology)
     return @. 9/25 * 2 * π^2 * As / (k^3) * (k/0.05)^(ns - 1.)
 end
 
+# Background-dispatched overloads: not a convenience, a type-stability path.
+# The cosmo-only methods above return `::Any` because `w0waCDMCosmology`
+# declares its parameter fields as the abstract `::Number` (upstream, in
+# AbstractCosmologicalEmulators), so `get_As(cosmo)` / `get_ns(cosmo)` come
+# back as `Any` and poison everything downstream (→ `prepare_pk_workspace`
+# → `PowerSpectrum` UnionAll → `f_full` inferred as `Any`).
+#
+# Routing through `Background{T}` uses the typed `get_As(bg)` / `get_ns(bg)`
+# from cosmo.jl, whose `convert(T, …)::T` pins the return at the concrete
+# eltype `T`. Fixing it at the `w0waCDMCosmology` layer is an upstream
+# change and is deliberately not attempted here.
+function get_PΦ(k::AbstractArray{<:Any,1}, bg::Background{T}) where {T}
+    As = get_As(bg)
+    ns = get_ns(bg)
+    return @. 9/25 * 2 * π^2 * As / (k^3) * (k/0.05)^(ns - 1.)
+end
+
 """ get_Tm(pk::AbstractArray{<:Any, 2}, k::AbstractArray, cosmo::AbstractCosmology)
 
 Extracts the matter transfer function T_m(k,z) from a matter power spectrum.
@@ -380,6 +356,13 @@ T_m(k, z) = \\sqrt{\\frac{P(k, z)}{P_\\Phi(k)}}
 """
 function get_Tm(pk::AbstractArray{<:Any,2}, k::AbstractArray{<:Any, 1}, cosmo::AbstractCosmology)
     prim_pk = get_PΦ(k , cosmo)
+    return sqrt.(pk ./ reshape(prim_pk, 1, :))
+end
+
+# Background-dispatched overload — see note on get_PΦ above.
+function get_Tm(pk::AbstractArray{<:Any,2}, k::AbstractArray{<:Any, 1},
+                bg::Background)
+    prim_pk = get_PΦ(k, bg)
     return sqrt.(pk ./ reshape(prim_pk, 1, :))
 end
 
@@ -411,8 +394,8 @@ end
 """
 function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, pk_limber_nonlin::AbstractArray{<:Any, 2}, bg::Background)
     #Treating the non-limber power spectrum
-    P_ϕ = get_PΦ(10 .^ Blast.k_cheb, bg.cosmo)
-    transfer_func = get_Tm(pk, 10 .^ Blast.k_cheb, bg.cosmo)
+    P_ϕ = get_PΦ(10 .^ Blast.k_cheb, bg)
+    transfer_func = get_Tm(pk, 10 .^ Blast.k_cheb, bg)
     
     transfer_func_χR = transform_to_R_frame(transfer_func, bg)
     transfer_func_χ1 = transfer_func_χR[:,end,:]
@@ -425,9 +408,9 @@ function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limbe
     c3 = build_coeff(cϕ,   P_ϕ,   P.plan_ϕ)    
 
 
-    P_ϕ_limber = get_PΦ(10 .^ Blast.k_limber, bg.cosmo)'
+    P_ϕ_limber = get_PΦ(10 .^ Blast.k_limber, bg)'
     
-    T_m_limber_lin = get_Tm(pk_limber_lin, 10 .^ Blast.k_limber, bg.cosmo)
+    T_m_limber_lin = get_Tm(pk_limber_lin, 10 .^ Blast.k_limber, bg)
     P_limber_lin = P_ϕ_limber .* T_m_limber_lin .^ 2.
     # permutedims materializes the transpose into a plain Matrix, avoiding
     # an Adjoint wrapper across the chebyshev_decomposition rrule boundary
@@ -435,7 +418,7 @@ function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limbe
     # support Adjoint tangents; plain Matrix works).
     c_lin = chebyshev_decomposition(P.plan_limber, permutedims(log10.(P_limber_lin)))
 
-    T_m_limber_nonlin = get_Tm(pk_limber_nonlin, 10 .^ Blast.k_limber, bg.cosmo)
+    T_m_limber_nonlin = get_Tm(pk_limber_nonlin, 10 .^ Blast.k_limber, bg)
     P_limber_nonlin = P_ϕ_limber .* T_m_limber_nonlin .^ 2.
     c_nonlin = chebyshev_decomposition(P.plan_limber, permutedims(log10.(P_limber_nonlin)))
 

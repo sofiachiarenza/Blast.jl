@@ -83,7 +83,7 @@ end
     pk_grid = ones(length(Blast.z_lin), length(Blast.k_cheb))
     pk_limber = ones(length(Blast.z_cheb), length(Blast.k_limber))
     PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber, pk_limber, bg)
-    Blast.compute_w!(W, PS)
+    W = Blast.compute_w(W, PS)
 
     K_gc = Blast.get_limber_kernel(gc)
     K_wl = Blast.get_limber_kernel(wl)

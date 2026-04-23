@@ -61,7 +61,7 @@ Random.seed!(9876)
         Blast.evaluate_components!(gc_template, bg)
         PS = Blast.prepare_pk_workspace(Plans, pk_grid,
                                          pk_limber_lin, pk_limber_nonl, bg)
-        Blast.compute_w!(W, PS)
+        W = Blast.compute_w(W, PS)
 
         function f(bias_flat)
             bias = reshape(bias_flat, nz_bins, length(bg.z))
@@ -111,7 +111,7 @@ Random.seed!(9876)
         Blast.evaluate_components!(gc_template, bg)
         PS = Blast.prepare_pk_workspace(Plans, pk_grid,
                                          pk_limber_lin, pk_limber_nonl, bg)
-        Blast.compute_w!(W, PS)
+        W = Blast.compute_w(W, PS)
 
         function f_nz(nz_flat)
             nz = reshape(nz_flat, nz_bins, n_nz)
@@ -155,7 +155,7 @@ Random.seed!(9876)
         Blast.evaluate_components!(wl_template, bg)
         PS = Blast.prepare_pk_workspace(Plans, pk_grid,
                                          pk_limber_lin, pk_limber_nonl, bg)
-        Blast.compute_w!(W, PS)
+        W = Blast.compute_w(W, PS)
 
         function f_A(A_vec)
             wl = Blast.WeakLensing(
@@ -201,7 +201,7 @@ Random.seed!(9876)
         Blast.evaluate_components!(wl_template, bg)
         PS = Blast.prepare_pk_workspace(Plans, pk_grid,
                                          pk_limber_lin, pk_limber_nonl, bg)
-        Blast.compute_w!(W, PS)
+        W = Blast.compute_w(W, PS)
 
         function f_cross(bias_flat)
             bias = reshape(bias_flat, nz_bins, length(bg.z))
@@ -236,7 +236,7 @@ Random.seed!(9876)
     # function: Background ODE (H, χ, D, f from NumCosmo solver), kernel
     # evaluation on the fresh bg grid, full prepare_pk_workspace (includes
     # get_PΦ, get_Tm, transform_to_R_frame, build_coeff FFT path,
-    # chebyshev_decomposition for the limber P_δ), compute_w! mutation of
+    # chebyshev_decomposition for the limber P_δ), compute_w mutation of
     # W, and the top-level get_Cℓ orchestrator. This is the maximal
     # Mooncake composition target for Blast.
     #
@@ -269,7 +269,7 @@ Random.seed!(9876)
                 w_2_00_ϕTT = Blast.w_2_00_ϕTT())
             PS = Blast.prepare_pk_workspace(Plans, pk_grid,
                                              pk_limber_lin, pk_limber_nonl, bg)
-            Blast.compute_w!(W_local, PS)
+            W_local = Blast.compute_w(W_local, PS)
             cls = Blast.get_Cℓ(Blast.full_ℓ_range, gc, PS, W_local, bg, Plans)
             return sum(cls)
         end

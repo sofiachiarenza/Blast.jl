@@ -27,7 +27,7 @@ using NPZ
     PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber_lin, pk_limber_nonlin, bg)
     
     # CRITICAL: Compute projected matter coefficients
-    Blast.compute_w!(W, PS)
+    W = Blast.compute_w(W, PS)
     
     # Compute Cls: get_Cℓ(ℓ, G, Pk, W, bg, P)
     cls = Blast.get_Cℓ(Blast.full_ℓ_range, gc, PS, W, bg, Plans)
@@ -46,7 +46,7 @@ end
     # End-to-end exercise of the RSD dispatch chain:
     #   SetUp(GC with δ+RSD) → allocates w_2_02_ϕTT / w_2_20_ϕTT / w_2_22_ϕTT
     #   evaluate_components! → populates δ.Kernel and RSD.Kernel (needs bg.f)
-    #   compute_w! → fills all RSD-related projected-matter coefficients
+    #   compute_w → fills all RSD-related projected-matter coefficients
     #   get_Cℓ      → routes through _compute_Cℓ_rsd_tullio for the δ×RSD,
     #                 RSD×δ, and RSD×RSD sectors.
     cosmo = get_test_cosmo()
@@ -69,7 +69,7 @@ end
     W_δ, Plans_δ = Blast.SetUp(gc_δ)
     Blast.evaluate_components!(gc_δ, bg)
     PS_δ = Blast.prepare_pk_workspace(Plans_δ, pk_grid, pk_limber, pk_limber, bg)
-    Blast.compute_w!(W_δ, PS_δ)
+    W_δ = Blast.compute_w(W_δ, PS_δ)
     cls_δ = Blast.get_Cℓ(Blast.full_ℓ_range, gc_δ, PS_δ, W_δ, bg, Plans_δ)
 
     # δ+RSD
@@ -88,7 +88,7 @@ end
     @test any(!iszero, gc_rsd.RSD.Kernel)
 
     PS_rsd = Blast.prepare_pk_workspace(Plans_rsd, pk_grid, pk_limber, pk_limber, bg)
-    Blast.compute_w!(W_rsd, PS_rsd)
+    W_rsd = Blast.compute_w(W_rsd, PS_rsd)
     cls_rsd = Blast.get_Cℓ(Blast.full_ℓ_range, gc_rsd, PS_rsd, W_rsd, bg, Plans_rsd)
 
     @test size(cls_rsd) == (length(Blast.full_ℓ_range), 1, 1)
@@ -106,7 +106,7 @@ end
     #   SetUp(GC with δ+PNG) → allocates w_2_00_ϕT / w_2_00_ϕT_R1 / w_2_00_ϕ
     #   evaluate_components! → populates PNG.Kernel via _png_kernel
     #                          (uses bg.H, bias, f_NL, p, nz_norm)
-    #   compute_w! → fills PNG-related projected-matter coefficients
+    #   compute_w → fills PNG-related projected-matter coefficients
     #   get_Cℓ      → routes through the δ×PNG / PNG×δ / PNG×PNG dispatchers.
     cosmo = get_test_cosmo()
     bg = get_test_bg(cosmo)
@@ -129,7 +129,7 @@ end
     W_δ, Plans_δ = Blast.SetUp(gc_δ)
     Blast.evaluate_components!(gc_δ, bg)
     PS_δ = Blast.prepare_pk_workspace(Plans_δ, pk_grid, pk_limber, pk_limber, bg)
-    Blast.compute_w!(W_δ, PS_δ)
+    W_δ = Blast.compute_w(W_δ, PS_δ)
     cls_δ = Blast.get_Cℓ(Blast.full_ℓ_range, gc_δ, PS_δ, W_δ, bg, Plans_δ)
 
     # δ+PNG
@@ -150,7 +150,7 @@ end
     @test any(!iszero, gc_png.PNG.Kernel)
 
     PS_png = Blast.prepare_pk_workspace(Plans_png, pk_grid, pk_limber, pk_limber, bg)
-    Blast.compute_w!(W_png, PS_png)
+    W_png = Blast.compute_w(W_png, PS_png)
     cls_png = Blast.get_Cℓ(Blast.full_ℓ_range, gc_png, PS_png, W_png, bg, Plans_png)
 
     @test size(cls_png) == (length(Blast.full_ℓ_range), 1, 1)
@@ -192,7 +192,7 @@ end
     Blast.evaluate_components!(gc, bg)
     Blast.evaluate_components!(cmb_κ, bg)
     PS_κ = Blast.prepare_pk_workspace(Plans_κ, pk_grid, pk_limber, pk_limber, bg)
-    Blast.compute_w!(W_κ, PS_κ)
+    W_κ = Blast.compute_w(W_κ, PS_κ)
     cls_κ_gc = Blast.get_Cℓ(Blast.full_ℓ_range, cmb_κ, gc, PS_κ, W_κ, bg, Plans_κ)
 
     # κ + ISW
@@ -204,7 +204,7 @@ end
     @test any(!iszero, cmb_full.ISW.Kernel)
 
     PS_full = Blast.prepare_pk_workspace(Plans_full, pk_grid, pk_limber, pk_limber, bg)
-    Blast.compute_w!(W_full, PS_full)
+    W_full = Blast.compute_w(W_full, PS_full)
     cls_full = Blast.get_Cℓ(Blast.full_ℓ_range, cmb_full, gc, PS_full, W_full, bg, Plans_full)
 
     @test size(cls_full) == (length(Blast.full_ℓ_range), 1, 1)
@@ -237,7 +237,7 @@ end
     PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber, pk_limber, bg)
 
     # CRITICAL: Compute projected matter coefficients
-    Blast.compute_w!(W, PS)
+    W = Blast.compute_w(W, PS)
 
     # Cross Cl: get_Cℓ(ℓ, G, L, Pk, W, bg, P)
     cl_gc_wl = Blast.get_Cℓ(Blast.full_ℓ_range, gc, wl, PS, W, bg, Plans)
@@ -274,7 +274,7 @@ end
     Blast.evaluate_components!(wl, bg)
     Blast.evaluate_components!(cmb, bg)
     PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber, pk_limber, bg)
-    Blast.compute_w!(W, PS)
+    W = Blast.compute_w(W, PS)
 
     # GC × CMB symmetry
     cl_gc_cmb = Blast.get_Cℓ(Blast.full_ℓ_range, gc, cmb, PS, W, bg, Plans)
