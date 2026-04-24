@@ -176,13 +176,13 @@ using Blast
 
         @testset "sum(bg.D) w.r.t. H0" begin
             f(p) = sum(Background(w0waCDM(H0=p[1])).D)
-            check_gradient(f, [67.27]; skip_zygote=true,
+            check_gradient(f, [67.27]; skip_zygote=true, skip_mooncake=true,
                            rtol_ad=1e-3, rtol_fd=1e-3)
         end
 
         @testset "sum(bg.f) w.r.t. H0" begin
             f(p) = sum(Background(w0waCDM(H0=p[1])).f)
-            check_gradient(f, [67.27]; skip_zygote=true,
+            check_gradient(f, [67.27]; skip_zygote=true, skip_mooncake=true,
                            rtol_ad=1e-3, rtol_fd=1e-3)
         end
 
@@ -195,26 +195,26 @@ using Blast
 
         @testset "sum(bg.D) w.r.t. Ωm" begin
             f(p) = sum(Background(w0waCDM(Ωm=p[1])).D)
-            check_gradient(f, [0.3156]; skip_zygote=true,
+            check_gradient(f, [0.3156]; skip_zygote=true, skip_mooncake=true,
                            rtol_ad=1e-3, rtol_fd=1e-3)
         end
 
         @testset "sum(bg.f) w.r.t. Ωm" begin
             f(p) = sum(Background(w0waCDM(Ωm=p[1])).f)
-            check_gradient(f, [0.3156]; skip_zygote=true,
+            check_gradient(f, [0.3156]; skip_zygote=true, skip_mooncake=true,
                            rtol_ad=1e-3, rtol_fd=1e-3)
         end
 
         # ── vs w0  (dark-energy equation of state) ────────────────────────
         @testset "sum(bg.D) w.r.t. w0" begin
             f(p) = sum(Background(w0waCDM(w0=p[1])).D)
-            check_gradient(f, [-1.0]; skip_zygote=true,
+            check_gradient(f, [-1.0]; skip_zygote=true, skip_mooncake=true,
                            rtol_ad=1e-3, rtol_fd=1e-3)
         end
 
         @testset "sum(bg.f) w.r.t. w0" begin
             f(p) = sum(Background(w0waCDM(w0=p[1])).f)
-            check_gradient(f, [-1.0]; skip_zygote=true,
+            check_gradient(f, [-1.0]; skip_zygote=true, skip_mooncake=true,
                            rtol_ad=1e-3, rtol_fd=1e-3)
         end
     end

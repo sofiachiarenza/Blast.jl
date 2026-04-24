@@ -140,11 +140,15 @@ function get_limber_kernel(C::CMB)
 end
 
 function _low_ℓ_slice(K::AbstractArray{<:Any,3})
-    return @view K[1:LIMBER_N_NONLIMBER, :, :]
+    # Materialize instead of @view: Mooncake's @from_chainrules rrule for
+    # _limber_contraction can't round-trip SubArray fdata → Array tangent
+    # (missing increment_and_get_rdata! method). The 3-D slice copy is tiny
+    # next to what kernel fusion saved elsewhere.
+    return K[1:LIMBER_N_NONLIMBER, :, :]
 end
 
 function _high_ℓ_slice(K::AbstractArray{<:Any,3})
-    return @view K[(LIMBER_N_NONLIMBER+1):end, :, :]
+    return K[(LIMBER_N_NONLIMBER+1):end, :, :]
 end
 
 @doc raw"""
