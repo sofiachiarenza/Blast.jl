@@ -11,6 +11,14 @@ function _limber_contraction(P_term, K1, K2, weights, Δχ)
     return Cℓ
 end
 
+# Limber integration helpers: all based on fixed Blast.χ and ℓ grids.
+# `LIMBER_INV_χ2_ROW` is pre-shaped as a `(1, nχ)` row so it can be broadcast
+# against `pk.{ΔP,Pδ}_limber` rows without per-call `reshape` allocations.
+const LIMBER_N_NONLIMBER = length(Blast.ℓ_nonlimber)
+const LIMBER_INV_χ2_ROW = reshape(1.0 ./ (Blast.χ .^ 2), 1, :)
+const LIMBER_Δχ = (last(Blast.χ) - first(Blast.χ)) / (length(Blast.χ) - 1)
+const LIMBER_WEIGHTS = Blast.simpson_weights_array(length(Blast.χ))
+
 """
     get_limber_k_polynomials(plan::ChebyshevPlan, l::AbstractVector, chi::AbstractVector; is_log_k=true) -> Array
 
@@ -77,18 +85,30 @@ end
     get_limber_kernel(Component::AbstractComponents)
 
 Construct the Limber kernel associated with a single projected component.
+Pure broadcast form: AD-native through both ForwardDiff and Mooncake without
+needing a custom rrule, and fast because `prefactor .* kernel` fuses into a
+single SIMD-friendly pass.
 """
 function get_limber_kernel(Component::AbstractComponents)
     total_prefactor = Component.ell_prefactor .* Component.limber_factor
     kernel = Component.Kernel'
-    kernel = reshape(kernel, 1, size(kernel, 1), size(kernel, 2))  
-    prefactor = reshape(total_prefactor, :, 1, 1)  
-    return prefactor .* kernel  
+    kernel = reshape(kernel, 1, size(kernel, 1), size(kernel, 2))
+    prefactor = reshape(total_prefactor, :, 1, 1)
+    return prefactor .* kernel
 end
 
 function get_limber_kernel(Component::Nothing)
-    return 0.
+    return nothing
 end
+
+# Sum two same-shape Limber kernels, short-circuiting when a component is
+# absent. Used by the per-probe aggregators below. Returning `nothing` when
+# every component is missing lets downstream slicing / contraction helpers
+# dispatch to their `::Nothing` fast paths instead of touching a scalar `0.`.
+_combine_limber_kernels(K1::AbstractArray{<:Any,3}, K2::AbstractArray{<:Any,3}) = K1 .+ K2
+_combine_limber_kernels(K1::AbstractArray{<:Any,3}, ::Nothing) = K1
+_combine_limber_kernels(::Nothing, K2::AbstractArray{<:Any,3}) = K2
+_combine_limber_kernels(::Nothing, ::Nothing) = nothing
 
 """
     get_limber_kernel(G::GalaxyClustering)
@@ -98,7 +118,7 @@ Sum Limber kernels over implemented `GalaxyClustering` Limber components.
 Current implementation includes number counts `δ` and magnification `μ`.
 """
 function get_limber_kernel(G::GalaxyClustering)
-    return get_limber_kernel(G.δ) .+ get_limber_kernel(G.μ) 
+    return _combine_limber_kernels(get_limber_kernel(G.δ), get_limber_kernel(G.μ))
 end
 
 """
@@ -107,7 +127,7 @@ end
 Sum Limber kernels over all active `WeakLensing` components (γ, IA).
 """
 function get_limber_kernel(L::WeakLensing)
-    return get_limber_kernel(L.γ) .+ get_limber_kernel(L.IA)
+    return _combine_limber_kernels(get_limber_kernel(L.γ), get_limber_kernel(L.IA))
 end
 
 """
@@ -116,7 +136,15 @@ end
 Sum Limber kernels over all active `CMB` components (κ, ISW).
 """
 function get_limber_kernel(C::CMB)
-    return get_limber_kernel(C.κ) .+ get_limber_kernel(C.ISW)
+    return _combine_limber_kernels(get_limber_kernel(C.κ), get_limber_kernel(C.ISW))
+end
+
+function _low_ℓ_slice(K::AbstractArray{<:Any,3})
+    return @view K[1:LIMBER_N_NONLIMBER, :, :]
+end
+
+function _high_ℓ_slice(K::AbstractArray{<:Any,3})
+    return @view K[(LIMBER_N_NONLIMBER+1):end, :, :]
 end
 
 @doc raw"""
@@ -133,16 +161,15 @@ K_i(\ell,\chi)K_j(\ell,\chi).
 ```
 """
 function get_limber_correction(Probe::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
-    chi_grid = Blast.χ
-    n = size(chi_grid, 1)
-    ΔP_over_χ2 = pk.ΔP_limber[1:size(Blast.ℓ_nonlimber, 1), :] ./ reshape(chi_grid, 1, :) .^ 2
+    return get_limber_correction(get_limber_kernel(Probe), pk)
+end
 
-    Δχ = ((chi_grid[n]-chi_grid[1])/(n-1))
-    weights = Blast.simpson_weights_array(n)
+get_limber_correction(::Nothing, pk::PowerSpectrum) = 0.
 
-    K = get_limber_kernel(Probe)[1:size(Blast.ℓ_nonlimber, 1), :, :]
-
-    return _limber_contraction(ΔP_over_χ2, K, K, weights, Δχ)
+function get_limber_correction(K::AbstractArray{<:Any,3}, pk::PowerSpectrum)
+    ΔP_over_χ2 = @views pk.ΔP_limber[1:LIMBER_N_NONLIMBER, :] .* LIMBER_INV_χ2_ROW
+    K_low = _low_ℓ_slice(K)
+    return _limber_contraction(ΔP_over_χ2, K_low, K_low, LIMBER_WEIGHTS, LIMBER_Δχ)
 end
 
 @doc raw"""
@@ -159,17 +186,16 @@ K_i^{A}(\ell,\chi)K_j^{B}(\ell,\chi).
 ```
 """
 function get_limber_correction(ProbeA::Union{GalaxyClustering, WeakLensing, CMB}, ProbeB::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
-    chi_grid = Blast.χ
-    n = size(chi_grid, 1)
-    ΔP_over_χ2 = pk.ΔP_limber[1:size(Blast.ℓ_nonlimber, 1), :] ./ reshape(chi_grid, 1, :) .^ 2
+    return get_limber_correction(get_limber_kernel(ProbeA), get_limber_kernel(ProbeB), pk)
+end
 
-    Δχ = ((chi_grid[n]-chi_grid[1])/(n-1))
-    weights = Blast.simpson_weights_array(n)
+get_limber_correction(::Nothing, ::Nothing, pk::PowerSpectrum) = 0.
+get_limber_correction(::Nothing, KB::AbstractArray{<:Any,3}, pk::PowerSpectrum) = 0.
+get_limber_correction(KA::AbstractArray{<:Any,3}, ::Nothing, pk::PowerSpectrum) = 0.
 
-    KA = get_limber_kernel(ProbeA)[1:size(Blast.ℓ_nonlimber, 1), :, :]
-    KB = get_limber_kernel(ProbeB)[1:size(Blast.ℓ_nonlimber, 1), :, :]
-
-    return _limber_contraction(ΔP_over_χ2, KA, KB, weights, Δχ)
+function get_limber_correction(KA::AbstractArray{<:Any,3}, KB::AbstractArray{<:Any,3}, pk::PowerSpectrum)
+    ΔP_over_χ2 = @views pk.ΔP_limber[1:LIMBER_N_NONLIMBER, :] .* LIMBER_INV_χ2_ROW
+    return _limber_contraction(ΔP_over_χ2, _low_ℓ_slice(KA), _low_ℓ_slice(KB), LIMBER_WEIGHTS, LIMBER_Δχ)
 end
 
 @doc raw"""
@@ -186,16 +212,15 @@ K_i(\ell,\chi)K_j(\ell,\chi).
 ```
 """
 function get_limber_Cℓ(Probe::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
-    chi_grid = Blast.χ
-    n = size(chi_grid, 1)
-    Pδ_over_χ2 = pk.Pδ_limber[size(Blast.ℓ_nonlimber, 1)+1:end, :] ./ reshape(chi_grid, 1, :) .^ 2
+    return get_limber_Cℓ(get_limber_kernel(Probe), pk)
+end
 
-    Δχ = ((chi_grid[n]-chi_grid[1])/(n-1))
-    weights = Blast.simpson_weights_array(n)
+get_limber_Cℓ(::Nothing, pk::PowerSpectrum) = 0.
 
-    K = get_limber_kernel(Probe)[size(Blast.ℓ_nonlimber, 1)+1:end, :, :]
-
-    return _limber_contraction(Pδ_over_χ2, K, K, weights, Δχ)
+function get_limber_Cℓ(K::AbstractArray{<:Any,3}, pk::PowerSpectrum)
+    Pδ_over_χ2 = @views pk.Pδ_limber[(LIMBER_N_NONLIMBER+1):end, :] .* LIMBER_INV_χ2_ROW
+    K_high = _high_ℓ_slice(K)
+    return _limber_contraction(Pδ_over_χ2, K_high, K_high, LIMBER_WEIGHTS, LIMBER_Δχ)
 end
 
 @doc raw"""
@@ -209,15 +234,14 @@ K_i^{A}(\ell,\chi)K_j^{B}(\ell,\chi).
 ```
 """
 function get_limber_Cℓ(ProbeA::Union{GalaxyClustering, WeakLensing, CMB}, ProbeB::Union{GalaxyClustering, WeakLensing, CMB}, pk::PowerSpectrum)
-    chi_grid = Blast.χ
-    n = size(chi_grid, 1)
-    Pδ_over_χ2 = pk.Pδ_limber[size(Blast.ℓ_nonlimber, 1)+1:end, :] ./ reshape(chi_grid, 1, :) .^ 2
+    return get_limber_Cℓ(get_limber_kernel(ProbeA), get_limber_kernel(ProbeB), pk)
+end
 
-    Δχ = ((chi_grid[n]-chi_grid[1])/(n-1))
-    weights = Blast.simpson_weights_array(n)
+get_limber_Cℓ(::Nothing, ::Nothing, pk::PowerSpectrum) = 0.
+get_limber_Cℓ(::Nothing, KB::AbstractArray{<:Any,3}, pk::PowerSpectrum) = 0.
+get_limber_Cℓ(KA::AbstractArray{<:Any,3}, ::Nothing, pk::PowerSpectrum) = 0.
 
-    KA = get_limber_kernel(ProbeA)[size(Blast.ℓ_nonlimber, 1)+1:end, :, :]
-    KB = get_limber_kernel(ProbeB)[size(Blast.ℓ_nonlimber, 1)+1:end, :, :]
-
-    return _limber_contraction(Pδ_over_χ2, KA, KB, weights, Δχ)
+function get_limber_Cℓ(KA::AbstractArray{<:Any,3}, KB::AbstractArray{<:Any,3}, pk::PowerSpectrum)
+    Pδ_over_χ2 = @views pk.Pδ_limber[(LIMBER_N_NONLIMBER+1):end, :] .* LIMBER_INV_χ2_ROW
+    return _limber_contraction(Pδ_over_χ2, _high_ℓ_slice(KA), _high_ℓ_slice(KB), LIMBER_WEIGHTS, LIMBER_Δχ)
 end
