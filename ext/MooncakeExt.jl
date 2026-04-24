@@ -6,6 +6,7 @@ import Blast:
     get_clencurt_weights, simpson_weights_array,
     get_clencurt_weights_R_integration, simpson_weights_matrix,
     _combine_kernels_tullio, _compute_Cℓ_tullio, _compute_Cℓ_rsd_tullio,
+    _compute_Cℓ_fused_tullio, _compute_Cℓ_rsd_fused_tullio,
     _limber_contraction, w_ell_tullio, limber_eval,
     _p_phi_TT_tullio, _p_phi_T_tullio,
     _cosmic_shear_kernel_tullio, _magnification_bias_kernel_tullio
@@ -30,6 +31,9 @@ import Blast:
 
 @from_chainrules MinimalCtx Tuple{typeof(_compute_Cℓ_tullio), AbstractArray, AbstractArray, AbstractVector, AbstractVector, AbstractVector, Number, AbstractVector}
 @from_chainrules MinimalCtx Tuple{typeof(_compute_Cℓ_rsd_tullio), AbstractArray, AbstractArray, AbstractArray, AbstractArray, AbstractArray, AbstractArray, AbstractVector, AbstractVector, AbstractVector, Number, AbstractVector}
+
+@from_chainrules MinimalCtx Tuple{typeof(_compute_Cℓ_fused_tullio), AbstractArray{<:Any, 3}, AbstractArray{<:Any, 3}, AbstractArray, AbstractVector, AbstractVector, AbstractVector, Number, AbstractVector}
+@from_chainrules MinimalCtx Tuple{typeof(_compute_Cℓ_rsd_fused_tullio), AbstractArray{<:Any, 3}, AbstractArray{<:Any, 3}, AbstractArray, AbstractArray, AbstractVector, AbstractVector, AbstractVector, Number, AbstractVector}
 
 @from_chainrules MinimalCtx Tuple{typeof(_limber_contraction), AbstractArray, AbstractArray, AbstractArray, AbstractVector, Number}
 @from_chainrules MinimalCtx Tuple{typeof(limber_eval), AbstractMatrix, AbstractMatrix, AbstractArray{<:Any, 3}}

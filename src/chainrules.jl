@@ -73,6 +73,70 @@ function rrule(::typeof(_compute_Cℓ_rsd_tullio), W_A_r1::AbstractArray, W_B::A
     return Cℓ, _compute_Cℓ_rsd_tullio_pullback
 end
 
+# -----------------------------------------------------------------------------
+# 4b. FUSED variants (hot path)
+#
+# _compute_Cℓ_fused_tullio(W_A, W_B, pmj, w_χ, w_R, prefactor, Δχ, χ_grid):
+#
+#   Cℓ[l,i,j] = Σ_{n,m} pref[l] · χ[n] · w_χ[n] · w_R[m] · Δχ · pmj[l,n,m] ·
+#                       ( W_A_r1[i,n] · W_B[j,n,m] + W_A[i,n,m] · W_B_r1[j,n] )
+#
+# where W_A_r1 = W_A[:,:,end] and W_B_r1 = W_B[:,:,end].
+#
+# Gradients (chain rule applied term-by-term, then aggregated):
+#   ∂/∂W_A[i,n,m]   = Σ_{l,j}   ȳ[l,i,j] · α(l,n,m) · W_B_r1[j,n]
+#   ∂/∂W_A_r1[i,n] = Σ_{l,j,m} ȳ[l,i,j] · α(l,n,m) · W_B[j,n,m]      (folded into ∂W_A[:,:,end])
+#   ∂/∂W_B[j,n,m]   = Σ_{l,i}   ȳ[l,i,j] · α(l,n,m) · W_A_r1[i,n]
+#   ∂/∂W_B_r1[j,n] = Σ_{l,i,m} ȳ[l,i,j] · α(l,n,m) · W_A[i,n,m]      (folded into ∂W_B[:,:,end])
+#   ∂/∂pmj[l,n,m]  = Σ_{i,j}   ȳ[l,i,j] · pref[l]·χ[n]·w_χ[n]·w_R[m]·Δχ · K[i,j,n,m]
+# with α(l,n,m) := pref[l] · χ[n] · w_χ[n] · w_R[m] · Δχ · pmj[l,n,m].
+# -----------------------------------------------------------------------------
+
+function rrule(::typeof(_compute_Cℓ_fused_tullio), W_A::AbstractArray{<:Any, 3}, W_B::AbstractArray{<:Any, 3}, pmj::AbstractArray, w_χ::AbstractVector, w_R::AbstractVector, prefactor::AbstractVector, Δχ::Number, χ_grid::AbstractVector)
+    Cℓ = _compute_Cℓ_fused_tullio(W_A, W_B, pmj, w_χ, w_R, prefactor, Δχ, χ_grid)
+    W_A_r1 = W_A[:, :, end]; W_B_r1 = W_B[:, :, end]
+    proj_W_A = ProjectTo(W_A); proj_W_B = ProjectTo(W_B); proj_pmj = ProjectTo(pmj)
+    function _compute_Cℓ_fused_tullio_pullback(ȳ)
+        ȳ = unthunk(ȳ)
+        @tullio ∂W_A[idx_i, idx_n, idx_m] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * pmj[idx_l, idx_n, idx_m] * W_B_r1[idx_j, idx_n]
+        @tullio ∂W_A_r1[idx_i, idx_n] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * pmj[idx_l, idx_n, idx_m] * W_B[idx_j, idx_n, idx_m]
+        ∂W_A[:, :, end] .+= ∂W_A_r1
+        @tullio ∂W_B[idx_j, idx_n, idx_m] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * pmj[idx_l, idx_n, idx_m] * W_A_r1[idx_i, idx_n]
+        @tullio ∂W_B_r1[idx_j, idx_n] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * pmj[idx_l, idx_n, idx_m] * W_A[idx_i, idx_n, idx_m]
+        ∂W_B[:, :, end] .+= ∂W_B_r1
+        @tullio ∂pmj[idx_l, idx_n, idx_m] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ *
+                                             (W_A_r1[idx_i, idx_n] * W_B[idx_j, idx_n, idx_m] +
+                                              W_A[idx_i, idx_n, idx_m] * W_B_r1[idx_j, idx_n])
+        return (NoTangent(), proj_W_A(∂W_A), proj_W_B(∂W_B), proj_pmj(∂pmj), NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent())
+    end
+    return Cℓ, _compute_Cℓ_fused_tullio_pullback
+end
+
+# _compute_Cℓ_rsd_fused_tullio(W_A, W_B, pmj02, pmj20, w_χ, w_R, prefactor, Δχ, χ_grid):
+#
+#   Cℓ[l,i,j] = Σ_{n,m} pref[l] · χ[n] · w_χ[n] · w_R[m] · Δχ ·
+#                       ( W_A_r1[i,n] · W_B[j,n,m] · pmj02[l,n,m] +
+#                         W_A[i,n,m]  · W_B_r1[j,n] · pmj20[l,n,m] )
+function rrule(::typeof(_compute_Cℓ_rsd_fused_tullio), W_A::AbstractArray{<:Any, 3}, W_B::AbstractArray{<:Any, 3}, pmj02::AbstractArray, pmj20::AbstractArray, w_χ::AbstractVector, w_R::AbstractVector, prefactor::AbstractVector, Δχ::Number, χ_grid::AbstractVector)
+    Cℓ = _compute_Cℓ_rsd_fused_tullio(W_A, W_B, pmj02, pmj20, w_χ, w_R, prefactor, Δχ, χ_grid)
+    W_A_r1 = W_A[:, :, end]; W_B_r1 = W_B[:, :, end]
+    proj_W_A = ProjectTo(W_A); proj_W_B = ProjectTo(W_B)
+    proj_pmj02 = ProjectTo(pmj02); proj_pmj20 = ProjectTo(pmj20)
+    function _compute_Cℓ_rsd_fused_tullio_pullback(ȳ)
+        ȳ = unthunk(ȳ)
+        @tullio ∂W_A[idx_i, idx_n, idx_m] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * pmj20[idx_l, idx_n, idx_m] * W_B_r1[idx_j, idx_n]
+        @tullio ∂W_A_r1[idx_i, idx_n] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * pmj02[idx_l, idx_n, idx_m] * W_B[idx_j, idx_n, idx_m]
+        ∂W_A[:, :, end] .+= ∂W_A_r1
+        @tullio ∂W_B[idx_j, idx_n, idx_m] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * pmj02[idx_l, idx_n, idx_m] * W_A_r1[idx_i, idx_n]
+        @tullio ∂W_B_r1[idx_j, idx_n] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * pmj20[idx_l, idx_n, idx_m] * W_A[idx_i, idx_n, idx_m]
+        ∂W_B[:, :, end] .+= ∂W_B_r1
+        @tullio ∂pmj02[idx_l, idx_n, idx_m] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * W_A_r1[idx_i, idx_n] * W_B[idx_j, idx_n, idx_m]
+        @tullio ∂pmj20[idx_l, idx_n, idx_m] := ȳ[idx_l, idx_i, idx_j] * prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * W_A[idx_i, idx_n, idx_m] * W_B_r1[idx_j, idx_n]
+        return (NoTangent(), proj_W_A(∂W_A), proj_W_B(∂W_B), proj_pmj02(∂pmj02), proj_pmj20(∂pmj20), NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent())
+    end
+    return Cℓ, _compute_Cℓ_rsd_fused_tullio_pullback
+end
+
 
 # =============================================================================
 # 5. LIMBER integration

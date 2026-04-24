@@ -5,6 +5,8 @@
 #   _combine_kernels_tullio                                       (cls.jl)
 #   _compute_Cℓ_tullio                                            (cls.jl)
 #   _compute_Cℓ_rsd_tullio                                        (cls.jl)
+#   _compute_Cℓ_fused_tullio            (cls.jl — fused hot path)
+#   _compute_Cℓ_rsd_fused_tullio        (cls.jl — fused hot path)
 #   _limber_contraction                                           (limber.jl)
 #
 # Design notes
@@ -178,6 +180,95 @@ const pmj20_ref  = rand(nℓ, nχ, nR)
             W_A_r1_ref, W_B_ref, pmj02_ref, W_A_ref, W_B_r1_ref, pmj20,
             w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref))
         check_gradient(f, pmj20_0; rtol_ad=1e-8, rtol_fd=1e-5, skip_forward=true)
+    end
+
+    # ======================================================================
+    # 4b. _compute_Cℓ_fused_tullio(W_A, W_B, pmj, w_χ, w_R, prefactor, Δχ, χ_grid)
+    #     Fused path — substitutes K[i,j,c,r] into the Cℓ contraction.
+    #     Pullbacks for W_A, W_B, pmj.
+    # ======================================================================
+
+    @testset "_compute_Cℓ_fused_tullio w.r.t. W_A" begin
+        W_A0 = rand(nb, nχ, nR)
+        f(W_A) = sum(Blast._compute_Cℓ_fused_tullio(
+            W_A, W_B_ref, pmj_ref, w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref))
+        check_gradient(f, W_A0; rtol_ad=1e-8, rtol_fd=1e-5, skip_forward=true)
+    end
+
+    @testset "_compute_Cℓ_fused_tullio w.r.t. W_B" begin
+        W_B0 = rand(nb, nχ, nR)
+        f(W_B) = sum(Blast._compute_Cℓ_fused_tullio(
+            W_A_ref, W_B, pmj_ref, w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref))
+        check_gradient(f, W_B0; rtol_ad=1e-8, rtol_fd=1e-5, skip_forward=true)
+    end
+
+    @testset "_compute_Cℓ_fused_tullio w.r.t. pmj" begin
+        pmj0 = rand(nℓ, nχ, nR)
+        f(pmj) = sum(Blast._compute_Cℓ_fused_tullio(
+            W_A_ref, W_B_ref, pmj, w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref))
+        check_gradient(f, pmj0; rtol_ad=1e-8, rtol_fd=1e-5, skip_forward=true)
+    end
+
+    # Equivalence check: fused must match two-step composition at the primal.
+    @testset "_compute_Cℓ_fused_tullio matches two-step primal" begin
+        W_A = rand(nb, nχ, nR); W_B = rand(nb, nχ, nR); pmj = rand(nℓ, nχ, nR)
+        Cℓ_fused = Blast._compute_Cℓ_fused_tullio(W_A, W_B, pmj,
+            w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref)
+        K       = Blast._combine_kernels_tullio(W_A, W_B)
+        Cℓ_ref2 = Blast._compute_Cℓ_tullio(K, pmj,
+            w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref)
+        @test isapprox(Cℓ_fused, Cℓ_ref2; rtol=1e-12, atol=1e-12)
+    end
+
+    # ======================================================================
+    # 4c. _compute_Cℓ_rsd_fused_tullio(W_A, W_B, pmj02, pmj20, w_χ, w_R,
+    #                                   prefactor, Δχ, χ_grid)
+    #     Pullbacks for W_A, W_B, pmj02, pmj20.
+    # ======================================================================
+
+    @testset "_compute_Cℓ_rsd_fused_tullio w.r.t. W_A" begin
+        W_A0 = rand(nb, nχ, nR)
+        f(W_A) = sum(Blast._compute_Cℓ_rsd_fused_tullio(
+            W_A, W_B_ref, pmj02_ref, pmj20_ref,
+            w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref))
+        check_gradient(f, W_A0; rtol_ad=1e-8, rtol_fd=1e-5, skip_forward=true)
+    end
+
+    @testset "_compute_Cℓ_rsd_fused_tullio w.r.t. W_B" begin
+        W_B0 = rand(nb, nχ, nR)
+        f(W_B) = sum(Blast._compute_Cℓ_rsd_fused_tullio(
+            W_A_ref, W_B, pmj02_ref, pmj20_ref,
+            w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref))
+        check_gradient(f, W_B0; rtol_ad=1e-8, rtol_fd=1e-5, skip_forward=true)
+    end
+
+    @testset "_compute_Cℓ_rsd_fused_tullio w.r.t. pmj02" begin
+        pmj02_0 = rand(nℓ, nχ, nR)
+        f(pmj02) = sum(Blast._compute_Cℓ_rsd_fused_tullio(
+            W_A_ref, W_B_ref, pmj02, pmj20_ref,
+            w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref))
+        check_gradient(f, pmj02_0; rtol_ad=1e-8, rtol_fd=1e-5, skip_forward=true)
+    end
+
+    @testset "_compute_Cℓ_rsd_fused_tullio w.r.t. pmj20" begin
+        pmj20_0 = rand(nℓ, nχ, nR)
+        f(pmj20) = sum(Blast._compute_Cℓ_rsd_fused_tullio(
+            W_A_ref, W_B_ref, pmj02_ref, pmj20,
+            w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref))
+        check_gradient(f, pmj20_0; rtol_ad=1e-8, rtol_fd=1e-5, skip_forward=true)
+    end
+
+    # Equivalence check: fused RSD must match two-step RSD primal.
+    @testset "_compute_Cℓ_rsd_fused_tullio matches two-step primal" begin
+        W_A = rand(nb, nχ, nR); W_B = rand(nb, nχ, nR)
+        pmj02 = rand(nℓ, nχ, nR); pmj20 = rand(nℓ, nχ, nR)
+        W_A_r1 = W_A[:, :, end]; W_B_r1 = W_B[:, :, end]
+        Cℓ_fused = Blast._compute_Cℓ_rsd_fused_tullio(W_A, W_B, pmj02, pmj20,
+            w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref)
+        Cℓ_ref2  = Blast._compute_Cℓ_rsd_tullio(
+            W_A_r1, W_B, pmj02, W_A, W_B_r1, pmj20,
+            w_χ_ref, w_R_ref, pref_ref, Δχ_ref, χ_ref)
+        @test isapprox(Cℓ_fused, Cℓ_ref2; rtol=1e-12, atol=1e-12)
     end
 
     # ======================================================================

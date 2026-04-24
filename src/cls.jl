@@ -7,6 +7,14 @@ function make_grid(χ::Array{<:Any, 1}, R::Array{<:Any, 1})
     return vec(χ * R') 
 end
 
+# χ–R grid helpers are global invariants (Blast.χ and Blast.R are constants).
+# Cache once to avoid rebuilding in every get_Cℓ path.
+const χR_GRID_FLAT = make_grid(Blast.χ, Blast.R)
+const INV_χ2_GRID_FLAT = 1.0 ./ (χR_GRID_FLAT .^ 2)
+const INV_χ2_GRID_ROW = reshape(INV_χ2_GRID_FLAT, 1, :)
+const FULL_ℓ2 = Blast.full_ℓ_range .^ 2
+const FULL_ℓ2_REVERSED = reverse(FULL_ℓ2)
+
 """
     grid_interpolator(Probe, bg)
 
@@ -15,8 +23,7 @@ Interpolate a probe kernel from the χ grid onto a χ–R grid using Background 
 function grid_interpolator(Probe::AbstractComponents, bg::Background) 
     kernel = Probe.Kernel
     chi_grid = bg.χ
-    grid_flat = make_grid(Blast.χ, Blast.R)
-    return collect(akima_interpolation(collect(kernel'), chi_grid, grid_flat)')
+    return collect(akima_interpolation(collect(kernel'), chi_grid, χR_GRID_FLAT)')
 end
 
 """
@@ -37,13 +44,8 @@ function get_kernel_array(Probe::Union{CosmicShear, IntrinsicAlignment, Magnific
     nχ = length(bg.χ)
     nR = length(Blast.R)
     W_L = grid_interpolator(Probe, bg)
-    χ2_app = zeros(n_bins, nχ*nR)
-    grid_flat = make_grid(Blast.χ, Blast.R)
-    for i in 1:n_bins
-        χ2_app[i,:] = grid_flat .^ 2
-    end
-    W_array = reshape( W_L./χ2_app , n_bins, nχ, nR)
-    return W_array
+    W_L .*= INV_χ2_GRID_ROW
+    return reshape(W_L, n_bins, nχ, nR)
 end
 
 function _combine_kernels_tullio(W_A, W_B)
@@ -73,6 +75,75 @@ function _compute_Cℓ_rsd_tullio(W_A_r1, W_B, pmj02, W_A, W_B_r1, pmj20, w_χ, 
     return Cℓ
 end
 
+# -----------------------------------------------------------------------------
+# Fused variants — used on the hot path.
+#
+# The pair (_combine_kernels_tullio, _compute_Cℓ_tullio) was responsible for a
+# 4-D (nbins_A, nbins_B, nχ, nR) intermediate `K[i,j,c,r]` that was allocated
+# then immediately consumed.  Substituting the K-expression into the Cℓ sum
+# lets Tullio contract straight to the 3-D result, eliminating the biggest
+# non-AD allocation in the get_Cℓ pipeline (≈67% of GG non-AD allocation).
+#
+# Mathematically identical to the two-step form (see tests and rrules).
+# -----------------------------------------------------------------------------
+
+function _compute_Cℓ_fused_tullio(W_A, W_B, pmj, w_χ, w_R, prefactor, Δχ, χ_grid)
+    W_A_r1 = W_A[:, :, end]
+    W_B_r1 = W_B[:, :, end]
+    @tullio Cℓ[idx_l, idx_i, idx_j] := prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ * pmj[idx_l, idx_n, idx_m] *
+                                       (W_A_r1[idx_i, idx_n] * W_B[idx_j, idx_n, idx_m] +
+                                        W_A[idx_i, idx_n, idx_m] * W_B_r1[idx_j, idx_n])
+    return Cℓ
+end
+
+function _compute_Cℓ_rsd_fused_tullio(W_A, W_B, pmj02, pmj20, w_χ, w_R, prefactor, Δχ, χ_grid)
+    W_A_r1 = W_A[:, :, end]
+    W_B_r1 = W_B[:, :, end]
+    @tullio Cℓ[idx_l, idx_i, idx_j] := prefactor[idx_l] * χ_grid[idx_n] * w_χ[idx_n] * w_R[idx_m] * Δχ *
+                                       (W_A_r1[idx_i, idx_n] * W_B[idx_j, idx_n, idx_m] * pmj02[idx_l, idx_n, idx_m] +
+                                        W_A[idx_i, idx_n, idx_m] * W_B_r1[idx_j, idx_n] * pmj20[idx_l, idx_n, idx_m])
+    return Cℓ
+end
+
+function _prepare_nonlimber_integration(bg::Background)
+    nχ = size(bg.χ, 1)
+    nR = size(Blast.R, 1)
+    Δχ = ((last(bg.χ)-first(bg.χ))/(nχ-1))
+    w_χ = simpson_weights_array(nχ)
+    w_R = get_clencurt_weights_R_integration(2*nR+1)
+    χ_grid = bg.χ
+    return (; Δχ, w_χ, w_R, χ_grid)
+end
+
+function _pair_prefactor(Component1::AbstractComponents, Component2::AbstractComponents)
+    return 2/π .* Component1.ell_prefactor[1:length(ℓ_nonlimber)] .* Component2.ell_prefactor[1:length(ℓ_nonlimber)]
+end
+
+function _compute_Cℓ_from_kernels(W_A, W_B, pmj, prefactor, integ)
+    return _compute_Cℓ_fused_tullio(W_A, W_B, pmj, integ.w_χ, integ.w_R, prefactor, integ.Δχ, integ.χ_grid)
+end
+
+function _compute_Cℓ_rsd_from_kernels(W_A, W_B, pmj02, pmj20, prefactor, integ)
+    return _compute_Cℓ_rsd_fused_tullio(W_A, W_B, pmj02, pmj20, integ.w_χ, integ.w_R, prefactor, integ.Δχ, integ.χ_grid)
+end
+
+_get_kernel_or_nothing(Component::Nothing, bg::Background) = nothing
+_get_kernel_or_nothing(Component::AbstractComponents, bg::Background) = get_kernel_array(Component, bg)
+
+function _compute_Cℓ_cached(Component1::Union{AbstractComponents, Nothing}, Component2::Union{AbstractComponents, Nothing}, W_A, W_B, w::Union{ProjectedMatterDensityComponent, Nothing}, integ)
+    if isnothing(Component1) || isnothing(Component2) || isnothing(w)
+        return 0.
+    end
+    return _compute_Cℓ_from_kernels(W_A, W_B, w.w, _pair_prefactor(Component1, Component2), integ)
+end
+
+function _compute_Cℓ_rsd_cached(Component1::Union{AbstractComponents, Nothing}, Component2::Union{AbstractComponents, Nothing}, W_A, W_B, w02::Union{ProjectedMatterDensityComponent, Nothing}, w20::Union{ProjectedMatterDensityComponent, Nothing}, integ)
+    if isnothing(Component1) || isnothing(Component2) || isnothing(w02) || isnothing(w20)
+        return 0.
+    end
+    return _compute_Cℓ_rsd_from_kernels(W_A, W_B, w02.w, w20.w, _pair_prefactor(Component1, Component2), integ)
+end
+
 # Shared finalize step: given `full_Cℓ` stacked on `full_ℓ_range`, interpolate
 # onto the requested ℓ grid via a Chebyshev decomposition of ℓ² · C_ℓ (the
 # ℓ² weighting smooths the spectrum before decomposition; we divide it back
@@ -83,11 +154,88 @@ end
 # threads through the loop assignment; plain `zeros(...)` would silently strip
 # Duals at the `Cℓ_final[:, i, j] = ...` store.
 function _finalize_Cℓ(full_Cℓ, ℓ, nbins_A::Integer, nbins_B::Integer, P::Union{FFTPlans, Nothing})
-    Cℓ_final = zeros(eltype(full_Cℓ), size(ℓ, 1), nbins_A, nbins_B)
+    nℓ = size(ℓ, 1)
+    nℓ_full = size(full_Cℓ, 1)
+    Cℓ_final = zeros(eltype(full_Cℓ), nℓ, nbins_A, nbins_B)
     plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
+    inv_ℓ2 = inv.(ℓ .^ 2)
+    ℓ_eval = float.(ℓ)
+    T_eval = chebyshev_polynomials(ℓ_eval, eltype(ℓ_eval)(2.0), eltype(ℓ_eval)(2000.0), nℓ_full - 1)
+
+    tmp_weighted = Vector{eltype(full_Cℓ)}(undef, nℓ_full)
+    tmp_interp = Vector{promote_type(eltype(T_eval), eltype(full_Cℓ))}(undef, nℓ)
+
     for i in 1:nbins_A, j in 1:nbins_B
-        c_coeffs = chebyshev_decomposition(plan_interp, reverse(full_Cℓ[:, i, j] .* (Blast.full_ℓ_range .^ 2.)))
-        Cℓ_final[:, i, j] = chebinterp_native(c_coeffs, ℓ, 2.0, 2000.0) ./ (ℓ .^ 2)
+        @inbounds for k in 1:nℓ_full
+            tmp_weighted[k] = full_Cℓ[nℓ_full - k + 1, i, j] * FULL_ℓ2_REVERSED[k]
+        end
+        c_coeffs = chebyshev_decomposition(plan_interp, tmp_weighted)
+        mul!(tmp_interp, T_eval, c_coeffs)
+        @views Cℓ_final[:, i, j] .= tmp_interp .* inv_ℓ2
+    end
+    return Cℓ_final
+end
+
+function _finalize_Cℓ_parts(Cℓ_nonlimber::AbstractArray{<:Any, 3}, Cℓ_correction::AbstractArray{<:Any, 3}, Cℓ_limber::AbstractArray{<:Any, 3}, ℓ, nbins_A::Integer, nbins_B::Integer, P::Union{FFTPlans, Nothing})
+    nℓ = size(ℓ, 1)
+    n_nonlimber = size(Cℓ_nonlimber, 1)
+    n_limber = size(Cℓ_limber, 1)
+    nℓ_full = n_nonlimber + n_limber
+
+    Cℓ_final = zeros(promote_type(eltype(Cℓ_nonlimber), eltype(Cℓ_correction), eltype(Cℓ_limber)), nℓ, nbins_A, nbins_B)
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
+    inv_ℓ2 = inv.(ℓ .^ 2)
+    ℓ_eval = float.(ℓ)
+    T_eval = chebyshev_polynomials(ℓ_eval, eltype(ℓ_eval)(2.0), eltype(ℓ_eval)(2000.0), nℓ_full - 1)
+
+    tmp_weighted = Vector{eltype(Cℓ_final)}(undef, nℓ_full)
+    tmp_interp = Vector{eltype(Cℓ_final)}(undef, nℓ)
+    ℓ2_rev = @view FULL_ℓ2_REVERSED[1:nℓ_full]
+
+    for i in 1:nbins_A, j in 1:nbins_B
+        @inbounds for k in 1:nℓ_full
+            idx = nℓ_full - k + 1
+            if idx <= n_nonlimber
+                tmp_weighted[k] = (Cℓ_nonlimber[idx, i, j] + Cℓ_correction[idx, i, j]) * ℓ2_rev[k]
+            else
+                tmp_weighted[k] = Cℓ_limber[idx - n_nonlimber, i, j] * ℓ2_rev[k]
+            end
+        end
+        c_coeffs = chebyshev_decomposition(plan_interp, tmp_weighted)
+        mul!(tmp_interp, T_eval, c_coeffs)
+        @views Cℓ_final[:, i, j] .= tmp_interp .* inv_ℓ2
+    end
+    return Cℓ_final
+end
+
+function _finalize_Cℓ_parts(Cℓ_nonlimber::AbstractArray{<:Any, 3}, Cℓ_correction::Number, Cℓ_limber::AbstractArray{<:Any, 3}, ℓ, nbins_A::Integer, nbins_B::Integer, P::Union{FFTPlans, Nothing})
+    nℓ = size(ℓ, 1)
+    n_nonlimber = size(Cℓ_nonlimber, 1)
+    n_limber = size(Cℓ_limber, 1)
+    nℓ_full = n_nonlimber + n_limber
+
+    Cℓ_final = zeros(promote_type(eltype(Cℓ_nonlimber), typeof(Cℓ_correction), eltype(Cℓ_limber)), nℓ, nbins_A, nbins_B)
+    plan_interp = isnothing(P) ? prepare_chebyshev_plan(2.0, 2000.0, 100) : P.plan_ℓ
+    inv_ℓ2 = inv.(ℓ .^ 2)
+    ℓ_eval = float.(ℓ)
+    T_eval = chebyshev_polynomials(ℓ_eval, eltype(ℓ_eval)(2.0), eltype(ℓ_eval)(2000.0), nℓ_full - 1)
+
+    tmp_weighted = Vector{eltype(Cℓ_final)}(undef, nℓ_full)
+    tmp_interp = Vector{eltype(Cℓ_final)}(undef, nℓ)
+    ℓ2_rev = @view FULL_ℓ2_REVERSED[1:nℓ_full]
+
+    for i in 1:nbins_A, j in 1:nbins_B
+        @inbounds for k in 1:nℓ_full
+            idx = nℓ_full - k + 1
+            if idx <= n_nonlimber
+                tmp_weighted[k] = (Cℓ_nonlimber[idx, i, j] + Cℓ_correction) * ℓ2_rev[k]
+            else
+                tmp_weighted[k] = Cℓ_limber[idx - n_nonlimber, i, j] * ℓ2_rev[k]
+            end
+        end
+        c_coeffs = chebyshev_decomposition(plan_interp, tmp_weighted)
+        mul!(tmp_interp, T_eval, c_coeffs)
+        @views Cℓ_final[:, i, j] .= tmp_interp .* inv_ℓ2
     end
     return Cℓ_final
 end
@@ -96,16 +244,11 @@ end
     compute_Cℓ(Component1, Component2, w, bg)
 """
 function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractComponents, w::ProjectedMatterDensityComponent, bg::Background) 
-    nχ = size(bg.χ, 1)
-    nR = size(Blast.R, 1)
-    K = combine_kernels(Component1, Component2, bg)
-    Δχ = ((last(bg.χ)-first(bg.χ))/(nχ-1))
-    w_χ = simpson_weights_array(nχ)
-    w_R = get_clencurt_weights_R_integration(2*nR+1)
-    prefactor = 2/π .* Component1.ell_prefactor[1:length(ℓ_nonlimber)] .* Component2.ell_prefactor[1:length(ℓ_nonlimber)]
-    pmj = w.w
-    χ_grid = bg.χ
-    return _compute_Cℓ_tullio(K, pmj, w_χ, w_R, prefactor, Δχ, χ_grid)
+    integ = _prepare_nonlimber_integration(bg)
+    W_A = get_kernel_array(Component1, bg)
+    W_B = get_kernel_array(Component2, bg)
+    prefactor = _pair_prefactor(Component1, Component2)
+    return _compute_Cℓ_from_kernels(W_A, W_B, w.w, prefactor, integ)
 end
 
 """
@@ -113,20 +256,11 @@ end
 """
 function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractComponents, 
     w02::ProjectedMatterDensityComponent, w20::ProjectedMatterDensityComponent, bg::Background) 
-    nχ = size(bg.χ, 1)
-    nR = size(Blast.R, 1)
+    integ = _prepare_nonlimber_integration(bg)
     W_A = get_kernel_array(Component1, bg)
-    W_A_r1 = W_A[:,:,end]
     W_B = get_kernel_array(Component2, bg)
-    W_B_r1 = W_B[:,:,end]
-    pmj02 = w02.w
-    pmj20 = w20.w
-    Δχ = ((last(bg.χ)-first(bg.χ))/(nχ-1))
-    w_χ = simpson_weights_array(nχ)
-    w_R = get_clencurt_weights_R_integration(2*nR+1)
-    prefactor = 2/π .* Component1.ell_prefactor[1:length(ℓ_nonlimber)] .* Component2.ell_prefactor[1:length(ℓ_nonlimber)]
-    χ_grid = bg.χ
-    return _compute_Cℓ_rsd_tullio(W_A_r1, W_B, pmj02, W_A, W_B_r1, pmj20, w_χ, w_R, prefactor, Δχ, χ_grid)
+    prefactor = _pair_prefactor(Component1, Component2)
+    return _compute_Cℓ_rsd_from_kernels(W_A, W_B, w02.w, w20.w, prefactor, integ)
 end
 
 """
@@ -202,30 +336,39 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::PrimordialNo
 end
 
 function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
-    Cℓ_δδ = get_Cℓ(G.δ, G.δ, W, bg)
-    Cℓ_δRSD = get_Cℓ(G.δ, G.RSD, W, bg)
-    Cℓ_RSDδ = get_Cℓ(G.RSD, G.δ, W, bg)
-    Cℓ_RSDRSD = get_Cℓ(G.RSD, G.RSD, W, bg)
-    Cℓ_δμ = get_Cℓ(G.δ, G.μ, W, bg)
-    Cℓ_μδ = get_Cℓ(G.μ, G.δ, W, bg)
-    Cℓ_μμ = get_Cℓ(G.μ, G.μ, W, bg)
-    Cℓ_μRSD = get_Cℓ(G.μ, G.RSD, W, bg)
-    Cℓ_RSDμ = get_Cℓ(G.RSD, G.μ, W, bg)
-    Cℓ_δfNL = get_Cℓ(G.δ, G.PNG, W, bg)
-    Cℓ_fNLδ = get_Cℓ(G.PNG, G.δ, W, bg)
-    Cℓ_fNLRSD =get_Cℓ(G.PNG, G.RSD, W, bg)
-    Cℓ_RSDfNL =get_Cℓ(G.RSD, G.PNG, W, bg)
-    Cℓ_μfNL =get_Cℓ(G.μ, G.PNG, W, bg)
-    Cℓ_fNLμ =get_Cℓ(G.PNG, G.μ, W, bg)
-    Cℓ_fNLfNL =get_Cℓ(G.PNG, G.PNG, W, bg)
+    integ = _prepare_nonlimber_integration(bg)
+    W_δ = _get_kernel_or_nothing(G.δ, bg)
+    W_RSD = _get_kernel_or_nothing(G.RSD, bg)
+    W_μ = _get_kernel_or_nothing(G.μ, bg)
+    W_fNL = _get_kernel_or_nothing(G.PNG, bg)
 
-    Cℓ_nonlimber = @. Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD + Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ + Cℓ_δfNL + Cℓ_fNLδ - Cℓ_fNLRSD - Cℓ_RSDfNL + Cℓ_μfNL + Cℓ_fNLμ + Cℓ_fNLfNL
-    Cℓ_correction = get_limber_correction(G, Pk)
-    Cℓ_limber = get_limber_Cℓ(G, Pk)
-    full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
+    Cℓ_δδ = _compute_Cℓ_cached(G.δ, G.δ, W_δ, W_δ, W.w_2_00_ϕTT, integ)
+    Cℓ_δRSD = _compute_Cℓ_rsd_cached(G.δ, G.RSD, W_δ, W_RSD, W.w_2_02_ϕTT, W.w_2_20_ϕTT, integ)
+    Cℓ_RSDδ = _compute_Cℓ_rsd_cached(G.RSD, G.δ, W_RSD, W_δ, W.w_2_20_ϕTT, W.w_2_02_ϕTT, integ)
+    Cℓ_RSDRSD = _compute_Cℓ_cached(G.RSD, G.RSD, W_RSD, W_RSD, W.w_2_22_ϕTT, integ)
+    Cℓ_δμ = _compute_Cℓ_cached(G.δ, G.μ, W_δ, W_μ, W.w_0_00_ϕTT, integ)
+    Cℓ_μδ = _compute_Cℓ_cached(G.μ, G.δ, W_μ, W_δ, W.w_0_00_ϕTT, integ)
+    Cℓ_μμ = _compute_Cℓ_cached(G.μ, G.μ, W_μ, W_μ, W.w_minus2_00_ϕTT, integ)
+    Cℓ_μRSD = _compute_Cℓ_rsd_cached(G.μ, G.RSD, W_μ, W_RSD, W.w_0_02_ϕTT, W.w_0_20_ϕTT, integ)
+    Cℓ_RSDμ = _compute_Cℓ_rsd_cached(G.RSD, G.μ, W_RSD, W_μ, W.w_0_20_ϕTT, W.w_0_02_ϕTT, integ)
+    Cℓ_δfNL = _compute_Cℓ_cached(G.δ, G.PNG, W_δ, W_fNL, W.w_2_00_ϕT_R1, integ)
+    Cℓ_fNLδ = _compute_Cℓ_cached(G.PNG, G.δ, W_fNL, W_δ, W.w_2_00_ϕT, integ)
+    Cℓ_fNLRSD = _compute_Cℓ_rsd_cached(G.PNG, G.RSD, W_fNL, W_RSD, W.w_2_02_ϕT, W.w_2_20_ϕT, integ)
+    Cℓ_RSDfNL = _compute_Cℓ_rsd_cached(G.RSD, G.PNG, W_RSD, W_fNL, W.w_2_20_ϕT_R1, W.w_2_02_ϕT_R1, integ)
+    Cℓ_μfNL = _compute_Cℓ_cached(G.μ, G.PNG, W_μ, W_fNL, W.w_0_00_ϕT_R1, integ)
+    Cℓ_fNLμ = _compute_Cℓ_cached(G.PNG, G.μ, W_fNL, W_μ, W.w_0_00_ϕT, integ)
+    Cℓ_fNLfNL = _compute_Cℓ_cached(G.PNG, G.PNG, W_fNL, W_fNL, W.w_2_00_ϕ, integ)
+
+    Cℓ_nonlimber = @. Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD +
+                      Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ +
+                      Cℓ_δfNL + Cℓ_fNLδ - Cℓ_fNLRSD - Cℓ_RSDfNL +
+                      Cℓ_μfNL + Cℓ_fNLμ + Cℓ_fNLfNL
+    K_limber_G = get_limber_kernel(G)
+    Cℓ_correction = get_limber_correction(K_limber_G, Pk)
+    Cℓ_limber = get_limber_Cℓ(K_limber_G, Pk)
 
     nbins = size(G.δ.Kernel, 1)
-    return _finalize_Cℓ(full_Cℓ, ℓ, nbins, nbins, P)
+    return _finalize_Cℓ_parts(Cℓ_nonlimber, Cℓ_correction, Cℓ_limber, ℓ, nbins, nbins, P)
 end
 
 ## Weak lensing auto
@@ -246,18 +389,22 @@ function get_Cℓ(Component1::IntrinsicAlignment, Component2::IntrinsicAlignment
 end
 
 function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
-    Cℓ_γγ = get_Cℓ(L.γ, L.γ, W, bg)
-    Cℓ_γI = get_Cℓ(L.γ, L.IA, W, bg)
-    Cℓ_Iγ = get_Cℓ(L.IA, L.γ, W, bg)
-    Cℓ_II = get_Cℓ(L.IA, L.IA, W, bg)
+    integ = _prepare_nonlimber_integration(bg)
+    W_γ = _get_kernel_or_nothing(L.γ, bg)
+    W_IA = _get_kernel_or_nothing(L.IA, bg)
+
+    Cℓ_γγ = _compute_Cℓ_cached(L.γ, L.γ, W_γ, W_γ, W.w_minus2_00_ϕTT, integ)
+    Cℓ_γI = _compute_Cℓ_cached(L.γ, L.IA, W_γ, W_IA, W.w_minus2_00_ϕTT, integ)
+    Cℓ_Iγ = _compute_Cℓ_cached(L.IA, L.γ, W_IA, W_γ, W.w_minus2_00_ϕTT, integ)
+    Cℓ_II = _compute_Cℓ_cached(L.IA, L.IA, W_IA, W_IA, W.w_minus2_00_ϕTT, integ)
 
     Cℓ_nonlimber = @. Cℓ_γγ + Cℓ_γI + Cℓ_Iγ + Cℓ_II
-    Cℓ_correction = get_limber_correction(L, Pk)
-    Cℓ_limber = get_limber_Cℓ(L, Pk)
-    full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
+    K_limber_L = get_limber_kernel(L)
+    Cℓ_correction = get_limber_correction(K_limber_L, Pk)
+    Cℓ_limber = get_limber_Cℓ(K_limber_L, Pk)
 
     nbins = size(L.γ.Kernel, 1)
-    return _finalize_Cℓ(full_Cℓ, ℓ, nbins, nbins, P)
+    return _finalize_Cℓ_parts(Cℓ_nonlimber, Cℓ_correction, Cℓ_limber, ℓ, nbins, nbins, P)
 end
 
 ## Cross clustering-lensing
@@ -294,23 +441,32 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::IntrinsicAli
 end
 
 function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
-    Cℓ_δγ = get_Cℓ(G.δ, L.γ, W, bg)
-    Cℓ_δI = get_Cℓ(G.δ, L.IA, W, bg)
-    Cℓ_RSDγ = get_Cℓ(G.RSD, L.γ, W, bg)
-    Cℓ_RSDI = get_Cℓ(G.RSD, L.IA, W, bg)
-    Cℓ_μγ = get_Cℓ(G.μ, L.γ, W, bg)
-    Cℓ_μI = get_Cℓ(G.μ, L.IA, W, bg)
-    Cℓ_fNLγ = get_Cℓ(G.PNG, L.γ, W, bg)
-    Cℓ_fNLI = get_Cℓ(G.PNG, L.IA, W, bg)
+    integ = _prepare_nonlimber_integration(bg)
+    W_δ = _get_kernel_or_nothing(G.δ, bg)
+    W_RSD = _get_kernel_or_nothing(G.RSD, bg)
+    W_μ = _get_kernel_or_nothing(G.μ, bg)
+    W_fNL = _get_kernel_or_nothing(G.PNG, bg)
+    W_γ = _get_kernel_or_nothing(L.γ, bg)
+    W_IA = _get_kernel_or_nothing(L.IA, bg)
+
+    Cℓ_δγ = _compute_Cℓ_cached(G.δ, L.γ, W_δ, W_γ, W.w_0_00_ϕTT, integ)
+    Cℓ_δI = _compute_Cℓ_cached(G.δ, L.IA, W_δ, W_IA, W.w_0_00_ϕTT, integ)
+    Cℓ_RSDγ = _compute_Cℓ_rsd_cached(G.RSD, L.γ, W_RSD, W_γ, W.w_0_20_ϕTT, W.w_0_02_ϕTT, integ)
+    Cℓ_RSDI = _compute_Cℓ_rsd_cached(G.RSD, L.IA, W_RSD, W_IA, W.w_0_20_ϕTT, W.w_0_02_ϕTT, integ)
+    Cℓ_μγ = _compute_Cℓ_cached(G.μ, L.γ, W_μ, W_γ, W.w_minus2_00_ϕTT, integ)
+    Cℓ_μI = _compute_Cℓ_cached(G.μ, L.IA, W_μ, W_IA, W.w_minus2_00_ϕTT, integ)
+    Cℓ_fNLγ = _compute_Cℓ_cached(G.PNG, L.γ, W_fNL, W_γ, W.w_0_00_ϕT, integ)
+    Cℓ_fNLI = _compute_Cℓ_cached(G.PNG, L.IA, W_fNL, W_IA, W.w_0_00_ϕT, integ)
 
     Cℓ_nonlimber = @. Cℓ_δγ + Cℓ_δI - Cℓ_RSDγ - Cℓ_RSDI + Cℓ_μγ + Cℓ_μI + Cℓ_fNLγ + Cℓ_fNLI
-    Cℓ_correction = get_limber_correction(G, L, Pk)
-    Cℓ_limber = get_limber_Cℓ(G, L, Pk)
-    full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
+    K_limber_G = get_limber_kernel(G)
+    K_limber_L = get_limber_kernel(L)
+    Cℓ_correction = get_limber_correction(K_limber_G, K_limber_L, Pk)
+    Cℓ_limber = get_limber_Cℓ(K_limber_G, K_limber_L, Pk)
 
     nbins_A = size(G.δ.Kernel, 1)
     nbins_B = size(L.γ.Kernel, 1)
-    return _finalize_Cℓ(full_Cℓ, ℓ, nbins_A, nbins_B, P)
+    return _finalize_Cℓ_parts(Cℓ_nonlimber, Cℓ_correction, Cℓ_limber, ℓ, nbins_A, nbins_B, P)
 end
 
 function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
