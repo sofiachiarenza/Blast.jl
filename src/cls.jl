@@ -335,6 +335,27 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::PrimordialNo
     return compute_Cℓ(Component1, Component2, W.w_2_00_ϕ, bg)
 end
 
+# ----------------------------------------------------------------------------
+# Pair-spectrum transpose helper.
+#
+# When two clustering components A,B share the same projected-matter weight
+# tensor, the fused-Tullio expression for `Cℓ_AB[l,i,j]` is invariant under
+# the simultaneous swaps  i↔j  and  A↔B,  so
+#
+#       Cℓ_BA[l,i,j]  ≡  Cℓ_AB[l,j,i]   (verified empirically to FP roundoff,
+#                                        rel ≈ 1e-16; see
+#                                        benchmark/perf_GG_perpair_symmetry.jl)
+#
+# We exploit this in `get_Cℓ(::GalaxyClustering, ...)` to compute one pair
+# of each (δ↔μ, δ↔RSD, μ↔RSD) and recover its transpose for free.
+#
+# `_compute_Cℓ_cached` / `_compute_Cℓ_rsd_cached` short-circuit to the scalar
+# `0.` when any component or weight is nothing; the helper passes scalars
+# through unchanged so the auto-only / partial-probe paths still work.
+# ----------------------------------------------------------------------------
+_transpose_cℓ_pair(c::AbstractArray{<:Any, 3}) = permutedims(c, (1, 3, 2))
+_transpose_cℓ_pair(c::Number) = c
+
 function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
     integ = _prepare_nonlimber_integration(bg)
     W_δ = _get_kernel_or_nothing(G.δ, bg)
@@ -342,21 +363,30 @@ function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpe
     W_μ = _get_kernel_or_nothing(G.μ, bg)
     W_fNL = _get_kernel_or_nothing(G.PNG, bg)
 
-    Cℓ_δδ = _compute_Cℓ_cached(G.δ, G.δ, W_δ, W_δ, W.w_2_00_ϕTT, integ)
-    Cℓ_δRSD = _compute_Cℓ_rsd_cached(G.δ, G.RSD, W_δ, W_RSD, W.w_2_02_ϕTT, W.w_2_20_ϕTT, integ)
-    Cℓ_RSDδ = _compute_Cℓ_rsd_cached(G.RSD, G.δ, W_RSD, W_δ, W.w_2_20_ϕTT, W.w_2_02_ϕTT, integ)
+    # Auto-pairs and one of each cross-pair. Each call returns either a
+    # 3-D Array{Float64} or the scalar 0. (when components/weights are nothing).
+    Cℓ_δδ     = _compute_Cℓ_cached(G.δ, G.δ, W_δ, W_δ, W.w_2_00_ϕTT, integ)
     Cℓ_RSDRSD = _compute_Cℓ_cached(G.RSD, G.RSD, W_RSD, W_RSD, W.w_2_22_ϕTT, integ)
-    Cℓ_δμ = _compute_Cℓ_cached(G.δ, G.μ, W_δ, W_μ, W.w_0_00_ϕTT, integ)
-    Cℓ_μδ = _compute_Cℓ_cached(G.μ, G.δ, W_μ, W_δ, W.w_0_00_ϕTT, integ)
-    Cℓ_μμ = _compute_Cℓ_cached(G.μ, G.μ, W_μ, W_μ, W.w_minus2_00_ϕTT, integ)
-    Cℓ_μRSD = _compute_Cℓ_rsd_cached(G.μ, G.RSD, W_μ, W_RSD, W.w_0_02_ϕTT, W.w_0_20_ϕTT, integ)
-    Cℓ_RSDμ = _compute_Cℓ_rsd_cached(G.RSD, G.μ, W_RSD, W_μ, W.w_0_20_ϕTT, W.w_0_02_ϕTT, integ)
-    Cℓ_δfNL = _compute_Cℓ_cached(G.δ, G.PNG, W_δ, W_fNL, W.w_2_00_ϕT_R1, integ)
-    Cℓ_fNLδ = _compute_Cℓ_cached(G.PNG, G.δ, W_fNL, W_δ, W.w_2_00_ϕT, integ)
+    Cℓ_μμ     = _compute_Cℓ_cached(G.μ, G.μ, W_μ, W_μ, W.w_minus2_00_ϕTT, integ)
+    Cℓ_δμ     = _compute_Cℓ_cached(G.δ, G.μ, W_δ, W_μ, W.w_0_00_ϕTT, integ)
+    Cℓ_δRSD   = _compute_Cℓ_rsd_cached(G.δ, G.RSD, W_δ, W_RSD, W.w_2_02_ϕTT, W.w_2_20_ϕTT, integ)
+    Cℓ_μRSD   = _compute_Cℓ_rsd_cached(G.μ, G.RSD, W_μ, W_RSD, W.w_0_02_ϕTT, W.w_0_20_ϕTT, integ)
+
+    # Transposed counterparts (free up to a small permutedims). When any
+    # source pair degenerated to scalar 0., the helper passes it through.
+    Cℓ_μδ   = _transpose_cℓ_pair(Cℓ_δμ)
+    Cℓ_RSDδ = _transpose_cℓ_pair(Cℓ_δRSD)
+    Cℓ_RSDμ = _transpose_cℓ_pair(Cℓ_μRSD)
+
+    # PNG cross-pairs use _R1-sliced vs full weight tensors that are NOT
+    # equal under index transpose, so they cannot be folded; computed
+    # independently. (Each is 0. when PNG=nothing — the common case.)
+    Cℓ_δfNL   = _compute_Cℓ_cached(G.δ, G.PNG, W_δ, W_fNL, W.w_2_00_ϕT_R1, integ)
+    Cℓ_fNLδ   = _compute_Cℓ_cached(G.PNG, G.δ, W_fNL, W_δ, W.w_2_00_ϕT, integ)
     Cℓ_fNLRSD = _compute_Cℓ_rsd_cached(G.PNG, G.RSD, W_fNL, W_RSD, W.w_2_02_ϕT, W.w_2_20_ϕT, integ)
     Cℓ_RSDfNL = _compute_Cℓ_rsd_cached(G.RSD, G.PNG, W_RSD, W_fNL, W.w_2_20_ϕT_R1, W.w_2_02_ϕT_R1, integ)
-    Cℓ_μfNL = _compute_Cℓ_cached(G.μ, G.PNG, W_μ, W_fNL, W.w_0_00_ϕT_R1, integ)
-    Cℓ_fNLμ = _compute_Cℓ_cached(G.PNG, G.μ, W_fNL, W_μ, W.w_0_00_ϕT, integ)
+    Cℓ_μfNL   = _compute_Cℓ_cached(G.μ, G.PNG, W_μ, W_fNL, W.w_0_00_ϕT_R1, integ)
+    Cℓ_fNLμ   = _compute_Cℓ_cached(G.PNG, G.μ, W_fNL, W_μ, W.w_0_00_ϕT, integ)
     Cℓ_fNLfNL = _compute_Cℓ_cached(G.PNG, G.PNG, W_fNL, W_fNL, W.w_2_00_ϕ, integ)
 
     Cℓ_nonlimber = @. Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD +
