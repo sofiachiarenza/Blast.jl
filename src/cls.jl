@@ -15,6 +15,22 @@ const INV_χ2_GRID_ROW = reshape(INV_χ2_GRID_FLAT, 1, :)
 const FULL_ℓ2 = Blast.full_ℓ_range .^ 2
 const FULL_ℓ2_REVERSED = reverse(FULL_ℓ2)
 
+# Interpolated probe kernels can pick up numerically useless tiny tails from the
+# tomographic-overlap geometry. Those values do not make the contraction sparse,
+# but they do drive products into denormal territory and slow the hot non-Limber
+# contractions down badly. Clip them once, right after interpolation.
+const KERNEL_ARRAY_ABS_CUTOFF = 1e-100
+
+function _apply_kernel_array_cutoff!(A::AbstractArray)
+    z = zero(eltype(A))
+    @inbounds for idx in eachindex(A)
+        if abs(A[idx]) < KERNEL_ARRAY_ABS_CUTOFF
+            A[idx] = z
+        end
+    end
+    return A
+end
+
 """
     grid_interpolator(Probe, bg)
 
@@ -36,6 +52,7 @@ function get_kernel_array(Probe::Union{NumberCounts, RedshiftSpaceDistortions, P
     nχ = length(bg.χ)
     nR = length(Blast.R)
     W_array = reshape(grid_interpolator(Probe, bg), n_bins, nχ, nR)
+    _apply_kernel_array_cutoff!(W_array)
     return W_array
 end
 
@@ -45,6 +62,7 @@ function get_kernel_array(Probe::Union{CosmicShear, IntrinsicAlignment, Magnific
     nR = length(Blast.R)
     W_L = grid_interpolator(Probe, bg)
     W_L .*= INV_χ2_GRID_ROW
+    _apply_kernel_array_cutoff!(W_L)
     return reshape(W_L, n_bins, nχ, nR)
 end
 

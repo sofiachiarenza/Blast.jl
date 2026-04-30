@@ -159,6 +159,11 @@ Nothing-valued fields stay `nothing` via the `compute_w(::Nothing, ...)`
 method above.
 """
 function compute_w(W::ProjectedMatterDensity, c::PowerSpectrum)
+    # Keep the container-level path sequential. Each component contraction is
+    # already handled by the lower-level Tullio kernel; wrapping all fields in
+    # Threads.@spawn adds scheduler overhead, gives no meaningful overlap on the
+    # realistic 3×2pt workload, and introduces task/foreigncall nodes that AD
+    # backends such as Mooncake cannot differentiate through.
     return ProjectedMatterDensity(
         w_2_00_ϕTT      = compute_w(W.w_2_00_ϕTT,      c),
         w_minus2_00_ϕTT = compute_w(W.w_minus2_00_ϕTT, c),
