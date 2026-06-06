@@ -539,11 +539,16 @@ Galaxy-clustering probe container.
 It combines the density term `δ` with optional redshift-space distortions
 `RSD`, magnification bias `μ`, and primordial non-Gaussianity `PNG`.
 """
-@kwdef mutable struct GalaxyClustering <: AbstractCosmologicalProbes
-    δ::NumberCounts
-    RSD::Union{Nothing, RedshiftSpaceDistortions} = nothing
-    μ::Union{Nothing, MagnificationBias} = nothing
-    PNG::Union{Nothing, PrimordialNonGaussianity} = nothing
+@kwdef mutable struct GalaxyClustering{
+    Tδ<:NumberCounts,
+    TRSD<:Union{Nothing, RedshiftSpaceDistortions},
+    Tμ<:Union{Nothing, MagnificationBias},
+    TPNG<:Union{Nothing, PrimordialNonGaussianity},
+} <: AbstractCosmologicalProbes
+    δ::Tδ
+    RSD::TRSD = nothing
+    μ::Tμ = nothing
+    PNG::TPNG = nothing
 end
 
 """
@@ -552,9 +557,12 @@ end
 Weak-lensing probe container combining shear `γ` and optional intrinsic
 alignment `IA`.
 """
-@kwdef mutable struct WeakLensing <: AbstractCosmologicalProbes
-    γ::CosmicShear
-    IA::Union{Nothing, IntrinsicAlignment} = nothing
+@kwdef mutable struct WeakLensing{
+    Tγ<:CosmicShear,
+    TIA<:Union{Nothing, IntrinsicAlignment},
+} <: AbstractCosmologicalProbes
+    γ::Tγ
+    IA::TIA = nothing
 end
 
 """
@@ -563,9 +571,12 @@ end
 CMB probe container combining lensing convergence `κ` and optional
 Integrated Sachs-Wolfe contribution `ISW`.
 """
-@kwdef mutable struct CMB <: AbstractCosmologicalProbes
-    κ::CMBLensing
-    ISW::Union{Nothing, IntegratedSachsWolfe} = nothing
+@kwdef mutable struct CMB{
+    Tκ<:CMBLensing,
+    TISW<:Union{Nothing, IntegratedSachsWolfe},
+} <: AbstractCosmologicalProbes
+    κ::Tκ
+    ISW::TISW = nothing
 end
 
 @doc raw"""

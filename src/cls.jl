@@ -396,21 +396,29 @@ function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpe
     Cℓ_RSDδ = _transpose_cℓ_pair(Cℓ_δRSD)
     Cℓ_RSDμ = _transpose_cℓ_pair(Cℓ_μRSD)
 
-    # PNG cross-pairs use _R1-sliced vs full weight tensors that are NOT
-    # equal under index transpose, so they cannot be folded; computed
-    # independently. (Each is 0. when PNG=nothing — the common case.)
-    Cℓ_δfNL   = _compute_Cℓ_cached(G.δ, G.PNG, W_δ, W_fNL, W.w_2_00_ϕT_R1, integ)
-    Cℓ_fNLδ   = _compute_Cℓ_cached(G.PNG, G.δ, W_fNL, W_δ, W.w_2_00_ϕT, integ)
-    Cℓ_fNLRSD = _compute_Cℓ_rsd_cached(G.PNG, G.RSD, W_fNL, W_RSD, W.w_2_02_ϕT, W.w_2_20_ϕT, integ)
-    Cℓ_RSDfNL = _compute_Cℓ_rsd_cached(G.RSD, G.PNG, W_RSD, W_fNL, W.w_2_20_ϕT_R1, W.w_2_02_ϕT_R1, integ)
-    Cℓ_μfNL   = _compute_Cℓ_cached(G.μ, G.PNG, W_μ, W_fNL, W.w_0_00_ϕT_R1, integ)
-    Cℓ_fNLμ   = _compute_Cℓ_cached(G.PNG, G.μ, W_fNL, W_μ, W.w_0_00_ϕT, integ)
-    Cℓ_fNLfNL = _compute_Cℓ_cached(G.PNG, G.PNG, W_fNL, W_fNL, W.w_2_00_ϕ, integ)
+    Cℓ_nonlimber = if isnothing(G.PNG)
+        # Keep the common no-PNG path free of scalar 0. sentinel terms.  Besides
+        # avoiding unnecessary calls, this keeps the fused broadcast small enough
+        # for Julia inference to materialize a concrete Array return type.
+        @. Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD +
+           Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ
+    else
+        # PNG cross-pairs use _R1-sliced vs full weight tensors that are NOT
+        # equal under index transpose, so they cannot be folded; computed
+        # independently.
+        Cℓ_δfNL   = _compute_Cℓ_cached(G.δ, G.PNG, W_δ, W_fNL, W.w_2_00_ϕT_R1, integ)
+        Cℓ_fNLδ   = _compute_Cℓ_cached(G.PNG, G.δ, W_fNL, W_δ, W.w_2_00_ϕT, integ)
+        Cℓ_fNLRSD = _compute_Cℓ_rsd_cached(G.PNG, G.RSD, W_fNL, W_RSD, W.w_2_02_ϕT, W.w_2_20_ϕT, integ)
+        Cℓ_RSDfNL = _compute_Cℓ_rsd_cached(G.RSD, G.PNG, W_RSD, W_fNL, W.w_2_20_ϕT_R1, W.w_2_02_ϕT_R1, integ)
+        Cℓ_μfNL   = _compute_Cℓ_cached(G.μ, G.PNG, W_μ, W_fNL, W.w_0_00_ϕT_R1, integ)
+        Cℓ_fNLμ   = _compute_Cℓ_cached(G.PNG, G.μ, W_fNL, W_μ, W.w_0_00_ϕT, integ)
+        Cℓ_fNLfNL = _compute_Cℓ_cached(G.PNG, G.PNG, W_fNL, W_fNL, W.w_2_00_ϕ, integ)
 
-    Cℓ_nonlimber = @. Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD +
-                      Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ +
-                      Cℓ_δfNL + Cℓ_fNLδ - Cℓ_fNLRSD - Cℓ_RSDfNL +
-                      Cℓ_μfNL + Cℓ_fNLμ + Cℓ_fNLfNL
+        @. Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD +
+           Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ +
+           Cℓ_δfNL + Cℓ_fNLδ - Cℓ_fNLRSD - Cℓ_RSDfNL +
+           Cℓ_μfNL + Cℓ_fNLμ + Cℓ_fNLfNL
+    end
     K_limber_G = get_limber_kernel(G)
     Cℓ_correction = get_limber_correction(K_limber_G, Pk)
     Cℓ_limber = get_limber_Cℓ(K_limber_G, Pk)

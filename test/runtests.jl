@@ -45,6 +45,10 @@ global data = load_reference_data()
         include("test_cls.jl")
     end
 
+    @testset "3x2pt Type Stability" begin
+        include("test_type_stability_3x2.jl")
+    end
+
     @testset "Limber" begin
         include("test_limber.jl")
     end
