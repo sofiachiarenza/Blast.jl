@@ -162,7 +162,8 @@ Returns an array evaluated on the Background grid.
 """
 function NLA_model(bg::Background; A=1.72, C1=0.0134)
     Ωm = get_Ωm(bg)
-    return @. - A * C1 * Ωm / bg.D
+    D_today = bg.D[1]  # bg.D[1] is D at z≈0 (ODE convention: D(z=0) ≈ 0.77, not 1)
+    return @. - A * C1 * Ωm / (bg.D / D_today)
 end
 
 @doc raw"""
@@ -400,7 +401,7 @@ required shape, BLAST falls back to the standard NLA model controlled by `A`.
 ```math
 K_i^{\mathrm{IA}}(z) = \frac{H(z)}{c}\, A_{\mathrm{IA},i}(z)\, \hat n_i(z),
 \qquad
-A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)}.
+A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)/D(0)}.
 ```
 """
 mutable struct IntrinsicAlignment{T<:Real} <: AbstractComponents
@@ -772,7 +773,7 @@ Compute the intrinsic-alignment kernel using the NLA amplitude model:
 ```math
 K_i^{\mathrm{IA}}(z) = \frac{H(z)}{c}\, A_{\mathrm{IA},i}(z)\, \hat n_i(z),
 \qquad
-A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)}.
+A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)/D(0)}.
 ```
 """
 function compute_kernel!(Component::IntrinsicAlignment, bg::Background) 
@@ -822,7 +823,8 @@ end
 function _ia_kernel_nla(A::Number, C1::Number, Ωm::Number,
                         D::AbstractVector, H::AbstractVector,
                         nz_norm::AbstractMatrix)
-    nla_vals = @. -A * C1 * Ωm / D           # vector, length n_z
+    D_today = D[1]  # D[1] is D at z≈0; normalize so D/D_today→1 at z=0
+    nla_vals = @. -A * C1 * Ωm / (D / D_today)   # vector, length n_z
     return @. nla_vals' * (H' / C_LIGHT) * nz_norm
 end
 
