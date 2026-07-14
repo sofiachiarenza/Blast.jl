@@ -192,12 +192,59 @@ function compute_χ(z::Number, cosmo::AbstractCosmology; order=9)
 end
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Present-day (a=1) massive-neutrino density parameter Ων, needed to turn Ωcb0
+# into the *total* matter density Ωm = Ωcb0 + Ων used by get_Ωm below.
+#
+# mν is fixed at 0.06 eV everywhere in this package (see w0waCDM's hard-coded
+# `mν=0.06` further down) -- it is never a sampled/differentiated parameter --
+# so the Fermi-Dirac phase-space integral below is a genuine constant,
+# evaluated once at load time rather than re-integrated on every get_Ωm call
+# (get_Ωm sits on the Mooncake AD hot path via the get_*(bg::Background)
+# accessors below; see the AD-safety notes on those).
+#
+# Formula matches AbstractCosmologicalEmulators's BackgroundCosmologyExt
+# `_ΩνE2` exactly (same Γν/Tν/kB constants) -- kept in sync manually since
+# that function is an internal, unexported implementation detail of ACE's
+# extension, not part of its public API.
+# ─────────────────────────────────────────────────────────────────────────────
+const _MΝ_FIDUCIAL = 0.06        # eV -- matches w0waCDM's hard-coded mν
+const _KB_EV_PER_K  = 8.617342e-5
+const _TCMB_K       = 2.7255
+const _TNU_K        = 0.71611 * _TCMB_K
+const _NEFF         = 3.044
+const _GAMMA_NU4    = ((4 / 11)^(1 / 3) * (_NEFF / 3)^(1 / 4))^4
+
+const _ΩΝ0_FY = let
+    y = _MΝ_FIDUCIAL / (_KB_EV_PER_K * _TNU_K)
+    f(x, y) = x^2 * sqrt(x^2 + y^2) / (1 + exp(x))
+    prob = IntegralProblem(f, (0.0, Inf), y; reltol=1e-12)
+    solve(prob, QuadGKJL())[1]
+end
+
+"""
+    _Ων0(h)
+
+Present-day massive-neutrino density parameter Ων (mν=0.06 eV fixed), as a
+function of `h` only (the rest of the Fermi-Dirac integral is a precomputed
+constant, see `_ΩΝ0_FY` above).
+"""
+_Ων0(h) = 15 / π^4 * _GAMMA_NU4 * (2.469e-5 / h^2) * _ΩΝ0_FY
+
 """
     get_Ωm(cosmo::AbstractCosmology)
-Returns the total matter density parameter Ωm.
+
+Returns the total matter density parameter Ωm = Ωcb0 + Ων (baryons + CDM +
+massive neutrinos). This is the physically correct normalization for the
+standard weak-lensing/CMB-lensing/magnification-bias/ISW kernel prefactors
+and the NLA intrinsic-alignment amplitude in probes.jl -- all derived from
+the Poisson equation sourced by the *total* matter overdensity, not Ωcb0
+alone. (Fixed 2026-07-14: previously returned Ωcb0 only, silently omitting
+Ων from every one of those kernels; see blast_chains's CLAUDE.md for the
+diagnostic that confirmed this explains the CCL-mock Om/h0 bias.)
 """
 function get_Ωm(cosmo::AbstractCosmology)
-    return (cosmo.ωb + cosmo.ωc) / cosmo.h^2
+    return (cosmo.ωb + cosmo.ωc) / cosmo.h^2 + _Ων0(cosmo.h)
 end
 
 """
@@ -272,7 +319,7 @@ end
 # post-convert typeassert forces the return type to `T` so every downstream
 # consumer sees a concrete scalar.
 get_H0(bg::Background{T}) where {T} = (convert(T, H_0_CONV * bg.cosmo.h))::T
-get_Ωm(bg::Background{T}) where {T} = (convert(T, (bg.cosmo.ωb + bg.cosmo.ωc) / bg.cosmo.h^2))::T
+get_Ωm(bg::Background{T}) where {T} = (convert(T, (bg.cosmo.ωb + bg.cosmo.ωc) / bg.cosmo.h^2 + _Ων0(bg.cosmo.h)))::T
 get_Ωb(bg::Background{T}) where {T} = (convert(T, bg.cosmo.ωb / bg.cosmo.h^2))::T
 get_Ωc(bg::Background{T}) where {T} = (convert(T, bg.cosmo.ωc / bg.cosmo.h^2))::T
 get_As(bg::Background{T}) where {T} = (convert(T, exp(bg.cosmo.ln10Aₛ) / 1e10))::T
