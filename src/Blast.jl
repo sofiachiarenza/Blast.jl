@@ -81,9 +81,17 @@ struct T̃{A<:AbstractArray{<:Any,4}}
 end
 
 function __init__()
-    Tdir = artifact"T_tildes"
-    paths = joinpath.(Tdir, "T_tildes_artifact", string.(fieldnames(T̃)) .* ".npz")
-    global T_tildes = T̃(npzread.(paths)...)
+    Tdir = joinpath(artifact"T_tildes", "T_tildes_128_64_161")
+    global T_tildes = T̃(
+        load_Ts(joinpath(Tdir, "T_tilde_2_00"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
+        load_Ts(joinpath(Tdir, "T_tilde_0_00"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
+        load_Ts(joinpath(Tdir, "T_tilde_-2_00"),  128, 64, 161)[:, :, _R_KEEP_IDX, :],
+        load_Ts(joinpath(Tdir, "T_tilde_0_02"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
+        load_Ts(joinpath(Tdir, "T_tilde_0_20"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
+        load_Ts(joinpath(Tdir, "T_tilde_2_02"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
+        load_Ts(joinpath(Tdir, "T_tilde_2_20"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
+        load_Ts(joinpath(Tdir, "T_tilde_2_22"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
+    )
 end
 
 end # module Blast

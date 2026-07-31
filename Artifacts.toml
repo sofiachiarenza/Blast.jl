@@ -1,8 +1,8 @@
 [T_tildes]
-git-tree-sha1 = "6df6fd6960011063726cd28d2e72ad5ca221865c"
+git-tree-sha1 = "574a5b109567d1977df2376ed80379a0a2b2bd6f"
 
     [[T_tildes.download]]
-    sha256 = "5f93e821caa8e215ff1740ef3148b34f839c314fe7019c7d92cd9673b761db79"
-    url = "https://zenodo.org/records/18394491/files/T_tildes_artifact.tar.gz?download=1"
-    
+    sha256 = "fbb6d4834facc7d3b0195c42718ad58e0651927372de67d1756d32cf72c5489e"
+    url = "https://zenodo.org/records/21717794/files/T_tildes_128_64_161.tar.gz?download=1"
+
 

@@ -65,13 +65,18 @@ not the exact analytic solution.
 """
 function get_clencurt_weights_R_integration(N::Int)
 
-    w = get_clencurt_weights(-1, 1, N)
+    # Always build the quadrature rule at the full (untruncated) nR=64 grid
+    # size, regardless of N (which reflects the possibly-truncated Blast.R
+    # via _R_KEEP_IDX) — R-truncation drops nodes, it never re-derives a
+    # lower-order quadrature rule. See constants.jl's R_TRUNCATION_FRAC.
+    N_full = 2 * length(_R_full64) + 1
+    w = get_clencurt_weights(-1, 1, N_full)
 
-    index = div(N + 3, 2) 
+    index = div(N_full + 3, 2)
     w = w[index:end]
     w[1]/=2 #TODO: investigate if there are better solutions, this is not the analytic solution.
 
-    return w
+    return w[_R_KEEP_IDX]
 end
 
 """
