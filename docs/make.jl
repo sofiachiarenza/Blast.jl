@@ -15,6 +15,7 @@ makedocs(
     warnonly = [:missing_docs, :docs_block],
     pages = [
         "Home" => "index.md",
+        "Example" => "example.md",
         "The algorithm" => "alg.md",
         "API" => "api.md",
     ]

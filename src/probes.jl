@@ -984,6 +984,16 @@ for (_struct, _fields) in _PROMOTE_COMPONENTS
     end
 end
 
+@doc raw"""
+    evaluate_components!(GC::GalaxyClustering, bg::Background)
+
+Evaluate every component of `GC` (density `δ`, and any of RSD,
+magnification bias `μ`, or primordial non-Gaussianity `PNG` that are
+switched on, i.e. not `nothing`) against the background `bg`: promotes each
+component's element type to match `bg`'s (so downstream automatic
+differentiation traces through the right number type), then computes its
+kernel in place via `compute_kernel!`. Mutates `GC`.
+"""
 function evaluate_components!(GC::GalaxyClustering, bg::Background{U}) where {U}
     GC.δ   = _promote_eltype(GC.δ, U)
     GC.RSD = _promote_eltype(GC.RSD, U)
@@ -995,6 +1005,13 @@ function evaluate_components!(GC::GalaxyClustering, bg::Background{U}) where {U}
     compute_kernel!(GC.PNG, bg)
 end
 
+@doc raw"""
+    evaluate_components!(WL::WeakLensing, bg::Background)
+
+Evaluate every component of `WL` (cosmic shear `γ`, and intrinsic alignment
+`IA` if switched on) against the background `bg`, analogous to
+`evaluate_components!(::GalaxyClustering, ::Background)`. Mutates `WL`.
+"""
 function evaluate_components!(WL::WeakLensing, bg::Background{U}) where {U}
     WL.γ  = _promote_eltype(WL.γ,  U)
     WL.IA = _promote_eltype(WL.IA, U)
@@ -1002,6 +1019,14 @@ function evaluate_components!(WL::WeakLensing, bg::Background{U}) where {U}
     compute_kernel!(WL.IA, bg)
 end
 
+@doc raw"""
+    evaluate_components!(cmb::CMB, bg::Background)
+
+Evaluate every component of `cmb` (CMB lensing `κ`, and the integrated
+Sachs-Wolfe effect `ISW` if switched on) against the background `bg`,
+analogous to `evaluate_components!(::GalaxyClustering, ::Background)`.
+Mutates `cmb`.
+"""
 function evaluate_components!(cmb::CMB, bg::Background{U}) where {U}
     cmb.κ   = _promote_eltype(cmb.κ,   U)
     cmb.ISW = _promote_eltype(cmb.ISW, U)

@@ -8,7 +8,7 @@
 |:------------------:|:----------------:|:-------------:|
 | [![Docs - Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sofiachiarenza.github.io/Blast.jl/dev) [![Docs - Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://sofiachiarenza.github.io/Blast.jl/stable) | [![Build Status](https://github.com/sofiachiarenza/Blast.jl/workflows/CI/badge.svg)](https://github.com/sofiachiarenza/Blast.jl/actions) [![Code Coverage](https://codecov.io/github/sofiachiarenza/Blast.jl/graph/badge.svg?token=8QLDGERO9H)](https://codecov.io/github/sofiachiarenza/Blast.jl) | [![arXiv](https://img.shields.io/badge/arXiv-2410.03632-b31b1b.svg)](https://arxiv.org/abs/2410.03632) ![Size](https://img.shields.io/github/repo-size/sofiachiarenza/Blast.jl) |
 
-This repo contains the Beyond Limber Angular power Spectra Toolkit, `Blast.jl`. The code is entirely written in `Julia` and provides the functions to compute angular power spectra for the auto and cross correlation of three different probes: galaxy clustering, shear, and CMB lensing. 
+This repo contains the Beyond Limber Angular power Spectra Toolkit, `Blast.jl`. The code is entirely written in `Julia` and provides differentiable functions to compute angular power spectra for the auto and cross correlation of galaxy clustering (with redshift-space distortions, magnification bias, and scale-dependent bias from primordial non-Gaussianity), weak lensing (cosmic shear with intrinsic alignment), and CMB lensing (with the integrated Sachs-Wolfe effect) — a full 6x2pt framework, differentiable end-to-end via `ChainRules`/`Mooncake`.
 
 ## Installation
 
@@ -23,81 +23,60 @@ Pkg.add(url="https://github.com/sofiachiarenza/Blast.jl")
 After installing it, you can start instantiating the objects needed to compute the $C_\ell$'s. To begin, initialize the cosmological model and background quantities:
 
 ```julia
-cosmo = Blast.FlatΛCDM()
-z_range = LinRange(0., 4.0, 1000)
-grid = Blast.CosmologicalGrid(z_range=z_range)
-bg = Blast.BackgroundQuantities(Hz_array=zeros(length(z_range)), χz_array=zeros(length(z_range)))
-Blast.evaluate_background_quantities!(grid, bg, cosmo)
+using Blast
+
+cosmo = Blast.w0waCDM()
+bg = Blast.Background(cosmo)
 ```
 
-Next, define and compute the kernels for galaxy clustering, weak lensing, and CMB lensing:
+Next, build the galaxy clustering and weak lensing probes out of their
+components, and evaluate their kernels against the background:
 
 ```julia
-GK = Blast.GalaxyKernel(10, length(grid.z_range))
-SHK = Blast.ShearKernel(10, length(grid.z_range))
-CMBK = Blast.CMBLensingKernel(length(grid.z_range))
+n_bins_g, n_bins_s = 10, 5
+nz_g = rand(n_bins_g, length(bg.z))   # Example n(z), replace with actual data
+nz_s = rand(n_bins_s, length(bg.z))   # Example n(z), replace with actual data
+bias = ones(n_bins_g, length(bg.z))   # Example linear bias, replace with actual model
 
-nz = rand(n_bins, nz)  # Example n(z), replace with actual data
-Blast.compute_kernel!(nz, grid.z_range, GK, grid, bg, cosmo) #compute clustering kernel, repeat for the other probes
+δ = Blast.NumberCounts(nz=nz_g, z=bg.z, bias=bias)
+GC = Blast.GalaxyClustering(δ=δ)
+Blast.evaluate_components!(GC, bg)
+
+γ = Blast.CosmicShear(nz=nz_s, z=bg.z)
+WL = Blast.WeakLensing(γ=γ)
+Blast.evaluate_components!(WL, bg)
 ```
 
-Load the precomputed inner integrals $\tilde{T}^{AB}_\ell(\chi_1,\chi_2)$:
+Set up the FFT plans/workspace (once, given the probe configuration), then
+prepare the Chebyshev-decomposed power-spectrum workspace and the projected
+matter density for your cosmology:
 
 ```julia
-T_LL = Blast.T_tilde_p2  # Lensing-Lensing
-T_CL = Blast.T_tilde_0   # Clustering-Lensing
-T_CC = Blast.T_tilde_m2  # Clustering-Clustering
+W, plans = Blast.SetUp(GC, WL)
+
+# pk, pk_limber_lin, pk_limber_nonlin: your matter power spectrum, tabulated
+# on Blast's internal (z, k) grids — see docs/src/example.md for how to build these
+PowerSpectrum = Blast.prepare_pk_workspace(plans, pk, pk_limber_lin, pk_limber_nonlin, bg)
+W = Blast.compute_w(W, PowerSpectrum)
 ```
 
-Those objects have shape `(n_ℓ, nχ, nR, nk)`. They are defined on the following grids: 
-
-- Multipoles:
-```julia
-ℓ = Blast.ℓ
-```
-
-- Comoving distance:
-```julia
-nχ = 96
-χ = LinRange(26, 7000, nχ)
-```
-
-- $R = \chi_2/\chi_1$:
-```julia
-R = chebpoints(96, -1, 1)
-R = reverse(R[R.>0])
-nR = length(R)
-```
-
-- Wavenumbers:
-```julia
-kmax = 200/13 
-kmin = 2.5/7000
-n_cheb = 119
-k_cheb = chebpoints(n_cheb, log10(kmin), log10(kmax))
-```
-Evaluate the coefficients of the Chebyshev decomposition of the power spectrum:
-```julia
-plan = Blast.plan_fft(Pk, 1)
-cheb_coeff = Blast.fast_chebcoefs(Pk, plan)
-```
-Using the Chebyshev coefficients, compute the projected matter densities $w_\ell$:
+Finally, compute the angular power spectra for clustering, shear, and their
+cross-correlation:
 
 ```julia
-w_LL = Blast.w_ell_tullio(cheb_coeff, T_LL)
-w_CL = Blast.w_ell_tullio(cheb_coeff, T_CL)
-w_CC = Blast.w_ell_tullio(cheb_coeff, T_CC)
+ell = ...  # your desired multipoles
+
+Cℓ_GG = Blast.get_Cℓ(ell, GC, PowerSpectrum, W, bg, plans)   # (n_ell, n_bins_g, n_bins_g)
+Cℓ_SS = Blast.get_Cℓ(ell, WL, PowerSpectrum, W, bg, plans)   # (n_ell, n_bins_s, n_bins_s)
+Cℓ_GS = Blast.get_Cℓ(ell, GC, WL, PowerSpectrum, W, bg, plans)  # (n_ell, n_bins_g, n_bins_s)
 ```
 
-Finally, compute the angular power spectra for clustering, shear, CMB lensing and cross-correlations:
-
-```julia
-clustering_Cℓ = Blast.compute_Cℓ(w_CC, GK, GK, bg, R)
-shear_Cℓ = Blast.compute_Cℓ(w_LL, SHK, SHK, bg, R)
-cross_Cℓ = Blast.compute_Cℓ(w_CL, GK, SHK, bg, R);
-cl_cross_cmb_Cℓ = Blast.compute_Cℓ(w_CL, GK, CMBK, bg, R)
-sh_cross_cmb_Cℓ = Blast.compute_Cℓ(w_LL, SHK, CMBK, bg, R);
-```
+This example only switches on the basic density and cosmic-shear components.
+See [`docs/src/example.md`](docs/src/example.md) (or the built docs) for a
+complete, runnable 6x2pt example with every effect switched on (redshift-space
+distortions, magnification bias, primordial non-Gaussianity, intrinsic
+alignment), or [`for_marco/`](for_marco/) for a fully self-contained,
+runnable notebook version of it.
 
 ## Citing 
 

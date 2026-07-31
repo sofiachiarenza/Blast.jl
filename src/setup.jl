@@ -1,3 +1,8 @@
+# Parametrized on each plan's concrete type so every field access infers to
+# a concrete plan, not the abstract `ChebyshevPlan` UnionAll. Without this,
+# `prepare_pk_workspace(::FFTPlans, …)` could not infer its return to
+# `PowerSpectrum{T}` — only to the bare `PowerSpectrum` UnionAll — which
+# poisoned `f_full`'s inference all the way to the top.
 """
     FFTPlans
 
@@ -13,11 +18,6 @@ These plans are reused across power spectrum evaluations to avoid repeated FFTW 
 - `T_k_limber`: Precomputed k-basis polynomials for the Limber grid.
 - `plan_ℓ`: Plan for the final C_ℓ interpolation.
 """
-# Parametrized on each plan's concrete type so every field access infers to
-# a concrete plan, not the abstract `ChebyshevPlan` UnionAll. Without this,
-# `prepare_pk_workspace(::FFTPlans, …)` could not infer its return to
-# `PowerSpectrum{T}` — only to the bare `PowerSpectrum` UnionAll — which
-# poisoned `f_full`'s inference all the way to the top.
 @kwdef mutable struct FFTPlans{PϕTT<:ChebyshevPlan,
                                PϕT<:Union{ChebyshevPlan, Nothing},
                                Pϕ<:Union{ChebyshevPlan, Nothing},
