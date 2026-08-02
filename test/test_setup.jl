@@ -80,10 +80,12 @@ end
     cmb = Blast.CMB(κ = Blast.CMBLensing(),
                      ISW = Blast.IntegratedSachsWolfe())
 
-    W, Plans = Blast.SetUp(gc, wl, cmb)
+    W_template, Plans = Blast.SetUp(gc, wl, cmb)
     PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber_lin,
                                      pk_limber_nonlin, bg)
-    W = Blast.compute_w(W, PS)
+    W = Blast.compute_w(W_template, PS)
+    W_inplace = @inferred Blast.allocate_compute_w(W_template, PS)
+    @test @inferred(Blast.compute_w!(W_inplace, PS)) === W_inplace
 
     # Enumerate every field of W; skip the ones left as `nothing` for this
     # probe configuration. Every active field must have finite, non-zero
@@ -95,6 +97,7 @@ end
         n_active += 1
         @test all(isfinite, field.w)
         @test any(!iszero, field.w)
+        @test field.w ≈ getfield(W_inplace, name).w rtol=1e-10 atol=1e-9
     end
     # Sanity: a fully-active probe configuration must light up several fields.
     @test n_active >= 5
