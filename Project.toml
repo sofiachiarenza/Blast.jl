@@ -29,9 +29,11 @@ Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
 
 [weakdeps]
 Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 
 [extensions]
 MooncakeExt = ["Mooncake"]
+ReactantExt = ["Reactant"]
 
 [compat]
 AbstractCosmologicalEmulators = "0.9.2"
@@ -47,4 +49,5 @@ Loess = "0.6.5"
 Memoization = "0.2.2"
 Mooncake = "0.5.4"
 OrdinaryDiffEqTsit5 = "1.9.0"
+Reactant = "0.2"
 SciMLSensitivity = "7.98.1"

@@ -1,0 +1,13 @@
+[deps]
+AbstractCosmologicalEmulators = "c83c1981-e5c4-4837-9eb8-c9b1572acfc6"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Blast = "aee4e916-1e40-4aff-8d35-b84b50e5d5e3"
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+NPZ = "15e1cf62-19b3-5cfa-8e77-841668bca605"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
+
+[compat]
+BenchmarkTools = "1"
+Reactant = "0.2"
+NPZ = "0.4"

@@ -452,3 +452,20 @@ function _p_phi_T_tullio(P_ϕ::AbstractVector, T_χR::AbstractArray{<:Any, 3})
     @tullio out[k, i, j] := P_ϕ[k] * T_χR[i, j, k]
     return out
 end
+
+# Pure-array forms used by the optional Reactant extension. The optimized
+# Tullio implementations above remain the plain-Julia production path.
+function _p_phi_TT_broadcast(P_ϕ::AbstractVector, T_χ1::AbstractMatrix,
+                             T_χR::AbstractArray{<:Any, 3})
+    P_k11 = reshape(P_ϕ, :, 1, 1)
+    T_ki1 = reshape(permutedims(T_χ1, (2, 1)), size(T_χ1, 2), size(T_χ1, 1), 1)
+    T_kij = permutedims(T_χR, (3, 1, 2))
+    return P_k11 .* T_ki1 .* T_kij
+end
+
+function _p_phi_T_broadcast(P_ϕ::AbstractVector,
+                            T_χR::AbstractArray{<:Any, 3})
+    P_k11 = reshape(P_ϕ, :, 1, 1)
+    T_kij = permutedims(T_χR, (3, 1, 2))
+    return P_k11 .* T_kij
+end

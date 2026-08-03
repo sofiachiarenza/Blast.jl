@@ -31,6 +31,15 @@ using Tullio
     @test sum(w_unit) ≈ 2.0
 end
 
+@testset "Utils: truncated R grid" begin
+    @test Blast.R_MIN == 0.3
+    @test length(Blast.R) == 52
+    @test first(Blast.R) ≈ 0.31368174039889163
+    @test last(Blast.R) == 1.0
+    @test all(>=(Blast.R_MIN), Blast.R)
+    @test length(Blast.get_clencurt_weights_R_integration(2 * length(Blast.R) + 1)) == length(Blast.R)
+end
+
 @testset "Utils: ChebPoly and Bessel" begin
     # Precomputation tests for Bessel/Cheb evaluation
     min_v = 10^(-1) * (1 + 1e-10)

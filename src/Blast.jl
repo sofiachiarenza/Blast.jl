@@ -46,6 +46,7 @@ include("projected_matter.jl")
 include("cls.jl")
 include("limber.jl")
 include("chainrules.jl")
+include("reactant_api.jl")
 
 # ── Public API ────────────────────────────────────────────────────────────────
 # Cosmology
@@ -67,6 +68,19 @@ export SetUp, FFTPlans, PowerSpectrum, ProjectedMatterDensity
 # Core functions
 export evaluate_components!, compute_kernel!, compute_w
 export prepare_pk_workspace, get_Cℓ
+export reactant_is_available, reactant_p_phi_TT, reactant_p_phi_T
+export reactant_chebyshev_matrix, reactant_chebyshev_matmul
+export reactant_w_ell_hlo, reactant_chebyshev_w_ell_hlo
+export reactant_prepare_nonlimber_spectrum, reactant_compute_w
+export reactant_nonlimber_c_ell, reactant_nonlimber_rsd_c_ell
+export reactant_limber_contraction
+export reactant_finalize_c_ell
+export reactant_nonlimber_3x2pt
+export reactant_full_3x2pt
+export reactant_chebyshev_2d_matmul, reactant_limber_eval, reactant_prepare_limber
+export reactant_limber_power_products, reactant_limber_chebyshev_coefficients
+export reactant_limber_grid_from_coefficients, reactant_limber_grid_difference
+export reactant_compute_w_from_spectrum, reactant_limber_terms_from_prepared
 # ─────────────────────────────────────────────────────────────────────────────
 
 struct T̃{A<:AbstractArray{<:Any,4}}

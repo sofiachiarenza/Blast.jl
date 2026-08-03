@@ -22,11 +22,19 @@ const full_ℓ_range = reverse(chebpoints(100, 2.0, 2000.0))
 const ℓ_nonlimber = full_ℓ_range[full_ℓ_range .< 220]
 const ℓ_limber = full_ℓ_range[full_ℓ_range .> 220]
 
-const nχ = 96   # must match T_tildes artifact χ-axis dimension
+const nχ = 128   # must match the registered T_tildes artifact's χ-axis dimension
 const χ = Array(LinRange(26.0, 7000.0, nχ))
 
 const _R_nodes = chebpoints(64*2, -1.0, 1.0)
-const R = reverse(_R_nodes[_R_nodes .> 0])
+const _R_full64 = reverse(_R_nodes[_R_nodes .> 0])
+
+# Exclude widely separated unequal-time pairs below a physical R threshold.
+# On the 64-node Chebyshev grid, R_MIN=0.3 drops 12 nodes and retains 52,
+# starting at R=0.3136817404. All hot projected-matter and Cℓ contractions
+# scale linearly with the retained R dimension.
+const R_MIN = 0.3
+const _R_KEEP_IDX = findall(>=(R_MIN), _R_full64)
+const R = _R_full64[_R_KEEP_IDX]
 
 const k_cheb = chebpoints(160, Float64(log10(5e-5)), Float64(log10(16)))
 const k_limber = chebpoints(256, Float64(log10(1e-4)), Float64(log10(80)))

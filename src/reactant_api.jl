@@ -1,0 +1,26 @@
+"""Return whether the optional Blast Reactant extension is loaded."""
+reactant_is_available() = !isnothing(Base.get_extension(@__MODULE__, :ReactantExt))
+
+function reactant_p_phi_TT end
+function reactant_p_phi_T end
+function reactant_chebyshev_matrix end
+function reactant_chebyshev_matmul end
+function reactant_w_ell_hlo end
+function reactant_chebyshev_w_ell_hlo end
+function reactant_prepare_nonlimber_spectrum end
+function reactant_compute_w end
+function reactant_nonlimber_c_ell end
+function reactant_nonlimber_rsd_c_ell end
+function reactant_limber_contraction end
+function reactant_finalize_c_ell end
+function reactant_nonlimber_3x2pt end
+function reactant_full_3x2pt end
+function reactant_chebyshev_2d_matmul end
+function reactant_limber_eval end
+function reactant_prepare_limber end
+function reactant_limber_power_products end
+function reactant_limber_chebyshev_coefficients end
+function reactant_limber_grid_from_coefficients end
+function reactant_limber_grid_difference end
+function reactant_compute_w_from_spectrum end
+function reactant_limber_terms_from_prepared end
