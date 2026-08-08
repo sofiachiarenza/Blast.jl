@@ -3,6 +3,7 @@ module ReactantExt
 using LinearAlgebra
 using Reactant
 import Blast
+import AbstractCosmologicalEmulators
 import AbstractCosmologicalEmulators: ChebyshevPlan, chebyshev_decomposition
 
 function Blast.reactant_p_phi_TT(P_ϕ, T_χ1, T_χR)
@@ -124,7 +125,6 @@ function Blast.reactant_prepare_nonlimber_spectrum(pk, bg, transform)
     transfer_func = Blast.get_Tm(pk, k, bg)
     transfer_func_χR = Blast.transform_to_R_frame(transfer_func, bg)
     transfer_func_χ1 = transfer_func_χR[:, end, :]
-
     P_ϕTT = Blast._p_phi_TT_broadcast(P_ϕ, transfer_func_χ1, transfer_func_χR)
     P_ϕT = Blast._p_phi_T_broadcast(P_ϕ, transfer_func_χR)
 
@@ -149,7 +149,7 @@ function Blast.reactant_compute_w(
 )
     cϕT_R1 = cϕT[:, :, end]
     cϕ_for_w = if ndims(cϕ_2d) == 1
-        reshape(cϕ_2d, size(cϕ_2d, 1), 1) .* ones(Float64, 1, size(T_2_00, 3))
+        reshape(cϕ_2d, size(cϕ_2d, 1), 1) .* ones(Float64, 1, size(T_2_00, 2))
     else
         cϕ_2d
     end
@@ -321,19 +321,20 @@ function Blast.reactant_compute_w_from_spectrum(cϕTT, cϕT, cϕ, T_tuple...)
 end
 
 function Blast.reactant_limber_terms_from_prepared(
-    ΔP, P_nonlin, KGG_low, KGG_high, KG_low, KL_low,
-    KG_high, KL_high, KLL_low, KLL_high, inv_χ2, weights, Δχ,
+    P_linear, P_nonlin, KG_low, KG_high, KL_low, KL_high,
+    inv_χ2, weights, Δχ,
 )
-    nlow = size(KGG_low, 1)
+    nlow = size(KG_low, 1)
+    ΔP = P_nonlin .- P_linear
     low = ΔP[1:nlow, :] .* reshape(inv_χ2, 1, :)
     high = P_nonlin[(nlow + 1):end, :] .* reshape(inv_χ2, 1, :)
     return (
-        Blast.reactant_limber_contraction(low, KGG_low, KGG_low, weights, Δχ),
-        Blast.reactant_limber_contraction(high, KGG_high, KGG_high, weights, Δχ),
+        Blast.reactant_limber_contraction(low, KG_low, KG_low, weights, Δχ),
+        Blast.reactant_limber_contraction(high, KG_high, KG_high, weights, Δχ),
         Blast.reactant_limber_contraction(low, KG_low, KL_low, weights, Δχ),
         Blast.reactant_limber_contraction(high, KG_high, KL_high, weights, Δχ),
-        Blast.reactant_limber_contraction(low, KLL_low, KLL_low, weights, Δχ),
-        Blast.reactant_limber_contraction(high, KLL_high, KLL_high, weights, Δχ),
+        Blast.reactant_limber_contraction(low, KL_low, KL_low, weights, Δχ),
+        Blast.reactant_limber_contraction(high, KL_high, KL_high, weights, Δχ),
     )
 end
 
@@ -421,6 +422,221 @@ function Blast.reactant_full_3x2pt(
         Blast.reactant_finalize_c_ell(nonlimber.gg, Cgg_correction, Cgg_limber, ell2_reversed, transform, T_eval, inv_ell2),
         Blast.reactant_finalize_c_ell(nonlimber.gs, Cgs_correction, Cgs_limber, ell2_reversed, transform, T_eval, inv_ell2),
         Blast.reactant_finalize_c_ell(nonlimber.ss, Css_correction, Css_limber, ell2_reversed, transform, T_eval, inv_ell2),
+    )
+end
+
+struct ReactantFullPlan{F1, F2, F3, F4, F5, F6, F7, F8, F9} <: Blast.AbstractReactantFullPlan
+    prep_comp::F1
+    w_comp::F2
+    proj_comp::F3
+    power_comp::F4
+    coeff_comp::F5
+    grid_comp::F6
+    terms_comp::F7
+    finalize_comp::F8
+    static::F9
+end
+
+function (plan::ReactantFullPlan)(pk_nonlimber_r, pk_limber_linear_r, pk_limber_nonlinear_r)
+    c = plan.prep_comp(pk_nonlimber_r, plan.static.Mnon_r)
+    wv = plan.w_comp(c..., plan.static.T_r...)
+    nonlimber = plan.proj_comp(wv..., plan.static.K_r..., plan.static.integ_r..., plan.static.pref)
+    loglin, lognon = plan.power_comp(pk_limber_linear_r, pk_limber_nonlinear_r)
+    clin, cnon = plan.coeff_comp(loglin, lognon, plan.static.Mk_r, plan.static.Mz_r)
+    Plin, Pnon = plan.grid_comp(clin, cnon, plan.static.Tz_r, plan.static.Tk_r)
+    terms = plan.terms_comp(
+        Plin, Pnon, plan.static.KG_low_r, plan.static.KG_high_r,
+        plan.static.KL_low_r, plan.static.KL_high_r,
+        plan.static.invχ2_r, plan.static.weights_r, plan.static.Δχ_r,
+    )
+    cggc, cggl, cgsc, cgsl, cssc, cssl = terms
+    result = plan.finalize_comp(
+        nonlimber.gg, nonlimber.gs, nonlimber.ss,
+        cggc, cggl, cgsc, cgsl, cssc, cssl,
+        plan.static.ell2_r, plan.static.final_transform_r,
+        plan.static.final_eval_r, plan.static.inv_ell2_r,
+    )
+    return (; cl_gg=result[1], cl_gs=result[2], cl_ss=result[3])
+end
+
+struct ReactantNonLimberPlan{F1, F2, F3, TM, TT, TK, Tinteg, Tpref} <: Blast.AbstractReactantNonLimberPlan
+    prep_comp::F1
+    w_comp::F2
+    proj_comp::F3
+    Mnon_r::TM
+    T_r::TT
+    K_r::TK
+    integ_r::Tinteg
+    pref::Tpref
+end
+
+function (plan::ReactantNonLimberPlan)(pk_r)
+    c = plan.prep_comp(pk_r, plan.Mnon_r)
+    wv = plan.w_comp(c..., plan.T_r...)
+    res = plan.proj_comp(wv..., plan.K_r..., plan.integ_r..., plan.pref)
+    return res
+end
+
+function Blast.reactant_host_nonlimber_reference(workload, spec)
+    G, L, bg = workload.galaxy, workload.lensing, workload.bg
+    pref = (
+        δδ=Blast._pair_prefactor(G.δ, G.δ), δRSD=Blast._pair_prefactor(G.δ, G.RSD),
+        RSDRSD=Blast._pair_prefactor(G.RSD, G.RSD), δμ=Blast._pair_prefactor(G.δ, G.μ),
+        μμ=Blast._pair_prefactor(G.μ, G.μ), μRSD=Blast._pair_prefactor(G.μ, G.RSD),
+        δfNL=Blast._pair_prefactor(G.δ, G.PNG), fNLδ=Blast._pair_prefactor(G.PNG, G.δ),
+        fNLRSD=Blast._pair_prefactor(G.PNG, G.RSD), RSDfNL=Blast._pair_prefactor(G.RSD, G.PNG),
+        μfNL=Blast._pair_prefactor(G.μ, G.PNG), fNLμ=Blast._pair_prefactor(G.PNG, G.μ),
+        fNLfNL=Blast._pair_prefactor(G.PNG, G.PNG), γγ=Blast._pair_prefactor(L.γ, L.γ),
+        γIA=Blast._pair_prefactor(L.γ, L.IA), IAγ=Blast._pair_prefactor(L.IA, L.γ),
+        IAIA=Blast._pair_prefactor(L.IA, L.IA), δγ=Blast._pair_prefactor(G.δ, L.γ),
+        δIA=Blast._pair_prefactor(G.δ, L.IA), RSDγ=Blast._pair_prefactor(G.RSD, L.γ),
+        RSDIA=Blast._pair_prefactor(G.RSD, L.IA), μγ=Blast._pair_prefactor(G.μ, L.γ),
+        μIA=Blast._pair_prefactor(G.μ, L.IA), fNLγ=Blast._pair_prefactor(G.PNG, L.γ),
+        fNLIA=Blast._pair_prefactor(G.PNG, L.IA),
+    )
+    integ = Blast._prepare_nonlimber_integration(bg)
+    K = (
+        Blast.get_kernel_array(G.δ, bg), Blast.get_kernel_array(G.RSD, bg),
+        Blast.get_kernel_array(G.μ, bg), Blast.get_kernel_array(G.PNG, bg),
+        Blast.get_kernel_array(L.γ, bg), Blast.get_kernel_array(L.IA, bg),
+    )
+    W = Blast.compute_w(workload.W_template, spec)
+    wv = (
+        W.w_2_00_ϕTT.w, W.w_minus2_00_ϕTT.w, W.w_0_00_ϕTT.w,
+        W.w_0_02_ϕTT.w, W.w_0_20_ϕTT.w, W.w_2_02_ϕTT.w, W.w_2_20_ϕTT.w, W.w_2_22_ϕTT.w,
+        W.w_2_00_ϕT.w, W.w_2_00_ϕT_R1.w, W.w_0_00_ϕT.w, W.w_0_00_ϕT_R1.w,
+        W.w_2_02_ϕT.w, W.w_2_02_ϕT_R1.w, W.w_2_20_ϕT.w, W.w_2_20_ϕT_R1.w, W.w_2_00_ϕ.w,
+    )
+    return Blast.reactant_nonlimber_3x2pt(
+        wv..., K..., integ.w_χ, integ.w_R, integ.χ_grid, integ.Δχ, pref
+    )
+end
+
+function Blast.build_reactant_full_plan(workload)
+    G, L, bg = workload.galaxy, workload.lensing, workload.bg
+    nonlimber_plan = Blast.build_reactant_nonlimber_plan(workload)
+    integ = Blast._prepare_nonlimber_integration(bg)
+    KGG = Blast.get_limber_kernel(G)
+    KLL = Blast.get_limber_kernel(L)
+    KG_low, KG_high = Blast._low_ℓ_slice(KGG), Blast._high_ℓ_slice(KGG)
+    KL_low, KL_high = Blast._low_ℓ_slice(KLL), Blast._high_ℓ_slice(KLL)
+    lp = workload.plans.plan_limber
+    Mk = Blast.reactant_chebyshev_matrix(AbstractCosmologicalEmulators.prepare_chebyshev_plan(
+        minimum(lp.nodes[1]), maximum(lp.nodes[1]), lp.K[1]; size_nd=(lp.K[1] + 1,), dim=1))
+    Mz = Blast.reactant_chebyshev_matrix(AbstractCosmologicalEmulators.prepare_chebyshev_plan(
+        minimum(lp.nodes[2]), maximum(lp.nodes[2]), lp.K[2]; size_nd=(lp.K[2] + 1,), dim=1))
+    Tz = Blast.get_limber_coords_polynomials(lp, bg.z)
+    Tk = workload.plans.T_k_limber
+    nfull = length(Blast.full_ℓ_range)
+    final_plan = workload.plans.plan_ℓ
+    final_static = (
+        Mnon_r=nonlimber_plan.Mnon_r, T_r=nonlimber_plan.T_r, K_r=nonlimber_plan.K_r,
+        integ_r=nonlimber_plan.integ_r, pref=nonlimber_plan.pref,
+        Mk_r=Reactant.to_rarray(Mk), Mz_r=Reactant.to_rarray(Mz),
+        Tz_r=Reactant.to_rarray(Tz), Tk_r=Reactant.to_rarray(Tk),
+        KG_low_r=Reactant.to_rarray(KG_low), KL_low_r=Reactant.to_rarray(KL_low),
+        KG_high_r=Reactant.to_rarray(KG_high), KL_high_r=Reactant.to_rarray(KL_high),
+        invχ2_r=Reactant.to_rarray(vec(Blast.LIMBER_INV_χ2_ROW)),
+        weights_r=Reactant.to_rarray(Blast.LIMBER_WEIGHTS), Δχ_r=Reactant.to_rarray(Blast.LIMBER_Δχ),
+        ell2_r=Reactant.to_rarray(Blast.FULL_ℓ2_REVERSED[1:nfull]),
+        final_transform_r=Reactant.to_rarray(Blast.reactant_chebyshev_matrix(final_plan)),
+        final_eval_r=Reactant.to_rarray(AbstractCosmologicalEmulators.chebyshev_polynomials(float.(workload.ell), 2.0, 2000.0, nfull - 1)),
+        inv_ell2_r=Reactant.to_rarray(inv.(workload.ell .^ 2)),
+    )
+    power_fun = let bg=bg; (a, b) -> Blast.reactant_limber_power_products(a, b, bg) end
+    coeff_fun = (a, b, mk, mz) -> (Blast.reactant_limber_chebyshev_coefficients(a, mk, mz), Blast.reactant_limber_chebyshev_coefficients(b, mk, mz))
+    grid_fun = (a, b, tz, tk) -> (Blast.reactant_limber_grid_from_coefficients(a, tz, tk), Blast.reactant_limber_grid_from_coefficients(b, tz, tk))
+    terms_fun = Blast.reactant_limber_terms_from_prepared
+    final_fun = (ngg, ngs, nss, cggc, cggl, cgsc, cgsl, cssc, cssl, ell2, M, Teval, invell2) -> (
+        Blast.reactant_finalize_c_ell(ngg, cggc, cggl, ell2, M, Teval, invell2),
+        Blast.reactant_finalize_c_ell(ngs, cgsc, cgsl, ell2, M, Teval, invell2),
+        Blast.reactant_finalize_c_ell(nss, cssc, cssl, ell2, M, Teval, invell2),
+    )
+    power_comp = Reactant.compile(power_fun, (Reactant.to_rarray(workload.pk_limber_lin), Reactant.to_rarray(workload.pk_limber_nonlin)); sync=true)
+    p0 = power_comp(Reactant.to_rarray(workload.pk_limber_lin), Reactant.to_rarray(workload.pk_limber_nonlin))
+    coeff_comp = Reactant.compile(coeff_fun, (p0..., final_static.Mk_r, final_static.Mz_r); sync=true)
+    c0 = coeff_comp(p0..., final_static.Mk_r, final_static.Mz_r)
+    grid_comp = Reactant.compile(grid_fun, (c0..., final_static.Tz_r, final_static.Tk_r); sync=true)
+    g0 = grid_comp(c0..., final_static.Tz_r, final_static.Tk_r)
+    terms_args = (g0..., final_static.KG_low_r, final_static.KG_high_r,
+                  final_static.KL_low_r, final_static.KL_high_r,
+                  final_static.invχ2_r, final_static.weights_r, final_static.Δχ_r)
+    terms_comp = Reactant.compile(terms_fun, terms_args; sync=true)
+    t0 = terms_comp(terms_args...)
+    pk0 = Reactant.to_rarray(workload.pk)
+    c_non0 = nonlimber_plan.prep_comp(pk0, nonlimber_plan.Mnon_r)
+    w_non0 = nonlimber_plan.w_comp(c_non0..., nonlimber_plan.T_r...)
+    non0 = nonlimber_plan.proj_comp(w_non0..., nonlimber_plan.K_r...,
+                                    nonlimber_plan.integ_r..., nonlimber_plan.pref)
+    final_args = (non0.gg, non0.gs, non0.ss, t0...,
+                  final_static.ell2_r, final_static.final_transform_r,
+                  final_static.final_eval_r, final_static.inv_ell2_r)
+    finalize_comp = Reactant.compile(final_fun, final_args; sync=true)
+    return ReactantFullPlan(nonlimber_plan.prep_comp, nonlimber_plan.w_comp, nonlimber_plan.proj_comp, power_comp, coeff_comp, grid_comp, terms_comp, finalize_comp, final_static)
+end
+
+function Blast.build_reactant_nonlimber_plan(workload)
+    G, L, bg = workload.galaxy, workload.lensing, workload.bg
+    pref = (
+        δδ=Blast._pair_prefactor(G.δ, G.δ), δRSD=Blast._pair_prefactor(G.δ, G.RSD),
+        RSDRSD=Blast._pair_prefactor(G.RSD, G.RSD), δμ=Blast._pair_prefactor(G.δ, G.μ),
+        μμ=Blast._pair_prefactor(G.μ, G.μ), μRSD=Blast._pair_prefactor(G.μ, G.RSD),
+        δfNL=Blast._pair_prefactor(G.δ, G.PNG), fNLδ=Blast._pair_prefactor(G.PNG, G.δ),
+        fNLRSD=Blast._pair_prefactor(G.PNG, G.RSD), RSDfNL=Blast._pair_prefactor(G.RSD, G.PNG),
+        μfNL=Blast._pair_prefactor(G.μ, G.PNG), fNLμ=Blast._pair_prefactor(G.PNG, G.μ),
+        fNLfNL=Blast._pair_prefactor(G.PNG, G.PNG), γγ=Blast._pair_prefactor(L.γ, L.γ),
+        γIA=Blast._pair_prefactor(L.γ, L.IA), IAγ=Blast._pair_prefactor(L.IA, L.γ),
+        IAIA=Blast._pair_prefactor(L.IA, L.IA), δγ=Blast._pair_prefactor(G.δ, L.γ),
+        δIA=Blast._pair_prefactor(G.δ, L.IA), RSDγ=Blast._pair_prefactor(G.RSD, L.γ),
+        RSDIA=Blast._pair_prefactor(G.RSD, L.IA), μγ=Blast._pair_prefactor(G.μ, L.γ),
+        μIA=Blast._pair_prefactor(G.μ, L.IA), fNLγ=Blast._pair_prefactor(G.PNG, L.γ),
+        fNLIA=Blast._pair_prefactor(G.PNG, L.IA),
+    )
+    integ = Blast._prepare_nonlimber_integration(bg)
+    K = (
+        Blast.get_kernel_array(G.δ, bg), Blast.get_kernel_array(G.RSD, bg),
+        Blast.get_kernel_array(G.μ, bg), Blast.get_kernel_array(G.PNG, bg),
+        Blast.get_kernel_array(L.γ, bg), Blast.get_kernel_array(L.IA, bg),
+    )
+    T = map(T_ -> permutedims(T_, (4, 1, 2, 3)), (
+        Blast.T_tildes.T_2_00, Blast.T_tildes.T_minus2_00,
+        Blast.T_tildes.T_0_00, Blast.T_tildes.T_0_02,
+        Blast.T_tildes.T_0_20, Blast.T_tildes.T_2_02,
+        Blast.T_tildes.T_2_20, Blast.T_tildes.T_2_22,
+    ))
+    Mnon_plan = AbstractCosmologicalEmulators.prepare_chebyshev_plan(
+        minimum(Blast.k_cheb), maximum(Blast.k_cheb), length(Blast.k_cheb) - 1;
+        size_nd=(length(Blast.k_cheb),), dim=1,
+    )
+    Mnon = Blast.reactant_chebyshev_matrix(Mnon_plan)
+
+    pk_r = Reactant.to_rarray(workload.pk)
+    Mnon_r = Reactant.to_rarray(Mnon)
+    T_r = map(Reactant.to_rarray, T)
+    K_r = map(Reactant.to_rarray, K)
+    integ_r = map(Reactant.to_rarray, (integ.w_χ, integ.w_R, integ.χ_grid))
+
+    prep_fun = let bg=bg
+        (pk, M) -> Blast.reactant_prepare_nonlimber_spectrum(pk, bg, M)
+    end
+    w_fun = Blast.reactant_compute_w_from_spectrum
+    proj_fun = let Δχ=integ.Δχ
+        (w1,w2,w3,w4,w5,w6,w7,w8,w9,w10,w11,w12,w13,w14,w15,w16,w17,
+         k1,k2,k3,k4,k5,k6,wi,wr,χ,pref) -> Blast.reactant_nonlimber_3x2pt(
+            w1,w2,w3,w4,w5,w6,w7,w8,w9,w10,w11,w12,w13,w14,w15,w16,w17,
+            k1,k2,k3,k4,k5,k6,wi,wr,χ,Δχ,pref
+         )
+    end
+
+    prep_comp = Reactant.compile(prep_fun, (pk_r, Mnon_r); sync=true)
+    c0 = prep_comp(pk_r, Mnon_r)
+    w_comp = Reactant.compile(w_fun, (c0..., T_r...); sync=true)
+    w0 = w_comp(c0..., T_r...)
+    proj_comp = Reactant.compile(proj_fun, (w0..., K_r..., integ_r..., pref); sync=true)
+
+    return ReactantNonLimberPlan(
+        prep_comp, w_comp, proj_comp,
+        Mnon_r, T_r, K_r, integ_r, pref
     )
 end
 

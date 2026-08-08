@@ -1,0 +1,14 @@
+generator=ordinary full_power_to_cls
+perturbation_amplitude=1e-5
+baseline_cl_gg size=60,10,10
+baseline_cl_gs size=60,10,5
+baseline_cl_ss size=60,5,5
+nonlimber_cl_gg size=60,10,10
+nonlimber_cl_gs size=60,10,5
+nonlimber_cl_ss size=60,5,5
+limber_linear_cl_gg size=60,10,10
+limber_linear_cl_gs size=60,10,5
+limber_linear_cl_ss size=60,5,5
+limber_nonlinear_cl_gg size=60,10,10
+limber_nonlinear_cl_gs size=60,10,5
+limber_nonlinear_cl_ss size=60,5,5

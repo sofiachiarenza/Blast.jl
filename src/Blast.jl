@@ -80,7 +80,8 @@ export reactant_full_3x2pt
 export reactant_chebyshev_2d_matmul, reactant_limber_eval, reactant_prepare_limber
 export reactant_limber_power_products, reactant_limber_chebyshev_coefficients
 export reactant_limber_grid_from_coefficients, reactant_limber_grid_difference
-export reactant_compute_w_from_spectrum, reactant_limber_terms_from_prepared
+export reactant_compute_w_from_spectrum, reactant_limber_terms_from_prepared, reactant_host_nonlimber_reference
+export build_reactant_full_plan
 # ─────────────────────────────────────────────────────────────────────────────
 
 struct T̃{A<:AbstractArray{<:Any,4}}

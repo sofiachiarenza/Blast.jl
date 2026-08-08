@@ -156,23 +156,30 @@ function main()
     println("dpk_limber_nonlin_shape=", size(dpk_lim_non), " norm=", maximum(abs, dpk_lim_non))
 
     Random.seed!(97531)
-    vpk = randn(size(workload.pk)); vpk ./= maximum(abs, vpk)
-    vlin = randn(size(workload.pk_limber_lin)); vlin ./= maximum(abs, vlin)
-    vnon = randn(size(workload.pk_limber_nonlin)); vnon ./= maximum(abs, vnon)
-    ϵ = 1e-5
-    plus = merge(workload, (; pk=workload.pk .+ ϵ .* vpk,
-                              pk_limber_lin=workload.pk_limber_lin .+ ϵ .* vlin,
-                              pk_limber_nonlin=workload.pk_limber_nonlin .+ ϵ .* vnon))
-    minus = merge(workload, (; pk=workload.pk .- ϵ .* vpk,
-                               pk_limber_lin=workload.pk_limber_lin .- ϵ .* vlin,
-                               pk_limber_nonlin=workload.pk_limber_nonlin .- ϵ .* vnon))
+    rpk = randn(size(workload.pk)); rpk ./= maximum(abs, rpk)
+    rlin = randn(size(workload.pk_limber_lin)); rlin ./= maximum(abs, rlin)
+    rnon = randn(size(workload.pk_limber_nonlin)); rnon ./= maximum(abs, rnon)
+    vpk = workload.pk .* rpk
+    vlin = workload.pk_limber_lin .* rlin
+    vnon = workload.pk_limber_nonlin .* rnon
     scalar_loss(x) = sum(x.cl_gg) + sum(x.cl_gs) + sum(x.cl_ss)
-    fd_directional = (scalar_loss(full_power_to_cls(plus; pass_plans=true)) -
-                      scalar_loss(full_power_to_cls(minus; pass_plans=true))) / (2ϵ)
     ad_directional = sum(dpk .* vpk) + sum(dpk_lim_lin .* vlin) + sum(dpk_lim_non .* vnon)
-    println("directional_fd=", fd_directional)
     println("directional_ad=", ad_directional)
-    println("directional_relative_error=", abs(ad_directional - fd_directional) / max(abs(fd_directional), eps()))
+    for ϵ in (1e-3, 1e-4, 1e-5, 1e-6)
+        plus = merge(workload, (; pk=workload.pk .+ ϵ .* vpk,
+                                  pk_limber_lin=workload.pk_limber_lin .+ ϵ .* vlin,
+                                  pk_limber_nonlin=workload.pk_limber_nonlin .+ ϵ .* vnon))
+        minus = merge(workload, (; pk=workload.pk .- ϵ .* vpk,
+                                   pk_limber_lin=workload.pk_limber_lin .- ϵ .* vlin,
+                                   pk_limber_nonlin=workload.pk_limber_nonlin .- ϵ .* vnon))
+        fd_directional = (scalar_loss(full_power_to_cls(plus; pass_plans=true)) -
+                          scalar_loss(full_power_to_cls(minus; pass_plans=true))) / (2ϵ)
+        relative_error = abs(ad_directional - fd_directional) / max(abs(fd_directional), eps())
+        println("directional_epsilon=", ϵ,
+                " fd=", fd_directional,
+                " ad=", ad_directional,
+                " relative_error=", relative_error)
+    end
 
     # All pullback handles are cached by staged_reactant_gradient.jl at this
     # point. These timings therefore exclude Reactant/Enzyme compilation.
@@ -197,12 +204,42 @@ function main()
         end
         return gl, gn
     end
+    complete_gradient_call = () -> begin
+        dN, dC, dL = staged_finalization_pullback(
+            (nonlimber.gg, nonlimber.gs, nonlimber.ss), Ccorr, Clim,
+            finalization, upstream,
+        )
+        gpk = staged_nonlimber_pullback(
+            workload.pk, bg, Mnonlimber,
+            (reactant_coefficients[1], reactant_coefficients[2], cphi_2d),
+            w, T_tuple, endpoint_config, dN,
+        )
+        gl = zeros(size(workload.pk_limber_lin))
+        gn = zeros(size(workload.pk_limber_nonlin))
+        for (dCc, dCl, k1Low, k2Low, k1High, k2High) in (
+            (dC[1], dL[1], KG_low, KG_low, KG_high, KG_high),
+            (dC[2], dL[2], KG_low, KL_low, KG_high, KL_high),
+            (dC[3], dL[3], KL_low, KL_low, KL_high, KL_high),
+        )
+            a, b = staged_limber_gradient(
+                workload.pk_limber_lin, workload.pk_limber_nonlin, bg, limber_state,
+                dCc, dCl, k1Low, k2Low, k1High, k2High,
+                Blast.LIMBER_WEIGHTS, invχ2, Blast.LIMBER_Δχ, Mk, Mz, Tz, Tk,
+            )
+            gl .+= a
+            gn .+= b
+        end
+        return gpk, gl, gn
+    end
     nonlimber_bench = @benchmark $nonlimber_gradient_call() samples=3 evals=1
     limber_bench = @benchmark $limber_gradient_call() samples=3 evals=1
+    complete_bench = @benchmark $complete_gradient_call() samples=3 evals=1
     println("nonlimber_gradient_steady_min_ms=", minimum(nonlimber_bench).time / 1e6)
     println("nonlimber_gradient_steady_median_ms=", median(nonlimber_bench).time / 1e6)
     println("limber_gradient_steady_min_ms=", minimum(limber_bench).time / 1e6)
     println("limber_gradient_steady_median_ms=", median(limber_bench).time / 1e6)
+    println("complete_gradient_steady_min_ms=", minimum(complete_bench).time / 1e6)
+    println("complete_gradient_steady_median_ms=", median(complete_bench).time / 1e6)
 end
 
 main()

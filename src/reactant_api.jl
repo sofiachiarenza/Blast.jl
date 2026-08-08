@@ -24,3 +24,8 @@ function reactant_limber_grid_from_coefficients end
 function reactant_limber_grid_difference end
 function reactant_compute_w_from_spectrum end
 function reactant_limber_terms_from_prepared end
+function build_reactant_nonlimber_plan end
+abstract type AbstractReactantNonLimberPlan end
+function reactant_host_nonlimber_reference end
+function build_reactant_full_plan end
+abstract type AbstractReactantFullPlan end
