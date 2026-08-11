@@ -1,0 +1,38 @@
+Reusable projected-matter workspace benchmark
+=============================================
+
+Date: 2026-08-11
+Commit baseline: 198713a
+Configuration: 10 GC bins, 5 WL bins, no PNG, 8 Julia/FFTW threads
+Versions: Julia 1.12.6, Mooncake 0.5.44, DifferentiationInterface 0.7.20,
+          ForwardDiff 1.4.3, DataInterpolations 8.9.0
+
+Correctness
+-----------
+Primal reusable vs functional, maximum relative error:
+  x0: 2.96e-15
+  x1: 5.76e-16
+
+Mooncake vs ForwardDiff gradient, maximum relative error:
+  x0: 4.14e-15
+  x1: 2.08e-14
+
+Performance
+-----------
+                              samples      minimum       median          p95       memory   allocations
+Reusable primal                  200      93.012 ms   116.295 ms   138.294 ms    58.555 MiB       8,239
+Reusable cached gradient         200     413.728 ms   477.312 ms   609.917 ms   246.128 MiB      31,165
+Reusable gradient preparation     10     906.401 ms  1125.347 ms  1280.720 ms  2572.747 MiB     905,575
+
+Initial cold preparation, including compilation: 113.742 s
+Whole benchmark process peak RSS: 10.55 GiB
+
+Fresh functional-path comparison
+--------------------------------
+Primal minimum:       127.540 ->  93.012 ms  (27.1% lower)
+Primal median:        141.126 -> 116.295 ms  (17.6% lower)
+Primal memory:         88.685 ->  58.555 MiB (34.0% lower)
+Gradient minimum:     418.300 -> 413.728 ms  ( 1.1% lower)
+Gradient memory:      320.512 -> 246.128 MiB (23.2% lower)
+Gradient allocations:  32,420 ->  31,165     ( 3.9% lower)
+Preparation minimum:  964.047 -> 906.401 ms  ( 6.0% lower)

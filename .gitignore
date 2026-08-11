@@ -25,6 +25,7 @@ docs/site/
 Manifest.toml
 *.DS_Store
 Blast-workspace.code-workspace
+benchmark/results/
 
 # macOS folder icon
 Icon?
