@@ -28,6 +28,100 @@ function w_ell_tullio(c::AbstractArray{<:Any, 1}, T::AbstractArray{<:Any, 4})
 end
 
 
+# Mutating kernels used by `compute_w!`. These loops deliberately partition the
+# output along `k`, so every thread owns disjoint output slices and no atomic
+# accumulation is required. Keeping `i` innermost follows the contiguous memory
+# layout of both `w` and `T̃`.
+function _w_single_inplace!(w::AbstractArray{<:Any,3},
+                            c::AbstractArray{<:Any,3},
+                            T::AbstractArray{<:Any,4})
+    fill!(w, zero(eltype(w)))
+    Threads.@threads for k in axes(T, 3)
+        @inbounds for l in axes(T, 4), j in axes(T, 2)
+            coefficient = c[l, j, k]
+            @simd for i in axes(T, 1)
+                w[i, j, k] += coefficient * T[i, j, k, l]
+            end
+        end
+    end
+    return nothing
+end
+
+function _w_single_inplace!(w::AbstractArray{<:Any,3},
+                            c::AbstractArray{<:Any,2},
+                            T::AbstractArray{<:Any,4})
+    fill!(w, zero(eltype(w)))
+    Threads.@threads for k in axes(T, 3)
+        @inbounds for l in axes(T, 4), j in axes(T, 2)
+            coefficient = c[l, j]
+            @simd for i in axes(T, 1)
+                w[i, j, k] += coefficient * T[i, j, k, l]
+            end
+        end
+    end
+    return nothing
+end
+
+function _w_single_inplace!(w::AbstractArray{<:Any,3},
+                            c::AbstractArray{<:Any,1},
+                            T::AbstractArray{<:Any,4})
+    fill!(w, zero(eltype(w)))
+    Threads.@threads for k in axes(T, 3)
+        @inbounds for l in axes(T, 4), j in axes(T, 2)
+            coefficient = c[l]
+            @simd for i in axes(T, 1)
+                w[i, j, k] += coefficient * T[i, j, k, l]
+            end
+        end
+    end
+    return nothing
+end
+
+function _w_fused3_inplace!(w_tt, w_t, w_t_r1, c_tt, c_t, c_t_r1, T)
+    fill!(w_tt, zero(eltype(w_tt)))
+    fill!(w_t, zero(eltype(w_t)))
+    fill!(w_t_r1, zero(eltype(w_t_r1)))
+    Threads.@threads for k in axes(T, 3)
+        @inbounds for l in axes(T, 4), j in axes(T, 2)
+            tt_ljk = c_tt[l, j, k]
+            t_ljk = c_t[l, j, k]
+            t_r1_lj = c_t_r1[l, j]
+            @simd for i in axes(T, 1)
+                value = T[i, j, k, l]
+                w_tt[i, j, k] += tt_ljk * value
+                w_t[i, j, k] += t_ljk * value
+                w_t_r1[i, j, k] += t_r1_lj * value
+            end
+        end
+    end
+    return nothing
+end
+
+function _w_fused4_inplace!(w_tt, w_t, w_t_r1, w_phi,
+                            c_tt, c_t, c_t_r1, c_phi, T)
+    fill!(w_tt, zero(eltype(w_tt)))
+    fill!(w_t, zero(eltype(w_t)))
+    fill!(w_t_r1, zero(eltype(w_t_r1)))
+    fill!(w_phi, zero(eltype(w_phi)))
+    Threads.@threads for k in axes(T, 3)
+        @inbounds for l in axes(T, 4), j in axes(T, 2)
+            tt_ljk = c_tt[l, j, k]
+            t_ljk = c_t[l, j, k]
+            t_r1_lj = c_t_r1[l, j]
+            phi_l = c_phi[l]
+            @simd for i in axes(T, 1)
+                value = T[i, j, k, l]
+                w_tt[i, j, k] += tt_ljk * value
+                w_t[i, j, k] += t_ljk * value
+                w_t_r1[i, j, k] += t_r1_lj * value
+                w_phi[i, j, k] += phi_l * value
+            end
+        end
+    end
+    return nothing
+end
+
+
 abstract type AbstractProjectedMatterDensity end
 
 """
@@ -51,12 +145,10 @@ abstract type ProjectedMatterDensityComponent end
 # `T̃` is always `Array{Float64, 4}` — a reference to one of the precomputed
 # `T_tildes.T_*` constants, never differentiated wrt.
 #
-# `compute_w!(w::w_*, c::PowerSpectrum)` is replaced by a functional
-# `compute_w(w, c)` that returns a fresh struct of the appropriate eltype. The
-# container-level `compute_w!(W::ProjectedMatterDensity, c)` reassigns fields
-# with the result — no in-place mutation of `w.w`. This eliminates the
-# Dual→Float64 strip when `c.cϕTT.coefs` carries Duals (ForwardDiff through
-# cosmology parameters).
+# The functional `compute_w(w, c)` returns a fresh struct whose array eltype
+# follows `c`; this is the ForwardDiff path because Dual-valued coefficients
+# require Dual-valued outputs. The separate `compute_w!` path reuses an
+# explicitly allocated workspace for Float64 primal and Mooncake execution.
 #
 # All 17 struct definitions share the exact same layout and the exact same
 # compute_w body, varying only in:
@@ -104,11 +196,17 @@ for (_name, _T_tilde_field, _coef_source, _r1_slice) in _PROJECTED_MATTER_COMPON
             result = w_ell_tullio($_coefs_expr, w.T̃)
             return $_name{eltype(result)}(w.T̃, result)
         end
+        function allocate_compute_w(w::$_name, c::PowerSpectrum)
+            output_type = promote_type(eltype(c.$_coef_field.coefs), eltype(w.T̃))
+            output = zeros(output_type, size(w.T̃)[1:3])
+            return $_name{output_type}(w.T̃, output)
+        end
     end
 end
 
 # Nothing-carrying components: absent contribution, no-op.
 compute_w(::Nothing, ::PowerSpectrum) = nothing
+allocate_compute_w(::Nothing, ::PowerSpectrum) = nothing
 
 """
     ProjectedMatterDensity
@@ -143,6 +241,35 @@ with a `PowerSpectrum` object.
     w_2_20_ϕT::T15         = nothing
     w_2_20_ϕT_R1::T16      = nothing
     w_2_00_ϕ::T17          = nothing
+end
+
+"""
+    allocate_compute_w(W, c)
+
+Allocate a `ProjectedMatterDensity` workspace with the same active components
+as `W`, sized for the precomputed `T̃` tensors and with an element type inferred
+from `c`. Reuse the returned workspace with [`compute_w!`](@ref).
+"""
+function allocate_compute_w(W::ProjectedMatterDensity, c::PowerSpectrum)
+    return ProjectedMatterDensity(
+        w_2_00_ϕTT      = allocate_compute_w(W.w_2_00_ϕTT,      c),
+        w_minus2_00_ϕTT = allocate_compute_w(W.w_minus2_00_ϕTT, c),
+        w_0_00_ϕTT      = allocate_compute_w(W.w_0_00_ϕTT,      c),
+        w_0_02_ϕTT      = allocate_compute_w(W.w_0_02_ϕTT,      c),
+        w_0_20_ϕTT      = allocate_compute_w(W.w_0_20_ϕTT,      c),
+        w_2_02_ϕTT      = allocate_compute_w(W.w_2_02_ϕTT,      c),
+        w_2_20_ϕTT      = allocate_compute_w(W.w_2_20_ϕTT,      c),
+        w_2_22_ϕTT      = allocate_compute_w(W.w_2_22_ϕTT,      c),
+        w_2_00_ϕT       = allocate_compute_w(W.w_2_00_ϕT,       c),
+        w_2_00_ϕT_R1    = allocate_compute_w(W.w_2_00_ϕT_R1,    c),
+        w_0_00_ϕT       = allocate_compute_w(W.w_0_00_ϕT,       c),
+        w_0_00_ϕT_R1    = allocate_compute_w(W.w_0_00_ϕT_R1,    c),
+        w_2_02_ϕT       = allocate_compute_w(W.w_2_02_ϕT,       c),
+        w_2_02_ϕT_R1    = allocate_compute_w(W.w_2_02_ϕT_R1,    c),
+        w_2_20_ϕT       = allocate_compute_w(W.w_2_20_ϕT,       c),
+        w_2_20_ϕT_R1    = allocate_compute_w(W.w_2_20_ϕT_R1,    c),
+        w_2_00_ϕ        = allocate_compute_w(W.w_2_00_ϕ,        c),
+    )
 end
 
 """
@@ -183,4 +310,84 @@ function compute_w(W::ProjectedMatterDensity, c::PowerSpectrum)
         w_2_20_ϕT_R1    = compute_w(W.w_2_20_ϕT_R1,    c),
         w_2_00_ϕ        = compute_w(W.w_2_00_ϕ,        c),
     )
+end
+
+_compute_w_single_inplace!(::Nothing, c) = nothing
+function _compute_w_single_inplace!(component, c)
+    _w_single_inplace!(component.w, c, component.T̃)
+    return nothing
+end
+
+"""
+    compute_w!(workspace, c)
+
+Overwrite a preallocated projected-matter workspace. Components sharing a
+`T̃` tensor are contracted together, reducing the realistic 17 tensor scans to
+eight. Construct `workspace` once with [`allocate_compute_w`](@ref).
+
+The workspace element type must match the coefficient element type. Use the
+functional [`compute_w`](@ref) path when differentiating with ForwardDiff,
+because its output arrays must carry `Dual` values.
+"""
+function compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
+    c_tt = c.cϕTT.coefs
+    c_t = isnothing(c.cϕT) ? nothing : c.cϕT.coefs
+    c_t_r1 = isnothing(c_t) ? nothing : @view(c_t[:, :, end])
+    c_phi = isnothing(c.cϕ) ? nothing : c.cϕ.coefs
+
+    if !isnothing(W.w_2_00_ϕTT) && !isnothing(W.w_2_00_ϕT) &&
+       !isnothing(W.w_2_00_ϕT_R1) && !isnothing(W.w_2_00_ϕ)
+        _w_fused4_inplace!(
+            W.w_2_00_ϕTT.w, W.w_2_00_ϕT.w,
+            W.w_2_00_ϕT_R1.w, W.w_2_00_ϕ.w,
+            c_tt, c_t, c_t_r1, c_phi, W.w_2_00_ϕTT.T̃,
+        )
+    else
+        _compute_w_single_inplace!(W.w_2_00_ϕTT, c_tt)
+        _compute_w_single_inplace!(W.w_2_00_ϕT, c_t)
+        _compute_w_single_inplace!(W.w_2_00_ϕT_R1, c_t_r1)
+        _compute_w_single_inplace!(W.w_2_00_ϕ, c_phi)
+    end
+
+    if !isnothing(W.w_0_00_ϕTT) && !isnothing(W.w_0_00_ϕT) &&
+       !isnothing(W.w_0_00_ϕT_R1)
+        _w_fused3_inplace!(
+            W.w_0_00_ϕTT.w, W.w_0_00_ϕT.w, W.w_0_00_ϕT_R1.w,
+            c_tt, c_t, c_t_r1, W.w_0_00_ϕTT.T̃,
+        )
+    else
+        _compute_w_single_inplace!(W.w_0_00_ϕTT, c_tt)
+        _compute_w_single_inplace!(W.w_0_00_ϕT, c_t)
+        _compute_w_single_inplace!(W.w_0_00_ϕT_R1, c_t_r1)
+    end
+
+    if !isnothing(W.w_2_02_ϕTT) && !isnothing(W.w_2_02_ϕT) &&
+       !isnothing(W.w_2_02_ϕT_R1)
+        _w_fused3_inplace!(
+            W.w_2_02_ϕTT.w, W.w_2_02_ϕT.w, W.w_2_02_ϕT_R1.w,
+            c_tt, c_t, c_t_r1, W.w_2_02_ϕTT.T̃,
+        )
+    else
+        _compute_w_single_inplace!(W.w_2_02_ϕTT, c_tt)
+        _compute_w_single_inplace!(W.w_2_02_ϕT, c_t)
+        _compute_w_single_inplace!(W.w_2_02_ϕT_R1, c_t_r1)
+    end
+
+    if !isnothing(W.w_2_20_ϕTT) && !isnothing(W.w_2_20_ϕT) &&
+       !isnothing(W.w_2_20_ϕT_R1)
+        _w_fused3_inplace!(
+            W.w_2_20_ϕTT.w, W.w_2_20_ϕT.w, W.w_2_20_ϕT_R1.w,
+            c_tt, c_t, c_t_r1, W.w_2_20_ϕTT.T̃,
+        )
+    else
+        _compute_w_single_inplace!(W.w_2_20_ϕTT, c_tt)
+        _compute_w_single_inplace!(W.w_2_20_ϕT, c_t)
+        _compute_w_single_inplace!(W.w_2_20_ϕT_R1, c_t_r1)
+    end
+
+    _compute_w_single_inplace!(W.w_minus2_00_ϕTT, c_tt)
+    _compute_w_single_inplace!(W.w_0_02_ϕTT, c_tt)
+    _compute_w_single_inplace!(W.w_0_20_ϕTT, c_tt)
+    _compute_w_single_inplace!(W.w_2_22_ϕTT, c_tt)
+    return W
 end

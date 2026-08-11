@@ -92,6 +92,66 @@ const pmj20_ref  = rand(nℓ, nχ, nR)
         check_gradient(f, c0; rtol_ad=1e-8, rtol_fd=1e-5, skip_forward=true)
     end
 
+    @testset "fused in-place w contraction preserves Mooncake gradients" begin
+        c_tt0 = rand(nC, nχ, nR)
+        c_t0 = rand(nC, nχ, nR)
+        c_phi0 = rand(nC)
+
+        function reference_objective(x)
+            c_t = x[2] .* c_t0
+            coefficients = (
+                x[1] .* c_tt0,
+                c_t,
+                @view(c_t[:, :, end]),
+                x[3] .* c_phi0,
+            )
+            outputs = ntuple(_ -> zeros(eltype(x), nℓ, nχ, nR), 4)
+            for index in eachindex(outputs)
+                coefficient = coefficients[index]
+                output = outputs[index]
+                for k in axes(T_ref3, 3), l in axes(T_ref3, 4),
+                    j in axes(T_ref3, 2), i in axes(T_ref3, 1)
+                    c_value = if ndims(coefficient) == 3
+                        coefficient[l, j, k]
+                    elseif ndims(coefficient) == 2
+                        coefficient[l, j]
+                    else
+                        coefficient[l]
+                    end
+                    output[i, j, k] += c_value * T_ref3[i, j, k, l]
+                end
+            end
+            return sum(sum(abs2, output) for output in outputs)
+        end
+
+        workspace = ntuple(_ -> rand(nℓ, nχ, nR), 4)
+        workspace_before = map(copy, workspace)
+        inplace_objective = let workspace=workspace
+            x -> begin
+                c_t = x[2] .* c_t0
+                Blast._w_fused4_inplace!(
+                    workspace...,
+                    x[1] .* c_tt0,
+                    c_t,
+                    @view(c_t[:, :, end]),
+                    x[3] .* c_phi0,
+                    T_ref3,
+                )
+                return sum(sum(abs2, output) for output in workspace)
+            end
+        end
+
+        x0 = [1.1, 0.9, 1.05]
+        forward_gradient = ForwardDiff.gradient(reference_objective, x0)
+        mooncake_gradient = DifferentiationInterface.gradient(
+            inplace_objective, AutoMooncake(), x0,
+        )
+        @test mooncake_gradient ≈ forward_gradient rtol=1e-10 atol=1e-10
+        for (actual, expected) in zip(workspace, workspace_before)
+            @test actual == expected
+        end
+    end
+
     # ======================================================================
     # 2. _combine_kernels_tullio(W_A, W_B)
     #    K[i,j,c,r] = W_A_r1[i,c]*W_B[j,c,r] + W_A[i,c,r]*W_B_r1[j,c]
