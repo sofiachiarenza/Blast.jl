@@ -1,0 +1,16 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Blast = "aee4e916-1e40-4aff-8d35-b84b50e5d5e3"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+NPZ = "15e1cf62-19b3-5cfa-8e77-841668bca605"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[compat]
+BenchmarkTools = "1"
+DifferentiationInterface = "0.7"
+ForwardDiff = "1"
+Mooncake = "0.5"
+NPZ = "0.4"

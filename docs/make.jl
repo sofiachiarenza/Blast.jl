@@ -23,5 +23,5 @@ makedocs(
 
 deploydocs(
     repo = "github.com/sofiachiarenza/Blast.jl.git",
-    devbranch = "rsd"
+    devbranch = "main"
 )

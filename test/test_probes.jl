@@ -5,14 +5,52 @@ using DataInterpolations
 using QuadGK
 using Statistics
 
+@testset "Functional probe preparation" begin
+    cosmo_a = get_test_cosmo()
+    cosmo_b = get_test_cosmo(h=0.71, ωc=0.13, w0=-0.9)
+    bg_a = Background(cosmo_a)
+    bg_b = Background(cosmo_b)
+    z = collect(LinRange(0.0, 3.6, 80))
+    nz = reshape((@. z^2 * exp(-(z / 0.65)^1.5)), 1, :)
+    raw = GalaxyClustering(δ=NumberCounts(
+        nz=nz,
+        z=z,
+        bias=ones(1, length(bg_a.z)),
+    ))
+
+    prepared_a1 = prepare_probe(raw, bg_a)
+    prepared_b = prepare_probe(raw, bg_b)
+    prepared_a2 = prepare_probe(raw, bg_a)
+
+    # Raw specification remains untouched and reusable.
+    @test size(raw.δ.nz_norm) == (1, 1)
+    @test size(raw.δ.Kernel) == (1, 1)
+    @test prepared_a1 !== raw
+    @test prepared_a1.δ !== raw.δ
+
+    # A → B → A is deterministic, while equal grid lengths do not hide the
+    # changed z(χ) interpolation.
+    @test prepared_a1.δ.nz_norm ≈ prepared_a2.δ.nz_norm rtol=1e-13
+    @test prepared_a1.δ.Kernel ≈ prepared_a2.δ.Kernel rtol=1e-13
+    @test !isapprox(prepared_a1.δ.nz_norm, prepared_b.δ.nz_norm; rtol=1e-3)
+
+    # The compatibility mutating API must also recompute rather than using the
+    # old shape-only cache.
+    mutable_probe = deepcopy(raw)
+    evaluate_components!(mutable_probe, bg_a)
+    nz_a = copy(mutable_probe.δ.nz_norm)
+    evaluate_components!(mutable_probe, bg_b)
+    @test !isapprox(nz_a, mutable_probe.δ.nz_norm; rtol=1e-3)
+    evaluate_components!(mutable_probe, bg_a)
+    @test mutable_probe.δ.nz_norm ≈ nz_a rtol=1e-13
+end
+
 function _compute_kernel_safe!(component::Blast.CosmicShear, bg::Blast.Background)
     Blast.check_and_normalize!(component, bg.z)
     n_bins = size(component.nz_norm, 1)
     kernel = zeros(n_bins, length(bg.z))
 
-    H0 = Blast.get_H0(bg.cosmo)
-    Ωm = Blast.get_Ωm(bg.cosmo)
-    prefac = 1.5 * H0^2 * Ωm / Blast.C_LIGHT^2
+    prefac = 1.5 * Blast.H_0_CONV^2 * Blast.ω_m0(bg.cosmo) / Blast.C_LIGHT^2
 
     for b in 1:n_bins
         nz_vals = component.nz_norm[b, :]
@@ -34,9 +72,7 @@ function _compute_kernel_safe!(component::Blast.MagnificationBias, bg::Blast.Bac
     n_bins = size(component.nz_norm, 1)
     kernel = zeros(n_bins, length(bg.z))
 
-    H0 = Blast.get_H0(bg.cosmo)
-    Ωm = Blast.get_Ωm(bg.cosmo)
-    prefac = 1.5 * H0^2 * Ωm / Blast.C_LIGHT^2
+    prefac = 1.5 * Blast.H_0_CONV^2 * Blast.ω_m0(bg.cosmo) / Blast.C_LIGHT^2
 
     for b in 1:n_bins
         nz_vals = component.nz_norm[b, :]
@@ -220,8 +256,8 @@ end
     ia_nla = Blast.IntrinsicAlignment(nz=copy(nz), z=copy(z), A=A, C1=C1)
     Blast.compute_kernel!(ia_nla, bg)
 
-    Ωm = Blast.get_Ωm(bg.cosmo)
-    nla_vals = @. -A * C1 * Ωm / bg.D
+    Ωm = Blast.ω_m0(bg.cosmo) / bg.cosmo.h^2
+    nla_vals = @. -A * C1 * Ωm / bg.D_norm
     expected_ia_nla = @. nla_vals' * (bg.H' / Blast.C_LIGHT) * ia_nla.nz_norm
     @test ia_nla.Kernel ≈ expected_ia_nla
 
@@ -230,9 +266,8 @@ end
     isw = Blast.IntegratedSachsWolfe()
     Blast.compute_kernel!(isw, bg)
 
-    H0 = Blast.get_H0(bg.cosmo)
     T_CMB = 2.726
-    prefac = 3 * T_CMB * H0^2 * Ωm / Blast.C_LIGHT^3
+    prefac = 3 * T_CMB * Blast.H_0_CONV^2 * Blast.ω_m0(bg.cosmo) / Blast.C_LIGHT^3
     expected_isw = reshape(@.(prefac * bg.H * (1 - bg.f)), 1, n_bg)
     @test isw.Kernel ≈ expected_isw
     @test size(isw.Kernel) == (1, n_bg)

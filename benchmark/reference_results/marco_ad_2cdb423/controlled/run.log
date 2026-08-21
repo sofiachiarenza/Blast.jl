@@ -1,0 +1,16 @@
+julia_version=1.12.6
+blast_version=0.1.0
+blast_source=/home/marcobonici/Desktop/work/CosmologicalEmulators/blast_play/Blast.jl/.letta/worktrees/fix-marco-ad/src/Blast.jl
+julia_threads=8
+fftw_threads=8
+cpu_model=13th Gen Intel(R) Core(TM) i7-13700H
+background min_ms=0.359008 median_ms=0.39761599999999997 p95_ms=0.45201075 memory_mib=0.45418548583984375 allocations=10884
+prepare_components min_ms=0.096868 median_ms=0.10119449999999999 p95_ms=0.12663470000000002 memory_mib=0.20101165771484375 allocations=646
+setup min_ms=13.589399 median_ms=22.284907 p95_ms=22.62463825 memory_mib=100.7439193725586 allocations=66943
+prepare_pmm min_ms=12.411496 median_ms=21.945500000000003 p95_ms=24.1651758 memory_mib=53.620513916015625 allocations=2284
+compute_w min_ms=93.413471 median_ms=96.06864250000001 p95_ms=98.85920745 memory_mib=24.08673858642578 allocations=1900
+compute_w_reusable min_ms=53.131154 median_ms=57.454798 p95_ms=61.1562671 memory_mib=0.02606201171875 allocations=337
+project_all min_ms=14.115588 median_ms=17.233183500000003 p95_ms=18.954630700000003 memory_mib=17.44263458251953 allocations=8617
+full_cached min_ms=123.867503 median_ms=130.9463755 p95_ms=142.08091775 memory_mib=95.15171813964844 allocations=12826
+full_from_cosmology min_ms=134.945872 median_ms=146.484853 p95_ms=172.72870254999998 memory_mib=196.8130874633789 allocations=91316
+results_directory=/home/marcobonici/Desktop/work/CosmologicalEmulators/blast_play/Blast.jl/.letta/worktrees/fix-marco-ad/benchmark/results/controlled_prechange

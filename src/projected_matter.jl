@@ -249,6 +249,10 @@ end
 Allocate a `ProjectedMatterDensity` workspace with the same active components
 as `W`, sized for the precomputed `T̃` tensors and with an element type inferred
 from `c`. Reuse the returned workspace with [`compute_w!`](@ref).
+
+The returned workspace is mutable and belongs to one inference execution. Do
+not share it between concurrently evaluated chains or tasks; allocate one
+workspace per concurrent execution.
 """
 function allocate_compute_w(W::ProjectedMatterDensity, c::PowerSpectrum)
     return ProjectedMatterDensity(
@@ -328,6 +332,9 @@ eight. Construct `workspace` once with [`allocate_compute_w`](@ref).
 The workspace element type must match the coefficient element type. Use the
 functional [`compute_w`](@ref) path when differentiating with ForwardDiff,
 because its output arrays must carry `Dual` values.
+
+This function mutates `workspace` and is not safe for concurrent calls on the
+same object. Independent tasks/chains must use independent workspaces.
 """
 function compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
     c_tt = c.cϕTT.coefs

@@ -4,22 +4,17 @@ This page documents the current API of `Blast.jl`.
 
 ## Cosmology
 
-### Constructors
+### ACE cosmology and Blast background
 
-```@docs
-Blast.w0waCDM
-```
-
-### Background and derived quantities
+Blast re-exports ACE's `w0waCDMCosmology` type. Its native constructor uses
+the little-ω parameters `ωb`, `ωc`, and `ωk` directly.
 
 ```@docs
 Blast.Background
 Blast.compute_hubble_factor
 Blast.compute_χ
-Blast.get_H0
-Blast.get_Ωm
-Blast.get_Ωb
-Blast.get_Ωc
+Blast.ω_ν0
+Blast.ω_m0
 Blast.get_As
 Blast.get_ns
 ```
@@ -27,9 +22,10 @@ Blast.get_ns
 ## Probes
 
 This section lists the concrete user-facing probe containers and components.
-Internal abstract supertypes are intentionally omitted from the rendered API page.
 
 ```@docs
+Blast.AbstractCosmologicalProbes
+Blast.AbstractComponents
 Blast.GalaxyClustering
 Blast.WeakLensing
 Blast.CMB
@@ -67,6 +63,7 @@ Blast.compute_kernel!(::Blast.CosmicShear, ::Blast.Background)
 Blast.compute_kernel!(::Blast.IntrinsicAlignment, ::Blast.Background)
 Blast.compute_kernel!(::Blast.CMBLensing, ::Blast.Background)
 Blast.compute_kernel!(::Blast.IntegratedSachsWolfe, ::Blast.Background)
+Blast.prepare_probe
 Blast.evaluate_components!
 ```
 
@@ -92,6 +89,8 @@ Blast.transform_to_R_frame
 Blast.ProjectedMatterDensityComponent
 Blast.ProjectedMatterDensity
 Blast.compute_w
+Blast.allocate_compute_w
+Blast.compute_w!
 Blast.w_ell_tullio
 ```
 

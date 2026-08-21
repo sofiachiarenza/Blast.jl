@@ -45,6 +45,14 @@ global data = load_reference_data()
         include("test_cls.jl")
     end
 
+    @testset "Legacy Characterization" begin
+        include("test_legacy_characterization.jl")
+    end
+
+    @testset "Public Input Guardrails" begin
+        include("test_guardrails.jl")
+    end
+
     @testset "3x2pt Type Stability" begin
         include("test_type_stability_3x2.jl")
     end

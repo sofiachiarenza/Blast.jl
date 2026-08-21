@@ -29,14 +29,22 @@ end
 
 @testset "Cosmology: Parameter accessors" begin
     cosmo = get_test_cosmo()
-    @test Blast.get_H0(cosmo) ≈ 100.0 * cosmo.h
-    @test Blast.get_Ωm(cosmo) ≈ (cosmo.ωb + cosmo.ωc) / cosmo.h^2
-    @test Blast.get_Ωb(cosmo) ≈ cosmo.ωb / cosmo.h^2
-    @test Blast.get_Ωc(cosmo) ≈ cosmo.ωc / cosmo.h^2
-    # Ωb + Ωc == Ωm
-    @test Blast.get_Ωb(cosmo) + Blast.get_Ωc(cosmo) ≈ Blast.get_Ωm(cosmo)
+    Ωγ0 = 2.469e-5 / cosmo.h^2
+    expected_ων = cosmo.h^2 * Blast.cosmo_ext._ΩνE2(1.0, Ωγ0, cosmo.mν)
+    @test Blast.ω_ν0(cosmo) ≈ expected_ων
+    @test Blast.ω_m0(cosmo) ≈ cosmo.ωb + cosmo.ωc + expected_ων
     @test Blast.get_ns(cosmo) == cosmo.nₛ
     @test Blast.get_As(cosmo) == exp(cosmo.ln10Aₛ) / 1e10
+end
+
+@testset "Cosmology: neutrino physical-density adapter" begin
+    for mν in (0.0, 0.06, 0.3, [0.01, 0.02, 0.03])
+        cosmo = get_test_cosmo(mν=mν)
+        Ωγ0 = 2.469e-5 / cosmo.h^2
+        expected = cosmo.h^2 * Blast.cosmo_ext._ΩνE2(1.0, Ωγ0, mν)
+        @test Blast.ω_ν0(cosmo) ≈ expected rtol=1e-13
+        @test Blast.ω_m0(cosmo) ≈ cosmo.ωb + cosmo.ωc + expected rtol=1e-13
+    end
 end
 
 @testset "Cosmology: E_z physical reasonableness" begin
@@ -64,4 +72,13 @@ end
     # Test our pre-built interpolators
     @test bg.z_of_χ(target_χ) ≈ target_z rtol=1e-4
     @test Blast.compute_χ(target_z, cosmo) ≈ target_χ rtol=1e-6 # Analytical truth
+end
+
+@testset "Cosmology: exact growth normalization" begin
+    cosmo = get_test_cosmo()
+    bg = get_test_bg(cosmo)
+    D0 = Blast.D_z(0.0, cosmo)
+    @test bg.D_norm ≈ bg.D ./ D0 rtol=5e-13
+    @test bg.D_norm[1] < 1
+    @test bg.D[1] != bg.D_norm[1]
 end

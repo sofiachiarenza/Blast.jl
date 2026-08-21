@@ -61,11 +61,23 @@ function load_reference_data()
 end
 
 """
-    get_test_cosmo()
-Returns a standard (flat ΛCDM, w0=-1, wa=0) cosmology for testing.
+    get_test_cosmo(; kwargs...)
+
+Return the standard ACE little-ω cosmology used throughout the Blast tests.
+Every physical density is explicit; no big-Ω translation layer is involved.
 """
-function get_test_cosmo()
-    return w0waCDM(H0=67.27, Ωm=0.3156, Ωb=0.0492)
+function get_test_cosmo(;
+    ln10Aₛ=log(1.0e10 * 2.12107e-9),
+    nₛ=0.9645,
+    h=0.6727,
+    ωb=0.022264244268,
+    ωc=0.12055273725599998,
+    ωk=0.0,
+    mν=0.06,
+    w0=-1.0,
+    wa=0.0,
+)
+    return w0waCDMCosmology(; ln10Aₛ, nₛ, h, ωb, ωc, ωk, mν, w0, wa)
 end
 
 """

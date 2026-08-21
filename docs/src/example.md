@@ -6,19 +6,13 @@ distortions (RSD), magnification bias, and scale-dependent bias from
 primordial non-Gaussianity (PNG); weak lensing with cosmic shear and
 intrinsic alignment (NLA model).
 
-For a runnable version of this exact example (bundled with its own
-environment, precomputed $\tilde T$ tables, and input data — nothing to set
-up beyond `Pkg.instantiate()`), see the `for_marco/` folder at the root of
-the repository, or the canonical benchmark script at
-`Blast.jl/scripts/compute_3x2pt_current.jl`.
-
 ## Load data
 
 You'll need, for each probe, an $n(z)$ per tomographic bin and (for galaxy
 clustering) a linear bias and magnification-bias slope $s$ per bin — plus
-the matter power spectrum tabulated on Blast's internal grids: `pk` on the
-non-Limber Chebyshev $(z, k)$ grid (`Blast.z_cheb`, `Blast.k_cheb`), and
-`pk_limber_lin`/`pk_limber_nonlin` on the Limber grid (`Blast.z_lin`,
+the total-matter power spectrum tabulated on Blast's internal grids: `pk` on
+the non-Limber $(z, k)$ grid (`Blast.z_lin`, `Blast.k_cheb`), and
+`pk_limber_lin`/`pk_limber_nonlin` on the Limber grid (`Blast.z_cheb`,
 `Blast.k_limber`).
 
 ```julia
@@ -31,15 +25,25 @@ zn   = ...  # shared redshift grid for both n(z) above
 
 ell_list = ...  # multipoles to evaluate the Cℓ's at
 
-pk               = ...  # non-Limber P(k), shape matching (Blast.z_cheb, Blast.k_cheb)
-pk_limber_lin    = ...  # linear P(k), shape matching (Blast.z_lin, Blast.k_limber)
-pk_limber_nonlin = ...  # nonlinear P(k), same grid as above
+pk               = ...  # non-Limber Pmm, shape (Blast.z_lin, Blast.k_cheb)
+pk_limber_lin    = ...  # linear Pmm, shape (Blast.z_cheb, Blast.k_limber)
+pk_limber_nonlin = ...  # nonlinear Pmm, same grid as above
 ```
 
 ## Cosmology and background
 
 ```julia
-cosmo = Blast.w0waCDM()
+cosmo = Blast.w0waCDMCosmology(
+    ln10Aₛ=3.054505771332324,
+    nₛ=0.9645,
+    h=0.6727,
+    ωb=0.022264244268,
+    ωc=0.120552737256,
+    ωk=0.0,
+    mν=0.06,
+    w0=-1.0,
+    wa=0.0,
+)
 bg = Blast.Background(cosmo)
 ```
 
@@ -68,28 +72,21 @@ rsd = Blast.RedshiftSpaceDistortions(nz=nz_g, z=zn, growth_rate=bg.f)
 μ   = Blast.MagnificationBias(nz=nz_g, z=zn, s=s_matrix)
 PNG = Blast.PrimordialNonGaussianity(nz=nz_g, z=zn, bias=bias_matrix, f_NL=f_NL, p=p)
 
-GC = Blast.GalaxyClustering(δ=δ, RSD=rsd, μ=μ, PNG=PNG)
-Blast.evaluate_components!(GC, bg)
+raw_GC = Blast.GalaxyClustering(δ=δ, RSD=rsd, μ=μ, PNG=PNG)
+GC = Blast.prepare_probe(raw_GC, bg)
 ```
 
 ## Weak lensing — all effects on
 
-Cosmic shear $\gamma$ + intrinsic alignment (NLA model,
-$A_{\rm IA}(z) = -A \cdot C_1 \cdot \Omega_m / D(z)$):
+Cosmic shear $\gamma$ + intrinsic alignment using the built-in NLA model,
+$A_{\rm IA}(z) = -A C_1 \Omega_m/[D(z)/D(0)]$:
 
 ```julia
-function nla_A_IA(z, growth_factor, cosmo; A=1.72, C1=0.0134)
-    Ωm = Blast.get_Ωm(cosmo)
-    return @. -A * C1 * Ωm / growth_factor
-end
-
-A_IA_matrix = ones(size(nz_s, 1), length(bg.z)) .* nla_A_IA(bg.z, bg.D, bg.cosmo)'
-
 γ  = Blast.CosmicShear(nz=nz_s, z=zn)
-IA = Blast.IntrinsicAlignment(nz=nz_s, z=zn, A_IA=A_IA_matrix)
+IA = Blast.IntrinsicAlignment(nz=nz_s, z=zn, A=1.72, C1=0.0134)
 
-WL = Blast.WeakLensing(γ=γ, IA=IA)
-Blast.evaluate_components!(WL, bg)
+raw_WL = Blast.WeakLensing(γ=γ, IA=IA)
+WL = Blast.prepare_probe(raw_WL, bg)
 ```
 
 ## Compute the $C_\ell$'s

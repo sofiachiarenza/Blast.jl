@@ -21,16 +21,20 @@ Pkg.add(url="https://github.com/sofiachiarenza/Blast.jl")
 ```julia
 using Blast
 
-cosmo = Blast.w0waCDM()
+cosmo = Blast.w0waCDMCosmology(
+    ln10Aₛ=3.054505771332324, nₛ=0.9645, h=0.6727,
+    ωb=0.022264244268, ωc=0.120552737256, ωk=0.0,
+    mν=0.06, w0=-1.0, wa=0.0,
+)
 bg = Blast.Background(cosmo)
 
 δ  = Blast.NumberCounts(nz=nz_g, z=bg.z, bias=bias)  # your n(z)/bias data
-GC = Blast.GalaxyClustering(δ=δ)
-Blast.evaluate_components!(GC, bg)
+raw_GC = Blast.GalaxyClustering(δ=δ)
+GC = Blast.prepare_probe(raw_GC, bg)
 
 γ  = Blast.CosmicShear(nz=nz_s, z=bg.z)              # your n(z) data
-WL = Blast.WeakLensing(γ=γ)
-Blast.evaluate_components!(WL, bg)
+raw_WL = Blast.WeakLensing(γ=γ)
+WL = Blast.prepare_probe(raw_WL, bg)
 
 W, plans = Blast.SetUp(GC, WL)
 PowerSpectrum = Blast.prepare_pk_workspace(plans, pk, pk_limber_lin, pk_limber_nonlin, bg)

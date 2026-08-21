@@ -32,7 +32,7 @@ Random.seed!(4321)
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared fixtures
 # ─────────────────────────────────────────────────────────────────────────────
-const cosmo_D   = w0waCDM()       # fixed cosmology (flat ΛCDM defaults: w0=-1, wa=0)
+const cosmo_D   = get_test_cosmo() # fixed flat ΛCDM cosmology
 const bg_D      = get_test_bg(cosmo_D)  # full Background (emulator)
 
 # A small k-grid centred well away from k=0 (avoids k^-3 divergence in FD steps)
@@ -69,12 +69,12 @@ const z_grid_D = LinRange(0.05, 1.8,  20)            # evaluation grid
     # ======================================================================
     # 2. get_PΦ(k, cosmo) w.r.t. ns  (spectral index)
     #    ns enters as the exponent of (k/0.05)^(ns-1); derivative is
-    #    P_Φ·log(k/0.05).  Constructing w0waCDM(ns=p[1]) stores nₛ=p[1]
+    #    P_Φ·log(k/0.05). ACE stores nₛ directly.
     #    directly (no log/exp), so all backends including FD are safe.
     # ======================================================================
     @testset "get_PΦ w.r.t. ns" begin
         ns0 = [0.9645]
-        f(p) = sum(Blast.get_PΦ(k_D, w0waCDM(ns=p[1])))
+        f(p) = sum(Blast.get_PΦ(k_D, get_test_cosmo(nₛ=p[1])))
         check_gradient(f, ns0)
     end
 
@@ -90,7 +90,7 @@ const z_grid_D = LinRange(0.05, 1.8,  20)            # evaluation grid
 
     # ======================================================================
     # 4. NLA_model(bg; A) w.r.t. A
-    #    F = -A · C1 · Ωm / bg.D  (element-wise, bg fixed)
+    #    F = -A · C1 · Ωm / bg.D_norm  (element-wise, bg fixed)
     #    Pure product rule — trivially differentiable.
     # ======================================================================
     @testset "NLA_model w.r.t. A" begin

@@ -328,17 +328,9 @@ function get_PΦ(k::AbstractArray{<:Any,1}, cosmo::AbstractCosmology)
     return @. 9/25 * 2 * π^2 * As / (k^3) * (k/0.05)^(ns - 1.)
 end
 
-# Background-dispatched overloads: not a convenience, a type-stability path.
-# The cosmo-only methods above return `::Any` because `w0waCDMCosmology`
-# declares its parameter fields as the abstract `::Number` (upstream, in
-# AbstractCosmologicalEmulators), so `get_As(cosmo)` / `get_ns(cosmo)` come
-# back as `Any` and poison everything downstream (→ `prepare_pk_workspace`
-# → `PowerSpectrum` UnionAll → `f_full` inferred as `Any`).
-#
-# Routing through `Background{T}` uses the typed `get_As(bg)` / `get_ns(bg)`
-# from cosmo.jl, whose `convert(T, …)::T` pins the return at the concrete
-# eltype `T`. Fixing it at the `w0waCDMCosmology` layer is an upstream
-# change and is deliberately not attempted here.
+# Background-dispatched overloads keep the primordial scalar type aligned with
+# the prepared background. ACE 0.11 already parameterizes cosmology fields
+# concretely; this dispatch remains useful when T is a ForwardDiff scalar.
 function get_PΦ(k::AbstractArray{<:Any,1}, bg::Background{T}) where {T}
     As = get_As(bg)
     ns = get_ns(bg)
@@ -391,8 +383,19 @@ end
                          pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, 
                          pk_limber_nonlin::AbstractArray{<:Any, 2}, 
                          bg::Background)
+
+Prepare total-matter `Pmm` for the complete Blast pipeline. `pk` must have
+shape `(length(Blast.z_lin), length(Blast.k_cheb))`; both Limber arrays must
+have shape `(length(Blast.z_cheb), length(Blast.k_limber))`. All values must be
+finite and strictly positive. Only a Background on the exact production
+`Blast.χ` grid is supported.
 """
 function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limber_lin::AbstractArray{<:Any, 2}, pk_limber_nonlin::AbstractArray{<:Any, 2}, bg::Background)
+    _require_production_background(bg)
+    _validate_pmm("pk", pk, (length(Blast.z_lin), length(Blast.k_cheb)))
+    limber_shape = (length(Blast.z_cheb), length(Blast.k_limber))
+    _validate_pmm("pk_limber_lin", pk_limber_lin, limber_shape)
+    _validate_pmm("pk_limber_nonlin", pk_limber_nonlin, limber_shape)
     #Treating the non-limber power spectrum
     P_ϕ = get_PΦ(10 .^ Blast.k_cheb, bg)
     transfer_func = get_Tm(pk, 10 .^ Blast.k_cheb, bg)
@@ -431,6 +434,15 @@ function prepare_pk_workspace(P::FFTPlans, pk::AbstractArray{<:Any, 2}, pk_limbe
     Pδ_limber = P_nonlin_grid
 
     return PowerSpectrum(c1, c2, c3, ΔP_limber, Pδ_limber)
+end
+
+function _validate_pmm(name, pk::AbstractMatrix, expected_size)
+    size(pk) == expected_size || throw(DimensionMismatch(
+        "$name must have size $expected_size on Blast's production grids; got $(size(pk))"))
+    all(isfinite, pk) || throw(ArgumentError("$name must contain only finite total-matter Pmm values"))
+    all(x -> x > zero(x), pk) || throw(DomainError(
+        minimum(pk), "$name must contain strictly positive total-matter Pmm values before square roots/logs"))
+    return nothing
 end
 
 # ----------------------------------------------------------------------------

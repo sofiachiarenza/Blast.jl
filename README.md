@@ -25,7 +25,17 @@ After installing it, you can start instantiating the objects needed to compute t
 ```julia
 using Blast
 
-cosmo = Blast.w0waCDM()
+cosmo = Blast.w0waCDMCosmology(
+    ln10Aₛ=3.054505771332324,
+    nₛ=0.9645,
+    h=0.6727,
+    ωb=0.022264244268,
+    ωc=0.120552737256,
+    ωk=0.0,
+    mν=0.06,
+    w0=-1.0,
+    wa=0.0,
+)
 bg = Blast.Background(cosmo)
 ```
 
@@ -39,12 +49,12 @@ nz_s = rand(n_bins_s, length(bg.z))   # Example n(z), replace with actual data
 bias = ones(n_bins_g, length(bg.z))   # Example linear bias, replace with actual model
 
 δ = Blast.NumberCounts(nz=nz_g, z=bg.z, bias=bias)
-GC = Blast.GalaxyClustering(δ=δ)
-Blast.evaluate_components!(GC, bg)
+raw_GC = Blast.GalaxyClustering(δ=δ)
+GC = Blast.prepare_probe(raw_GC, bg)
 
 γ = Blast.CosmicShear(nz=nz_s, z=bg.z)
-WL = Blast.WeakLensing(γ=γ)
-Blast.evaluate_components!(WL, bg)
+raw_WL = Blast.WeakLensing(γ=γ)
+WL = Blast.prepare_probe(raw_WL, bg)
 ```
 
 Set up the FFT plans/workspace (once, given the probe configuration), then
@@ -73,14 +83,12 @@ Cℓ_GS = Blast.get_Cℓ(ell, GC, WL, PowerSpectrum, W, bg, plans)  # (n_ell, n_
 
 This example only switches on the basic density and cosmic-shear components.
 See [`docs/src/example.md`](docs/src/example.md) (or the built docs) for a
-complete, runnable 6x2pt example with every effect switched on (redshift-space
-distortions, magnification bias, primordial non-Gaussianity, intrinsic
-alignment), or [`for_marco/`](for_marco/) for a fully self-contained,
-runnable notebook version of it.
+complete 6x2pt example with every effect switched on (redshift-space
+distortions, magnification bias, primordial non-Gaussianity, and intrinsic
+alignment).
 
 ## Citing 
 
 If you use `Blast.jl` in your research, please cite:
 
 S. Chiarenza, M. Bonici, W. Percival, M. White [_BLAST: Beyond Limber Angular power Spectra Toolkit. A fast and efficient algorithm for 3x2pt analysis_](https://arxiv.org/abs/2410.03632)
-

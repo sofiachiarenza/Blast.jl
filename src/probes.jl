@@ -40,6 +40,8 @@ same data is ~10 µs / ~1 KiB.
 """
 function _trapezoidal_norms(nz::AbstractMatrix, z::AbstractVector)
     n_bins, n_zpts = size(nz)
+    n_zpts == length(z) || throw(DimensionMismatch(
+        "size(nz, 2) must equal length(z); got $n_zpts and $(length(z))"))
     T = promote_type(eltype(nz), eltype(z))
     if n_zpts < 2
         # Degenerate default-constructor case: return zeros so `zeros(T, n_bins)`
@@ -47,6 +49,10 @@ function _trapezoidal_norms(nz::AbstractMatrix, z::AbstractVector)
         # ≥2 knots and take the loop below.
         return zeros(T, n_bins)
     end
+    all(isfinite, z) || throw(ArgumentError("source redshift coordinates must be finite"))
+    all(isfinite, nz) || throw(ArgumentError("source distributions must be finite"))
+    all(i -> z[i + 1] > z[i], 1:n_zpts-1) || throw(ArgumentError(
+        "source redshift coordinates must be strictly increasing"))
     norms = Vector{T}(undef, n_bins)
     @inbounds for b in 1:n_bins
         s = zero(T)
@@ -55,6 +61,9 @@ function _trapezoidal_norms(nz::AbstractMatrix, z::AbstractVector)
         end
         norms[b] = s
     end
+    all(isfinite, norms) || throw(ArgumentError("source-distribution normalizations must be finite"))
+    all(>(zero(T)), norms) || throw(ArgumentError(
+        "every source-distribution bin must have positive normalization"))
     return norms
 end
 
@@ -138,15 +147,14 @@ has_nz(::Nothing) = false
 """
     check_and_normalize!(Component, grid_z)
 
-Internal helper: ensures nz_norm is populated for the current calculation grid.
-Uses the `has_nz` trait to avoid `hasfield` runtime overhead.
+Internal helper: recompute `nz_norm` on the current calculation grid. Grid shape
+is not a valid cache key because two cosmologies have different `z(χ)` values
+at the same number of χ nodes.
 """
 function check_and_normalize!(Component::AbstractComponents, z_grid::AbstractVector)
     if has_nz(Component)
-        if size(Component.nz_norm) != (size(Component.nz, 1), length(z_grid))
-            Component.nz_norm = prepare_nz_matrix(Component.nz, Component.z,
-                                                  z_grid, Component.nz_norms)
-        end
+        Component.nz_norm = prepare_nz_matrix(Component.nz, Component.z,
+                                              z_grid, Component.nz_norms)
     end
 end
 
@@ -161,9 +169,8 @@ Computes the Non-Linear Alignment (NLA) model for intrinsic alignments.
 Returns an array evaluated on the Background grid.
 """
 function NLA_model(bg::Background; A=1.72, C1=0.0134)
-    Ωm = get_Ωm(bg)
-    D_today = bg.D[1]  # bg.D[1] is D at z≈0 (ODE convention: D(z=0) ≈ 0.77, not 1)
-    return @. - A * C1 * Ωm / (bg.D / D_today)
+    Ωm = _Ω_m0(bg)
+    return @. -A * C1 * Ωm / bg.D_norm
 end
 
 @doc raw"""
@@ -589,8 +596,11 @@ Compute the galaxy number-counts kernel on the background redshift grid:
 K_i^{\delta}(z) = \frac{H(z)}{c}\, b_i(z)\, \hat n_i(z).
 ```
 """
-function compute_kernel!(Component::NumberCounts, bg::Background) 
+function compute_kernel!(Component::NumberCounts, bg::Background)
     check_and_normalize!(Component, bg.z)
+    size(Component.bias) == size(Component.nz_norm) || throw(DimensionMismatch(
+        "NumberCounts.bias must have size $(size(Component.nz_norm)); got $(size(Component.bias)). " *
+        "Bias values are defined on the production background grid."))
     Component.Kernel = _number_counts_kernel(Component.bias, bg.H, Component.nz_norm)
 end
 
@@ -623,9 +633,7 @@ K_i^{\gamma}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 function compute_kernel!(Component::CosmicShear, bg::Background)
     check_and_normalize!(Component, bg.z)
 
-    H0 = get_H0(bg)
-    Ωm = get_Ωm(bg)
-    prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
+    prefac = 1.5 * H_0_CONV^2 * ω_m0(bg) / C_LIGHT^2
 
     simpson_matrix = simpson_weights_matrix(length(bg.z))
     Δχ = (bg.χ[end] - bg.χ[1]) / (length(bg.χ) - 1)
@@ -668,9 +676,7 @@ K^{\kappa_{\mathrm{CMB}}}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 ```
 """
 function compute_kernel!(Component::CMBLensing, bg::Background) 
-    H0 = get_H0(bg)
-    Ωm = get_Ωm(bg)
-    prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
+    prefac = 1.5 * H_0_CONV^2 * ω_m0(bg) / C_LIGHT^2
 
     χ_CMB = compute_χ(1090, bg.cosmo, order=120)
     Component.Kernel = _cmb_lensing_kernel(bg.χ, bg.z, χ_CMB, prefac)
@@ -732,10 +738,11 @@ K_i^{\mu}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
 """
 function compute_kernel!(Component::MagnificationBias, bg::Background)
     check_and_normalize!(Component, bg.z)
+    size(Component.s) == size(Component.nz_norm) || throw(DimensionMismatch(
+        "MagnificationBias.s must have size $(size(Component.nz_norm)); got $(size(Component.s)). " *
+        "Slope values are defined on the production background grid."))
 
-    H0 = get_H0(bg)
-    Ωm = get_Ωm(bg)
-    prefac = 1.5 * H0^2 * Ωm / C_LIGHT^2
+    prefac = 1.5 * H_0_CONV^2 * ω_m0(bg) / C_LIGHT^2
 
     simpson_matrix = simpson_weights_matrix(length(bg.z))
     Δχ = (bg.χ[end] - bg.χ[1]) / (length(bg.χ) - 1)
@@ -782,14 +789,19 @@ function compute_kernel!(Component::IntrinsicAlignment, bg::Background)
     # Dispatch: user-supplied A_IA matrix (shape matches nz_norm × bg.z) vs
     # NLA-model branch. The NLA branch composes A_IA construction and the
     # kernel multiplication into one pure function so AD can flow wrt
-    # (A, C1, Ωm, bg.D, bg.H, nz_norm) without mutating Component.A_IA.
-    user_A_IA = size(Component.A_IA) == (size(Component.nz_norm, 1), length(bg.z))
+    # (A, C1, Ωm, bg.D_norm, bg.H, nz_norm) without mutating Component.A_IA.
+    expected_shape = (size(Component.nz_norm, 1), length(bg.z))
+    user_A_IA = size(Component.A_IA) == expected_shape
+    nla_requested = size(Component.A_IA) == (1, 1)
+    (user_A_IA || nla_requested) || throw(DimensionMismatch(
+        "IntrinsicAlignment.A_IA must have size $expected_shape, or retain its " *
+        "1×1 default to request the NLA model; got $(size(Component.A_IA))"))
 
     if user_A_IA
         Component.Kernel = _ia_kernel(Component.A_IA, bg.H, Component.nz_norm)
     else
         Component.Kernel = _ia_kernel_nla(Component.A, Component.C1,
-                                          get_Ωm(bg), bg.D,
+                                          _Ω_m0(bg), bg.D_norm,
                                           bg.H, Component.nz_norm)
     end
 end
@@ -809,7 +821,7 @@ end
 # ----------------------------------------------------------------------------
 # IntrinsicAlignment kernel with inlined NLA amplitude model.
 #
-#   A_NLA(z) = -A · C1 · Ωm / D(z)                     (vector, length n_z)
+#   A_NLA(z) = -A · C1 · Ωm / D_norm(z)                (vector, length n_z)
 #   K[b, i]  = A_NLA[i] · H[i] / c · nz_norm[b, i]
 #
 # Composes NLA_model's math and _ia_kernel into a single pure function so
@@ -821,10 +833,9 @@ end
 # the same result with one fewer allocation.
 # ----------------------------------------------------------------------------
 function _ia_kernel_nla(A::Number, C1::Number, Ωm::Number,
-                        D::AbstractVector, H::AbstractVector,
+                        D_norm::AbstractVector, H::AbstractVector,
                         nz_norm::AbstractMatrix)
-    D_today = D[1]  # D[1] is D at z≈0; normalize so D/D_today→1 at z=0
-    nla_vals = @. -A * C1 * Ωm / (D / D_today)   # vector, length n_z
+    nla_vals = @. -A * C1 * Ωm / D_norm
     return @. nla_vals' * (H' / C_LIGHT) * nz_norm
 end
 
@@ -838,10 +849,8 @@ K^{\mathrm{ISW}}(z) = \frac{3 T_{\mathrm{CMB}} H_0^2 \Omega_m}{c^3}\, H(z)\, \le
 ```
 """
 function compute_kernel!(Component::IntegratedSachsWolfe, bg::Background) 
-    H0 = get_H0(bg)
-    Ωm = get_Ωm(bg)
     T_CMB = 2.726
-    prefac = 3T_CMB * H0^2 * Ωm / C_LIGHT^3
+    prefac = 3T_CMB * H_0_CONV^2 * ω_m0(bg) / C_LIGHT^3
     Component.Kernel = _isw_kernel(bg.H, bg.f, prefac)
 end
 
@@ -870,6 +879,9 @@ b_{\Phi,i}(z) = 2\,\delta_c\,\left[b_i(z)-p\right].
 """
 function compute_kernel!(Component::PrimordialNonGaussianity, bg::Background) 
     check_and_normalize!(Component, bg.z)
+    size(Component.bias) == size(Component.nz_norm) || throw(DimensionMismatch(
+        "PrimordialNonGaussianity.bias must have size $(size(Component.nz_norm)); " *
+        "got $(size(Component.bias)). Bias values are defined on the production background grid."))
     Component.Kernel = _png_kernel(bg.H, Component.f_NL, Component.bias,
                                     Component.p, Component.nz_norm)
 end
@@ -982,6 +994,57 @@ for (_struct, _fields) in _PROMOTE_COMPONENTS
         W == T && return C
         $_struct{W}($(_args...))
     end
+    @eval function _copy_promote_eltype(C::$_struct{T}, ::Type{U}) where {T, U}
+        W = promote_type(T, U)
+        $_struct{W}($(_args...))
+    end
+end
+
+_copy_promote_eltype(::Nothing, ::Type) = nothing
+
+_require_inplace_eltype(::Nothing, ::Type) = nothing
+function _require_inplace_eltype(component::AbstractComponents, ::Type{U}) where {U}
+    T = eltype(component.Kernel)
+    promote_type(T, U) == T || throw(ArgumentError(
+        "evaluate_components! cannot widen $(typeof(component)) from $T to $U in place; " *
+        "use prepare_probe(raw_probe, background)"))
+    return nothing
+end
+
+"""
+    prepare_probe(probe, bg)
+
+Return a newly typed probe whose normalized source distributions and physical
+kernels have been evaluated for `bg`. The input probe is treated as a reusable
+raw specification and is not mutated. Preparation is deliberately recomputed
+for every background: equal grid lengths do not imply equal `z(χ)` grids.
+"""
+function prepare_probe(GC::GalaxyClustering, bg::Background{U}) where {U}
+    δ = _copy_promote_eltype(GC.δ, U)
+    RSD = _copy_promote_eltype(GC.RSD, U)
+    μ = _copy_promote_eltype(GC.μ, U)
+    PNG = _copy_promote_eltype(GC.PNG, U)
+    compute_kernel!(δ, bg)
+    compute_kernel!(RSD, bg)
+    compute_kernel!(μ, bg)
+    compute_kernel!(PNG, bg)
+    return GalaxyClustering(; δ, RSD, μ, PNG)
+end
+
+function prepare_probe(WL::WeakLensing, bg::Background{U}) where {U}
+    γ = _copy_promote_eltype(WL.γ, U)
+    IA = _copy_promote_eltype(WL.IA, U)
+    compute_kernel!(γ, bg)
+    compute_kernel!(IA, bg)
+    return WeakLensing(; γ, IA)
+end
+
+function prepare_probe(cmb::CMB, bg::Background{U}) where {U}
+    κ = _copy_promote_eltype(cmb.κ, U)
+    ISW = _copy_promote_eltype(cmb.ISW, U)
+    compute_kernel!(κ, bg)
+    compute_kernel!(ISW, bg)
+    return CMB(; κ, ISW)
 end
 
 @doc raw"""
@@ -993,8 +1056,16 @@ switched on, i.e. not `nothing`) against the background `bg`: promotes each
 component's element type to match `bg`'s (so downstream automatic
 differentiation traces through the right number type), then computes its
 kernel in place via `compute_kernel!`. Mutates `GC`.
+
+This compatibility path cannot change the concrete component types stored in
+an existing probe. Use [`prepare_probe`](@ref) when differentiating through the
+background or reusing one raw specification across cosmologies.
 """
 function evaluate_components!(GC::GalaxyClustering, bg::Background{U}) where {U}
+    _require_inplace_eltype(GC.δ, U)
+    _require_inplace_eltype(GC.RSD, U)
+    _require_inplace_eltype(GC.μ, U)
+    _require_inplace_eltype(GC.PNG, U)
     GC.δ   = _promote_eltype(GC.δ, U)
     GC.RSD = _promote_eltype(GC.RSD, U)
     GC.μ   = _promote_eltype(GC.μ, U)
@@ -1013,6 +1084,8 @@ Evaluate every component of `WL` (cosmic shear `γ`, and intrinsic alignment
 `evaluate_components!(::GalaxyClustering, ::Background)`. Mutates `WL`.
 """
 function evaluate_components!(WL::WeakLensing, bg::Background{U}) where {U}
+    _require_inplace_eltype(WL.γ, U)
+    _require_inplace_eltype(WL.IA, U)
     WL.γ  = _promote_eltype(WL.γ,  U)
     WL.IA = _promote_eltype(WL.IA, U)
     compute_kernel!(WL.γ, bg)
@@ -1028,6 +1101,8 @@ analogous to `evaluate_components!(::GalaxyClustering, ::Background)`.
 Mutates `cmb`.
 """
 function evaluate_components!(cmb::CMB, bg::Background{U}) where {U}
+    _require_inplace_eltype(cmb.κ, U)
+    _require_inplace_eltype(cmb.ISW, U)
     cmb.κ   = _promote_eltype(cmb.κ,   U)
     cmb.ISW = _promote_eltype(cmb.ISW, U)
     compute_kernel!(cmb.κ, bg)

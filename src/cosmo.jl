@@ -9,7 +9,8 @@ Always targets the global Blast.χ grid to ensure consistent LOS integration.
 - `z::Vector{T}`: Redshifts corresponding to the global χ grid.
 - `χ::Vector{T}`: The global comoving distance grid (matches Blast.χ).
 - `H::Vector{T}`: Hubble parameter H(z).
-- `D::Vector{T}`: Growth factor D(z).
+- `D::Vector{T}`: Raw ACE growth factor D(z).
+- `D_norm::Vector{T}`: Growth factor normalized by the exact ACE value D(0).
 - `f::Vector{T}`: Growth rate f(z).
 - `z_of_χ`: Pre-built Akima interpolator closure for z(χ).
 
@@ -24,6 +25,7 @@ struct Background{T, F, C<:AbstractCosmology}
     χ::Vector{T}
     H::Vector{T}
     D::Vector{T}
+    D_norm::Vector{T}
     f::Vector{T}
     z_of_χ::F
 end
@@ -47,16 +49,20 @@ Construct a Background snapshot by finding the redshifts corresponding to a
 target χ grid.
 
 The **typed form** `Background{T}(cosmo)` pins the element type `T` at the
-call site and produces a fully-inferred `Background{T, F, C}`. Use it when
-downstream code (e.g. `f_full`) is sensitive to type stability — the
-upstream `w0waCDMCosmology` declares its parameter fields as `::Number`,
-so the untyped form below cannot be inferred to a concrete `T`.
+call site and produces a fully-inferred `Background{T, F, C}`. ACE 0.11
+parameterizes its cosmology fields concretely, but the typed form remains useful
+for explicit control in inference-sensitive call sites.
 
 The **untyped form** `Background(cosmo)` auto-detects `T` at runtime from
-the computed arrays (needed for the ForwardDiff/Mooncake paths where
-`cosmo` carries `Dual` parameters). It runs identically to the typed form
-but its return type is `Background` UnionAll at the caller, which will
-cascade runtime dispatch downstream.
+the computed arrays. This is the normal public path and is required when a
+cosmology carries ForwardDiff `Dual` parameters. With ACE 0.11's concretely
+parameterized cosmology, ordinary Float64 calls remain fully inferred.
+
+The complete power-spectrum pipeline currently accepts only the default
+production `Blast.χ` grid. A custom `χ_grid` may be used for isolated
+background and kernel calculations, but `prepare_pk_workspace` and `get_Cℓ`
+reject it because their plans, integration weights, and artifacts are fixed to
+the production grid.
 """
 function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     issorted(χ_grid) || throw(ArgumentError(
@@ -80,14 +86,8 @@ end
 """
     _build_background(::Type{T}, cosmo::C, χ_grid_vec::Vector{V}) where {T, C, V}
 
-Function barrier that actually constructs the Background, specialized on
-the concrete `T`, `C`, and `V`. The explicit `C` / `V` type parameters are
-load-bearing: Julia's default specialization heuristic skips specializing
-on a slot whose declared type is an abstract supertype like
-`::AbstractCosmology`, which would leave inference with
-`typeof(cosmo)::w0waCDMCosmology` (the UnionAll — abstract!) instead of
-`typeof(cosmo)::w0waCDMCosmology{Float64}`. Capturing `C` in the where
-clause forces specialization on the concrete cosmology type.
+Function barrier that actually constructs the Background, specialized on the
+concrete scalar, cosmology, and grid types.
 """
 function _build_background(::Type{T}, cosmo::C,
                            χ_grid_vec::Vector{V}) where {T, C<:AbstractCosmology, V}
@@ -98,8 +98,8 @@ function _build_background(::Type{T}, cosmo::C,
     # RData{NamedTuple{…}} tangent shape a raw LinRange produces.
     fine_z = collect(LinRange(0.0, Float64(Z_MAX_BACKGROUND), N_BG_FINE_GRID))
 
-    # (1) Invert z ↔ χ on the fine grid. `convert(Vector{T}, …)` re-concretizes
-    # what upstream `r_z(::Float64, ::w0waCDMCosmology)::Any` leaves abstract.
+    # (1) Invert z ↔ χ on the fine grid. Keep the explicit conversion so the
+    # Background element type follows the caller-selected T exactly.
     fine_χ_raw = r_z.(fine_z, Ref(cosmo))
     fine_χ = convert(Vector{T}, fine_χ_raw)
     # Build the closure inside a function barrier: local closures in Julia
@@ -135,6 +135,10 @@ function _build_background(::Type{T}, cosmo::C,
     # akima_interpolation signature is (values, knots, queries); fine_z is the
     # ascending knot grid, D_fine / f_fine are the values to interpolate.
     D_array = convert(Vector{T}, akima_interpolation(D_fine, fine_z, z_nodes))
+    # `fine_z` starts at exactly zero, so this is the ODE's exact D(0), not an
+    # approximation at the first positive Blast χ node. Keep both conventions:
+    # raw D is useful scientifically, while IA needs D(z)/D(0).
+    D_norm_array = D_array ./ D_fine[1]
     f_array = convert(Vector{T}, akima_interpolation(f_fine, fine_z, z_nodes))
 
     return Background{T, typeof(z_of_χ_interp), typeof(cosmo)}(
@@ -143,6 +147,7 @@ function _build_background(::Type{T}, cosmo::C,
         convert(Vector{T}, χ_grid_vec),
         H_array,
         D_array,
+        D_norm_array,
         f_array,
         z_of_χ_interp
     )
@@ -192,85 +197,39 @@ function compute_χ(z::Number, cosmo::AbstractCosmology; order=9)
 end
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Present-day (a=1) massive-neutrino density parameter Ων, needed to turn Ωcb0
-# into the *total* matter density Ωm = Ωcb0 + Ων used by get_Ωm below.
-#
-# mν is fixed at 0.06 eV everywhere in this package (see w0waCDM's hard-coded
-# `mν=0.06` further down) -- it is never a sampled/differentiated parameter --
-# so the Fermi-Dirac phase-space integral below is a genuine constant,
-# evaluated once at load time rather than re-integrated on every get_Ωm call
-# (get_Ωm sits on the Mooncake AD hot path via the get_*(bg::Background)
-# accessors below; see the AD-safety notes on those).
-#
-# Formula matches AbstractCosmologicalEmulators's BackgroundCosmologyExt
-# `_ΩνE2` exactly (same Γν/Tν/kB constants) -- kept in sync manually since
-# that function is an internal, unexported implementation detail of ACE's
-# extension, not part of its public API.
-# ─────────────────────────────────────────────────────────────────────────────
-const _MΝ_FIDUCIAL = 0.06        # eV -- matches w0waCDM's hard-coded mν
-const _KB_EV_PER_K  = 8.617342e-5
-const _TCMB_K       = 2.7255
-const _TNU_K        = 0.71611 * _TCMB_K
-const _NEFF         = 3.044
-const _GAMMA_NU4    = ((4 / 11)^(1 / 3) * (_NEFF / 3)^(1 / 4))^4
+# ACE 0.11 owns the cosmology and neutrino physics. It does not yet expose a
+# public present-day neutrino-density accessor, so this adapter calls the exact
+# implementation used internally by ACE's E(a). Keep this single dependency on
+# the private function isolated here. Once ACE exports the accessor, only this
+# function needs to change.
+"""
+    ω_ν0(cosmo::w0waCDMCosmology)
 
-const _ΩΝ0_FY = let
-    y = _MΝ_FIDUCIAL / (_KB_EV_PER_K * _TNU_K)
-    f(x, y) = x^2 * sqrt(x^2 + y^2) / (1 + exp(x))
-    prob = IntegralProblem(f, (0.0, Inf), y; reltol=1e-12)
-    solve(prob, QuadGKJL())[1]
+Return the present-day physical massive-neutrino density `ω_ν = Ω_ν h²` using
+the exact Fermi-Dirac calculation in registered ACE 0.11.
+"""
+function ω_ν0(cosmo::w0waCDMCosmology)
+    Ωγ0 = 2.469e-5 / cosmo.h^2
+    return cosmo.h^2 * cosmo_ext._ΩνE2(one(cosmo.h), Ωγ0, cosmo.mν)
 end
 
 """
-    _Ων0(h)
+    ω_m0(cosmo::w0waCDMCosmology)
 
-Present-day massive-neutrino density parameter Ων (mν=0.06 eV fixed), as a
-function of `h` only (the rest of the Fermi-Dirac integral is a precomputed
-constant, see `_ΩΝ0_FY` above).
+Return the total present-day physical matter density
+`ω_m = ω_b + ω_c + ω_ν`. Blast consumes total-matter `Pmm`, so this is the
+density entering its Poisson-equation prefactors.
 """
-_Ων0(h) = 15 / π^4 * _GAMMA_NU4 * (2.469e-5 / h^2) * _ΩΝ0_FY
+ω_m0(cosmo::w0waCDMCosmology) = cosmo.ωb + cosmo.ωc + ω_ν0(cosmo)
 
-"""
-    get_Ωm(cosmo::AbstractCosmology)
+ω_ν0(bg::Background) = ω_ν0(bg.cosmo)
+ω_m0(bg::Background) = ω_m0(bg.cosmo)
 
-Returns the total matter density parameter Ωm = Ωcb0 + Ων (baryons + CDM +
-massive neutrinos). This is the physically correct normalization for the
-standard weak-lensing/CMB-lensing/magnification-bias/ISW kernel prefactors
-and the NLA intrinsic-alignment amplitude in probes.jl -- all derived from
-the Poisson equation sourced by the *total* matter overdensity, not Ωcb0
-alone. (Fixed 2026-07-14: previously returned Ωcb0 only, silently omitting
-Ων from every one of those kernels; see blast_chains's CLAUDE.md for the
-diagnostic that confirmed this explains the CCL-mock Om/h0 bias.)
-"""
-function get_Ωm(cosmo::AbstractCosmology)
-    return (cosmo.ωb + cosmo.ωc) / cosmo.h^2 + _Ων0(cosmo.h)
-end
-
-"""
-    get_Ωb(cosmo::AbstractCosmology)
-Returns the baryon density parameter Ωb.
-"""
-function get_Ωb(cosmo::AbstractCosmology)
-    return cosmo.ωb / cosmo.h^2
-end
-
-"""
-    get_Ωc(cosmo::AbstractCosmology)
-Returns the cold dark matter density parameter Ωc.
-"""
-function get_Ωc(cosmo::AbstractCosmology)
-    return cosmo.ωc / cosmo.h^2
-end
-
-
-"""
-    get_H0(cosmo::AbstractCosmology)
-Returns the Hubble constant H0 in km/s/Mpc.
-"""
-function get_H0(cosmo::AbstractCosmology)
-    return H_0_CONV * cosmo.h
-end
+# NLA convention uses dimensionless Ωm rather than the H0²Ωm combination used
+# by lensing and ISW kernels. Keep this derived quantity private: Blast's public
+# cosmological parameter interface is the ACE little-ω interface.
+_Ω_m0(cosmo::w0waCDMCosmology) = ω_m0(cosmo) / cosmo.h^2
+_Ω_m0(bg::Background) = _Ω_m0(bg.cosmo)
 
 """
     get_As(cosmo::AbstractCosmology)
@@ -288,64 +247,8 @@ function get_ns(cosmo::AbstractCosmology)
     return cosmo.nₛ
 end
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Typed accessors dispatched on Background{T}
-#
-# `w0waCDMCosmology` (owned by the AbstractCosmologicalEmulators extension)
-# is non-parametric with every parameter field declared `::Number`. Direct
-# field access therefore returns `::Any`, and the `cosmo`-dispatched
-# accessors above inherit that abstract return type.
-#
-# Inference-poisoning cascades from those accessors into every
-# `compute_kernel!` that needs `H0` or `Ωm` (CosmicShear, CMBLensing,
-# MagnificationBias, IntrinsicAlignment-NLA), which in turn makes
-# `evaluate_components!(::WeakLensing)` and `f_full` inferred as `Any`.
-#
-# `Background{T}` already carries the concrete element type `T` on its
-# eltype-bearing fields (`z`, `χ`, `H`, `D`, `f`) by construction. Routing
-# cosmology-parameter reads through `Background{T}` therefore pins the
-# return type at `T`, re-concretizing the downstream kernels.
-#
-# The `convert(T, …)` is runtime-free when the input is already ::T
-# (identity), and correctly promotes when `cosmo.h` is a `Dual` but the
-# Background's `T` is `Dual` as well (the usual ForwardDiff path).
-# ─────────────────────────────────────────────────────────────────────────────
-# NOTE on the `::T` typeassert: the trailing `::T` is load-bearing, not
-# decorative. Without it, `convert(T, H_0_CONV * bg.cosmo.h)` comes back as
-# `::Any` because `H_0_CONV * bg.cosmo.h` has already collapsed to `::Any`
-# (Float64 * Number -> Any) before `convert` runs, and inference does not
-# specialize the generic `convert(::Type{T}, ::Any)` back down to `T` when
-# `T` is a method type-variable captured by the outer `where`. The
-# post-convert typeassert forces the return type to `T` so every downstream
-# consumer sees a concrete scalar.
-get_H0(bg::Background{T}) where {T} = (convert(T, H_0_CONV * bg.cosmo.h))::T
-get_Ωm(bg::Background{T}) where {T} = (convert(T, (bg.cosmo.ωb + bg.cosmo.ωc) / bg.cosmo.h^2 + _Ων0(bg.cosmo.h)))::T
-get_Ωb(bg::Background{T}) where {T} = (convert(T, bg.cosmo.ωb / bg.cosmo.h^2))::T
-get_Ωc(bg::Background{T}) where {T} = (convert(T, bg.cosmo.ωc / bg.cosmo.h^2))::T
+# ACE 0.11 parameterizes every cosmology field concretely. The old Background
+# conversion/type-assert accessors were workarounds for the pre-0.11 abstract
+# `Number` fields and are no longer needed.
 get_As(bg::Background{T}) where {T} = (convert(T, exp(bg.cosmo.ln10Aₛ) / 1e10))::T
 get_ns(bg::Background{T}) where {T} = (convert(T, bg.cosmo.nₛ))::T
-
-
-"""
-    w0waCDM(; w0, wa, H0, Ωm, Ωb, As, ns, σ8, Ωk=0.0, Ωr=0.0)
-
-A flexible w0–wa CDM cosmological model.  The defaults `w0 = -1, wa = 0`
-reduce the model to a flat ΛCDM cosmology, so this single constructor
-covers both cases.
-
-Maps standard parameters to AbstractCosmologicalEmulators format.
-"""
-function w0waCDM(; w0=-1.0, wa=0.0, H0=67.27, Ωm=0.3156, Ωb=0.0492, As=2.12107e-9, ns=0.9645, Ωk=0.0)
-    h = H0 / H_0_CONV
-    return w0waCDMCosmology(
-        ωb = Ωb * h^2,
-        ωc = (Ωm - Ωb) * h^2,
-        ωk = Ωk,
-        h = h,
-        nₛ = ns,
-        ln10Aₛ = log(1e10 * As),
-        mν = 0.06,
-        w0 = w0,
-        wa = wa
-    )
-end

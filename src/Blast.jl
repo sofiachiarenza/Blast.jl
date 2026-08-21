@@ -48,9 +48,11 @@ include("limber.jl")
 include("chainrules.jl")
 
 # ── Public API ────────────────────────────────────────────────────────────────
-# Cosmology
+# Cosmology. The cosmology type itself is owned by
+# AbstractCosmologicalEmulators; Blast does not maintain a competing parameter
+# translation layer.
 export AbstractCosmology, w0waCDMCosmology
-export Background, w0waCDM
+export Background, ω_ν0, ω_m0
 
 # Probes
 export AbstractCosmologicalProbes, AbstractComponents
@@ -65,7 +67,7 @@ export IntrinsicAlignment, IntegratedSachsWolfe, PrimordialNonGaussianity
 export SetUp, FFTPlans, PowerSpectrum, ProjectedMatterDensity
 
 # Core functions
-export evaluate_components!, compute_kernel!, compute_w, compute_w!, allocate_compute_w
+export prepare_probe, evaluate_components!, compute_kernel!, compute_w, compute_w!, allocate_compute_w
 export prepare_pk_workspace, get_Cℓ
 # ─────────────────────────────────────────────────────────────────────────────
 
