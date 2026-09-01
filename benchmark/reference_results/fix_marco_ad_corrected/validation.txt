@@ -1,0 +1,8 @@
+Pkg.test(): 1094 passed, 0 failed, 0 errored (Julia 1.12.6)
+Final public guardrail gate: 13 passed
+Final full 3x2pt inference gate: 4 passed
+Documenter build: passed with no missing-doc/checkdocs warnings
+Realistic x0 Mooncake gradient: [6.0095162138358, -5.708009548368167, 5.698493334532331]
+Realistic x0 ForwardDiff gradient: [6.009516213835753, -5.708009548368103, 5.698493334532264]
+Realistic x1 Mooncake gradient: [7.470161991887056, -7.113650828039985, 7.090549906305877]
+Realistic x1 ForwardDiff gradient: [7.470161991886986, -7.113650828039923, 7.090549906305795]

@@ -42,6 +42,102 @@ with:
 \mathcal{K}_i^{\mathrm{A}}(\chi)= \begin{cases}K_i^{\mathrm{A}}(\chi) & \text { for clustering, } \\ K_i^{\mathrm{A}}(\chi) / \chi^2 & \text { for lensing. }\end{cases}
 ```
 
+## Probe kernels
+
+In the code, the objects in `probes.jl` store component kernels evaluated on the background grid.
+Writing $\hat n_i(z)$ for the normalized redshift distribution of bin $i$, the implemented kernels are:
+
+- Number counts:
+
+```math
+K_i^{\delta}(z) = \frac{H(z)}{c}\, b_i(z)\, \hat n_i(z)
+```
+
+- Redshift-space distortions:
+
+```math
+K_i^{\mathrm{RSD}}(z) = \frac{H(z)}{c}\, f(z)\, \hat n_i(z)
+```
+
+- Magnification bias:
+
+```math
+K_i^{\mu}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
+\int_z^{\infty} \mathrm{d}z'\, \frac{H(z')}{c}\, \hat n_i(z')\,
+\frac{\chi(z')-\chi}{\chi(z')}\, \left[5 s_i(z') - 2\right]
+```
+
+- Cosmic shear:
+
+```math
+K_i^{\gamma}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
+\int_z^{\infty} \mathrm{d}z'\, \frac{H(z')}{c}\, \hat n_i(z')\,
+\frac{\chi(z')-\chi}{\chi(z')}
+```
+
+- Intrinsic alignment:
+
+```math
+K_i^{\mathrm{IA}}(z) = \frac{H(z)}{c}\, A_{\mathrm{IA},i}(z)\, \hat n_i(z),
+\qquad
+A_{\mathrm{IA}}(z) = - A\, C_1\, \frac{\Omega_m}{D(z)}
+```
+
+- CMB lensing:
+
+```math
+K^{\kappa_{\mathrm{CMB}}}(\chi) = \frac{3 H_0^2 \Omega_m}{2 c^2}\, \chi (1+z)
+\left(1 - \frac{\chi}{\chi_*}\right),
+\qquad \chi_* = \chi(z_*),\ z_* \simeq 1090
+```
+
+- Integrated Sachs-Wolfe:
+
+```math
+K^{\mathrm{ISW}}(z) = \frac{3 T_{\mathrm{CMB}} H_0^2 \Omega_m}{c^3}\, H(z)\, \left[1-f(z)\right]
+```
+
+- Primordial non-Gaussianity:
+
+```math
+K_i^{\mathrm{PNG}}(z) = \frac{H(z)}{c}\, f_{\mathrm{NL}}\, b_{\Phi,i}(z)\, \hat n_i(z),
+\qquad
+b_{\Phi,i}(z) = 2\,\delta_c\,\left[b_i(z)-p\right]
+```
+
+The probe containers combine these components as follows:
+
+- `GalaxyClustering = \delta + \mathrm{RSD} + \mu + \mathrm{PNG}`
+- `WeakLensing = \gamma + \mathrm{IA}`
+- `CMB = \kappa_{\mathrm{CMB}} + \mathrm{ISW}`
+
+## Limber approximation
+
+For the Limber part of the computation, BLAST evaluates kernels on the mapping
+
+```math
+k = \frac{\ell + 1/2}{\chi}
+```
+
+and contracts along the line of sight.
+
+At high multipoles (`get_limber_Cℓ`), the implemented form is
+
+```math
+C_\ell^{ij,\mathrm{Limber}} = \int d\chi\,\frac{P_\ell(\chi)}{\chi^2}
+K_i(\ell,\chi)K_j(\ell,\chi).
+```
+
+For low multipoles, BLAST computes a correction term (`get_limber_correction`):
+
+```math
+\Delta C_\ell^{ij} = \int d\chi\,\frac{\Delta P_\ell(\chi)}{\chi^2}
+K_i(\ell,\chi)K_j(\ell,\chi).
+```
+
+Numerically, these integrals are evaluated on the global `Blast.χ` grid using
+Simpson weights.
+
 
 
 

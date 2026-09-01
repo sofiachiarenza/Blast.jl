@@ -1,60 +1,127 @@
-# API reference
+# API Reference
+
+This page documents the current API of `Blast.jl`.
+
+## Cosmology
+
+### ACE cosmology and Blast background
+
+Blast re-exports ACE's `w0waCDMCosmology` type. Its native constructor uses
+the little-ω parameters `ωb`, `ωc`, and `ωk` directly.
 
 ```@docs
-# Types
-Blast.FlatΛCDM
-Blast.BackgroundQuantities
-Blast.AbstractCosmology
-Blast.AbstractBackgroundQuantities
-Blast.AbstractCosmologicalGrid
-Blast.AbstractCosmologicalProbes
-Blast.CosmologicalGrid
-Blast.GalaxyKernel
-Blast.ShearKernel
-Blast.CMBLensingKernel
-
-# Functions
-Blast.compute_T̃
-Blast.bessel_cheb_eval
-Blast.get_clencurt_weights
-Blast.get_clencurt_grid
-Blast.w_ell_tullio
-Blast.plan_fft
-Blast.fast_chebcoefs
-Blast.make_grid
-Blast.grid_interpolator(::Union{Blast.GalaxyKernel, Blast.ShearKernel},::Blast.BackgroundQuantities, ::Vector{T}) where T
-Blast.grid_interpolator(::Blast.CMBLensingKernel, ::Blast.BackgroundQuantities, ::Vector{T}) where T
-Blast.get_kernel_array(::Blast.GalaxyKernel, ::Blast.BackgroundQuantities, ::Vector{T}) where T
-Blast.get_kernel_array(::Blast.ShearKernel, ::Blast.BackgroundQuantities, ::Vector{T}) where T
-Blast.get_kernel_array(::Blast.CMBLensingKernel, ::Blast.BackgroundQuantities, ::Vector{T}) where T
-Blast.combine_kernels
-Blast.factorial_frac
-Blast.get_ell_prefactor(::Blast.GalaxyKernel, ::Blast.GalaxyKernel, ::Vector)
-Blast.get_ell_prefactor(::Blast.GalaxyKernel, ::Blast.ShearKernel, ::Vector)
-Blast.get_ell_prefactor(::Blast.ShearKernel, ::Blast.ShearKernel, ::Vector)
-Blast.get_ell_prefactor(::Blast.CMBLensingKernel, ::Blast.ShearKernel, ::Vector)
-Blast.get_ell_prefactor(::Blast.CMBLensingKernel, ::Blast.CMBLensingKernel, ::Vector)
-Blast.get_ell_prefactor(::Blast.CMBLensingKernel, ::Blast.GalaxyKernel, ::Vector)
-Blast.simpson_weight_array
-Blast.get_clencurt_weights_R_integration
-Blast.compute_Cℓ(::AbstractArray{T, 3}, 
-               ::Union{Blast.GalaxyKernel, Blast.ShearKernel, Blast.CMBLensingKernel}, 
-               ::Union{Blast.GalaxyKernel, Blast.ShearKernel, Blast.CMBLensingKernel}, 
-               ::Blast.BackgroundQuantities, 
-               R::AbstractVector, 
-               ℓ_list::AbstractArray{T,1} = Blast.ℓ) where T
-Blast.compute_Cℓ(::AbstractArray{T, 3}, 
-               ::AbstractArray{T, 4}, 
-               ::Blast.BackgroundQuantities, 
-               ::AbstractArray{T, 1}, 
-               ::AbstractArray{T, 1}, 
-               ::AbstractArray{T,1}) where T
-Blast.compute_adimensional_hubble_factor(::T, ::Blast.FlatΛCDM) where T
-Blast.compute_adimensional_hubble_factor(::T, ::T, ::T, ::T, ::T, ::T, ::T) where T
+Blast.Background
 Blast.compute_hubble_factor
 Blast.compute_χ
-Blast.evaluate_background_quantities!
-Blast.compute_kernel!(::AbstractArray{T, 2}, ::AbstractArray{T, 1}, ::Blast.GalaxyKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology) where T
-Blast.compute_kernel!(::AbstractArray{T, 2}, ::AbstractArray{T, 1}, ::Blast.ShearKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology) where T
-Blast.compute_kernel!(::Blast.CMBLensingKernel, ::Blast.CosmologicalGrid, ::Blast.BackgroundQuantities, ::Blast.AbstractCosmology)
+Blast.ω_ν0
+Blast.ω_m0
+Blast.get_As
+Blast.get_ns
+```
+
+## Probes
+
+This section lists the concrete user-facing probe containers and components.
+
+```@docs
+Blast.AbstractCosmologicalProbes
+Blast.AbstractComponents
+Blast.GalaxyClustering
+Blast.WeakLensing
+Blast.CMB
+```
+
+## Probe components
+
+```@docs
+Blast.NumberCounts
+Blast.RedshiftSpaceDistortions
+Blast.MagnificationBias
+Blast.PrimordialNonGaussianity
+Blast.CosmicShear
+Blast.IntrinsicAlignment
+Blast.CMBLensing
+Blast.IntegratedSachsWolfe
+```
+
+### n(z) helpers
+
+```@docs
+Blast.prepare_nz_matrix
+Blast.smooth_nz
+Blast.NLA_model
+```
+
+### Kernel evaluation
+
+```@docs
+Blast.compute_kernel!(::Blast.NumberCounts, ::Blast.Background)
+Blast.compute_kernel!(::Blast.RedshiftSpaceDistortions, ::Blast.Background)
+Blast.compute_kernel!(::Blast.MagnificationBias, ::Blast.Background)
+Blast.compute_kernel!(::Blast.PrimordialNonGaussianity, ::Blast.Background)
+Blast.compute_kernel!(::Blast.CosmicShear, ::Blast.Background)
+Blast.compute_kernel!(::Blast.IntrinsicAlignment, ::Blast.Background)
+Blast.compute_kernel!(::Blast.CMBLensing, ::Blast.Background)
+Blast.compute_kernel!(::Blast.IntegratedSachsWolfe, ::Blast.Background)
+Blast.prepare_probe
+Blast.evaluate_components!
+```
+
+## Setup and Power Spectrum Workspace
+
+```@docs
+Blast.FFTPlans
+Blast.SetUp
+Blast.cϕTT
+Blast.cϕT
+Blast.cϕ
+Blast.build_coeff
+Blast.PowerSpectrum
+Blast.prepare_pk_workspace
+Blast.get_PΦ
+Blast.get_Tm
+Blast.transform_to_R_frame
+```
+
+## Projected Matter Density
+
+```@docs
+Blast.ProjectedMatterDensityComponent
+Blast.ProjectedMatterDensity
+Blast.compute_w
+Blast.allocate_compute_w
+Blast.compute_w!
+Blast.w_ell_tullio
+```
+
+## Angular Power Spectra
+
+```@docs
+Blast.get_Cℓ
+Blast.compute_Cℓ(::Blast.AbstractComponents, ::Blast.AbstractComponents, ::Blast.ProjectedMatterDensityComponent, ::Blast.Background)
+Blast.compute_Cℓ(::Blast.AbstractComponents, ::Blast.AbstractComponents, ::Blast.ProjectedMatterDensityComponent, ::Blast.ProjectedMatterDensityComponent, ::Blast.Background)
+```
+
+## Limber helpers
+
+```@docs
+Blast.get_limber_kernel(::Blast.AbstractComponents)
+Blast.get_limber_kernel(::Blast.GalaxyClustering)
+Blast.get_limber_kernel(::Blast.WeakLensing)
+Blast.get_limber_kernel(::Blast.CMB)
+Blast.get_limber_correction(::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Blast.PowerSpectrum)
+Blast.get_limber_correction(::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Blast.PowerSpectrum)
+Blast.get_limber_Cℓ(::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Blast.PowerSpectrum)
+Blast.get_limber_Cℓ(::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Union{Blast.GalaxyClustering, Blast.WeakLensing, Blast.CMB}, ::Blast.PowerSpectrum)
+```
+
+## Numerical utilities
+
+```@docs
+Blast.get_clencurt_grid
+Blast.get_clencurt_weights
+Blast.get_clencurt_weights_R_integration
+Blast.bessel_second_derivative
+Blast.bessel_cheb_eval
+Blast.compute_T̃
 ```

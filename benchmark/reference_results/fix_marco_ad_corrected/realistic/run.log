@@ -1,0 +1,24 @@
+Precompiling packages...
+  30517.4 ms  ✓ Blast
+  1 dependency successfully precompiled in 31 seconds. 500 already precompiled.
+Precompiling packages...
+  17023.1 ms  ✓ Blast → MooncakeExt
+  1 dependency successfully precompiled in 18 seconds. 525 already precompiled.
+julia_version=1.12.6
+blast_version=0.1.0
+blast_source=/home/marcobonici/Desktop/work/CosmologicalEmulators/blast_play/Blast.jl/.letta/worktrees/fix-marco-ad/src/Blast.jl
+mooncake_version=0.5.46
+julia_threads=8
+fftw_threads=8
+cpu_model=13th Gen Intel(R) Core(TM) i7-13700H
+gc_bins=10
+wl_bins=5
+Pmm_contract=true
+x0_primal=2.999999999999994
+x1_primal=4.623944228620777
+x0_mooncake_gradient=[6.0095162138358, -5.708009548368167, 5.698493334532331]
+x0_forwarddiff_gradient=[6.009516213835753, -5.708009548368103, 5.698493334532264]
+x1_mooncake_gradient=[7.470161991887056, -7.113650828039985, 7.090549906305877]
+x1_forwarddiff_gradient=[7.470161991886986, -7.113650828039923, 7.090549906305795]
+cold_gradient_preparation_seconds=106.629192248
+results_directory=benchmark/results/final/realistic

@@ -1,0 +1,19 @@
+Precompiling packages...
+  29792.0 ms  ✓ Blast
+  1 dependency successfully precompiled in 30 seconds. 500 already precompiled.
+julia_version=1.12.6
+blast_version=0.1.0
+blast_source=/home/marcobonici/Desktop/work/CosmologicalEmulators/blast_play/Blast.jl/.letta/worktrees/fix-marco-ad/src/Blast.jl
+julia_threads=8
+fftw_threads=8
+cpu_model=13th Gen Intel(R) Core(TM) i7-13700H
+background min_ms=0.311359 median_ms=0.337817 p95_ms=0.3848353 memory_mib=0.45525360107421875 allocations=10886
+prepare_components min_ms=0.098246 median_ms=0.10262450000000001 p95_ms=0.11913990000000002 memory_mib=0.20178985595703125 allocations=666
+setup min_ms=13.765039 median_ms=22.397529499999997 p95_ms=22.9312889 memory_mib=100.7439193725586 allocations=66943
+prepare_pmm min_ms=12.775592 median_ms=22.5120255 p95_ms=42.1245517 memory_mib=53.620513916015625 allocations=2284
+compute_w min_ms=94.048295 median_ms=95.90659600000001 p95_ms=98.78672085 memory_mib=24.08673858642578 allocations=1900
+compute_w_reusable min_ms=52.719125 median_ms=56.373808 p95_ms=60.893013999999994 memory_mib=0.02606201171875 allocations=337
+project_all min_ms=14.416656 median_ms=18.3615805 p95_ms=19.44827585 memory_mib=17.442100524902344 allocations=8610
+full_cached min_ms=125.48222 median_ms=133.674594 p95_ms=144.8668472 memory_mib=95.14935302734375 allocations=12794
+full_from_cosmology min_ms=137.788423 median_ms=151.53637650000002 p95_ms=175.73220345 memory_mib=196.81256866455078 allocations=91306
+results_directory=benchmark/results/final/controlled

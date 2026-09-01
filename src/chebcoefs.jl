@@ -1,45 +1,69 @@
-"""
-    plan_fft(vals::AbstractArray{<:Number,N})
+using AbstractCosmologicalEmulators
+using ChainRulesCore
+using ForwardDiff: Dual, value, partials, Partials, tagtype
 
-Create an FFTW real-to-real (R2R) transformation plan for the first axis of a given multidimensional array `vals`. 
-In practise, the `vals` array is the power spectrum P(k,χ). The first axis should then contains the wavenumbers `k`, while the second axis contains the `χ` information.
-
-# Arguments
-- `vals::AbstractArray{<:Number, N}`: The input array of any numerical type with `N` dimensions.
-
-# Returns
-- `p::FFTW.rFFTWPlan`: A FFTW plan object for transforming `vals` with the appropriate real to real transformations. This plan can be applied using the `*` operator (e.g., `transformed_vals = p * vals`).
+import AbstractCosmologicalEmulators: ChebyshevPlan, chebpoints, prepare_chebyshev_plan, chebyshev_decomposition, chebyshev_polynomials
 
 """
-function plan_fft(vals::AbstractArray{<:Number,N}) where {N}
-    kind = map(n -> n > 1 ? FFTW.REDFT00 : FFTW.DHT, size(vals)[1])
-    p = FFTW.plan_r2r(deepcopy(vals), kind, [1]; flags=FFTW.PATIENT, timelimit=Inf)   
-                                                                                    
-    return p 
+    chebinterp_native(c::AbstractVector, x_grid, x_min, x_max)
+
+Evaluates a 1D Chebyshev expansion on a grid.
+"""
+function chebinterp_native(c::AbstractVector, x_grid, x_min, x_max)
+    xx = float.(x_grid)
+    T_type = eltype(xx)
+    T = chebyshev_polynomials(xx, T_type(x_min), T_type(x_max), length(c) - 1)
+    return T * c
 end
 
+"""
+    AbstractCoeff
+
+Abstract supertype for Chebyshev-coefficient containers in BLAST.
+"""
+abstract type AbstractCoeff end
 
 """
-    fast_chebcoefs(vals::AbstractArray{<:Number,N}, plan::FFTW.r2rFFTWPlan)
-
-Efficiently compute the Chebyshev coefficients of a multidimensional array `vals` using an O(n log n) method. This method leverages FFT-based type-I Discrete Cosine Transform (DCT-I).
-
-Arguments:
-- `vals::AbstractArray{<:Number,N}`: A multidimensional array of values for which to compute the Chebyshev coefficients.
-
-- `plan::FFTW.r2rFFTWPlan`: A FFTW plan object for transforming `vals` with the appropriate real to real transformations. This plan is applied using the `*` operator (e.g., `transformed_vals = p * vals`) and performs the DCT of the `vals` array along the first axis.
-
-Returns:
-- `coefs`: An array of the same size as `vals`, containing the computed Chebyshev coefficients.
+    cϕTT{T} <: AbstractCoeff
+Container for Chebyshev coefficients of the unequal time power spectrum.
 """
-function fast_chebcoefs(vals::AbstractArray, plan::FFTW.r2rFFTWPlan)
-    coefs = plan * vals
+mutable struct cϕTT{T} <: AbstractCoeff
+    coefs::Array{T, 3}
+end
+cϕTT(coefs::AbstractArray{T, 3}) where T = cϕTT{T}(coefs)
 
-    s = size(coefs)
-    coefs ./= 2*(s[1]-1)
-    
-    N = length(s)
-    coefs[CartesianIndices(ntuple(i -> i == 1 ? (2:s[1]-1) : (1:s[i]), Val{N}()))] *= 2
+"""
+    cϕT{T} <: AbstractCoeff
+Container for Chebyshev coefficients of the power spectrum built with only one transfer function.
+"""
+mutable struct cϕT{T} <: AbstractCoeff
+    coefs::Array{T, 3}
+end
+cϕT(coefs::AbstractArray{T, 3}) where T = cϕT{T}(coefs)
 
-    return coefs
+"""
+    cϕ{T} <: AbstractCoeff
+Container for Chebyshev coefficients of the primordial power spectrum.
+"""
+mutable struct cϕ{T} <: AbstractCoeff
+    coefs::Array{T, 1}
+end
+cϕ(coefs::AbstractArray{T, 1}) where T = cϕ{T}(coefs)
+
+# Constructors
+make_coeff(::Type{T}, c) where {T<:AbstractCoeff} = T(c)
+make_coeff(::Type{<:AbstractCoeff}, ::Nothing) = nothing
+
+"""
+    build_coeff(::Type{T}, vals::AbstractArray, plan::Union{ChebyshevPlan,Nothing}) where {T<:AbstractCoeff}
+
+Compute Chebyshev coefficients from input values and wrap them in a coefficient container.
+"""
+@inline function build_coeff(::Type{T}, vals::AbstractArray, plan::Union{ChebyshevPlan, Nothing}) where {T<:AbstractCoeff}
+    c = chebyshev_decomposition(plan, vals)
+    return make_coeff(T, c)
+end
+
+@inline function build_coeff(::Type{T}, vals::AbstractArray, plan::Nothing) where {T<:AbstractCoeff}
+    return nothing
 end
