@@ -81,7 +81,8 @@ Returns an array evaluated on the Background grid.
 """
 function NLA_model(bg::Background; A=1.72, C1=0.0134)
     Ωm = get_Ωm(bg.cosmo)
-    return @. - A * C1 * Ωm / bg.D
+    D_today = bg.D[1]  # bg.D is ordered low-z first; D(z≈0) ≈ 0.77 in the un-normalized ODE convention
+    return @. - A * C1 * Ωm / (bg.D / D_today)
 end
 
 @doc raw"""

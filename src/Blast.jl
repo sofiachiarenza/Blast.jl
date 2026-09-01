@@ -29,6 +29,7 @@ if !isnothing(cosmo_ext)
     const r_z = cosmo_ext.r_z
     const D_z = cosmo_ext.D_z
     const f_z = cosmo_ext.f_z
+    const D_f_z = cosmo_ext.D_f_z
     
     export AbstractCosmology, w0waCDMCosmology
     export Background, ΛCDM, w0waCDM
@@ -67,7 +68,7 @@ nerr = 64
 cheb = 161
 
 function __init__()
-    Tdir = artifact"T_tildes"
+    """Tdir = artifact"T_tildes"
     global T_tildes = T̃(
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_00.npz")),
         npzread(joinpath(Tdir, "T_tildes_artifact/T_0_00.npz")),
@@ -77,17 +78,17 @@ function __init__()
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_02.npz")),
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_20.npz")),
         npzread(joinpath(Tdir, "T_tildes_artifact/T_2_22.npz"))
-    )
-    """global T_tildes = T̃(
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)/T_tilde_2_00", nchi, nerr, cheb),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)/T_tilde_0_00", nchi, nerr, cheb),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)/T_tilde_-2_00", nchi, nerr, cheb),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)/T_tilde_0_02", nchi, nerr, cheb),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)/T_tilde_0_20", nchi, nerr, cheb),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)/T_tilde_2_02", nchi, nerr, cheb),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)/T_tilde_2_20", nchi, nerr, cheb),
-        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)/T_tilde_2_22", nchi, nerr, cheb)
     )"""
+    global T_tildes = T̃(
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)_hiN/T_tilde_2_00", nchi, nerr, cheb),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)_hiN/T_tilde_0_00", nchi, nerr, cheb),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)_hiN/T_tilde_-2_00", nchi, nerr, cheb),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)_hiN/T_tilde_0_02", nchi, nerr, cheb),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)_hiN/T_tilde_0_20", nchi, nerr, cheb),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)_hiN/T_tilde_2_02", nchi, nerr, cheb),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)_hiN/T_tilde_2_20", nchi, nerr, cheb),
+        Blast.load_Ts("/Users/sofiachiarenza/Desktop/PhD/Blastoise/T_tildes/T_tildes_PAPER/T_tildes_$(nchi)_$(nerr)_$(cheb)_hiN/T_tilde_2_22", nchi, nerr, cheb)
+    )
 end
 
 end # module Blast

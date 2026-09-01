@@ -40,8 +40,7 @@ function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     z_nodes = z_of_χ_interp(χ_grid)
     
     H_array = T(100.0) .* cosmo.h .* E_z.(z_nodes, Ref(cosmo))
-    D_array = D_z.(z_nodes, Ref(cosmo))
-    f_array = f_z.(z_nodes, Ref(cosmo))
+    D_array, f_array = D_f_z(z_nodes, cosmo)
 
     return Background{T}(
         cosmo, 
