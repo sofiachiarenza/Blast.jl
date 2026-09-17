@@ -539,24 +539,92 @@ function PrimordialNonGaussianity(;
 end
 has_nz(::PrimordialNonGaussianity) = true
 
+@doc raw"""
+    AngularRedshiftFluctuations{T<:Real} <: AbstractComponents
+
+Angular redshift fluctuations (ARF, δz) component.
+
+ARF is built with the exact same formalism as galaxy number counts, replacing
+the redshift window with a redshift-fluctuation-weighted window
+`𝒲(z, z̄) ≡ n̂(z)·(z - z̄)` (Hernández-Monteagudo, Chaves-Montero & Angulo 2021,
+MNRAS 503, L56; Bermejo-Climent et al. 2026, arXiv:2601.16948, Eq. 15):
+
+```math
+K_i^{\mathrm{ARF}}(z) = \left(z - \bar z_i\right) K_i^{\delta}(z)
+= \left(z - \bar z_i\right)\frac{H(z)}{c}\, b_i(z)\, \hat n_i(z).
+```
+
+`zbar` is a fixed, per-bin reference redshift supplied by the user (e.g. the
+mean redshift of each tomographic bin's own `dN/dz`); Blast does not compute
+it from `nz`. It is always `Float64` and is never differentiated wrt.
+
+ARF participates in galaxy-clustering (GG) combinatorics with all of `δ`,
+`RSD`, `μ`, `PNG`, and in the CMB-lensing cross (`CMB.κ` × `GalaxyClustering`)
+via [`GalaxyClustering`](@ref)'s `ARF` field. It deliberately does **not**
+cross with `CMB.ISW` or with `WeakLensing` (cosmic shear/intrinsic
+alignment) — those contributions are absent from `get_Cℓ` for probes
+including `ARF`.
+"""
+mutable struct AngularRedshiftFluctuations{T<:Real} <: AbstractComponents
+    nz::Matrix{T}
+    z::Vector{Float64}
+    nz_norm::Matrix{T}
+    bias::Matrix{T}
+    zbar::Vector{Float64}
+    nz_norms::Vector{T}
+    Kernel::Matrix{T}
+    ell_prefactor::Vector{Float64}
+    limber_factor::Vector{Float64}
+end
+
+function AngularRedshiftFluctuations(;
+    nz::AbstractMatrix            = zeros(Float64, 1, 1),
+    z::AbstractVector             = zeros(Float64, 1),
+    bias::AbstractMatrix          = zeros(Float64, 1, 1),
+    zbar::AbstractVector          = zeros(Float64, size(bias, 1)),
+    nz_norm::AbstractMatrix       = zeros(eltype(nz), 1, 1),
+    nz_norms::AbstractVector      = _trapezoidal_norms(nz, z),
+    Kernel::AbstractMatrix        = zeros(eltype(bias), 1, 1),
+    ell_prefactor::AbstractVector = ones(size(Blast.full_ℓ_range, 1)),
+    limber_factor::AbstractVector = ones(size(Blast.full_ℓ_range, 1)),
+)
+    T = promote_type(eltype(nz), eltype(bias), eltype(nz_norm),
+                     eltype(nz_norms), eltype(Kernel))
+    AngularRedshiftFluctuations{T}(
+        convert(Matrix{T},       nz),
+        convert(Vector{Float64}, z),
+        convert(Matrix{T},       nz_norm),
+        convert(Matrix{T},       bias),
+        convert(Vector{Float64}, zbar),
+        convert(Vector{T},       nz_norms),
+        convert(Matrix{T},       Kernel),
+        convert(Vector{Float64}, ell_prefactor),
+        convert(Vector{Float64}, limber_factor),
+    )
+end
+has_nz(::AngularRedshiftFluctuations) = true
+
 """
     GalaxyClustering <: AbstractCosmologicalProbes
 
 Galaxy-clustering probe container.
 
 It combines the density term `δ` with optional redshift-space distortions
-`RSD`, magnification bias `μ`, and primordial non-Gaussianity `PNG`.
+`RSD`, magnification bias `μ`, primordial non-Gaussianity `PNG`, and angular
+redshift fluctuations `ARF`.
 """
 @kwdef mutable struct GalaxyClustering{
     Tδ<:NumberCounts,
     TRSD<:Union{Nothing, RedshiftSpaceDistortions},
     Tμ<:Union{Nothing, MagnificationBias},
     TPNG<:Union{Nothing, PrimordialNonGaussianity},
+    TARF<:Union{Nothing, AngularRedshiftFluctuations},
 } <: AbstractCosmologicalProbes
     δ::Tδ
     RSD::TRSD = nothing
     μ::Tμ = nothing
     PNG::TPNG = nothing
+    ARF::TARF = nothing
 end
 
 """
@@ -902,7 +970,44 @@ function _png_kernel(H::AbstractVector, f_NL::Number,
     return @. (H' / C_LIGHT) * f_NL * b_phi * nz_norm
 end
 
-function compute_kernel!(Component::Nothing, bg::Background) 
+@doc raw"""
+    compute_kernel!(Component::AngularRedshiftFluctuations, bg::Background)
+
+Compute the angular-redshift-fluctuations kernel: the number-counts kernel
+reweighted by the fixed per-bin reference redshift `zbar`:
+
+```math
+K_i^{\mathrm{ARF}}(z) = \left(z - \bar z_i\right)\frac{H(z)}{c}\, b_i(z)\, \hat n_i(z).
+```
+"""
+function compute_kernel!(Component::AngularRedshiftFluctuations, bg::Background)
+    check_and_normalize!(Component, bg.z)
+    size(Component.bias) == size(Component.nz_norm) || throw(DimensionMismatch(
+        "AngularRedshiftFluctuations.bias must have size $(size(Component.nz_norm)); got $(size(Component.bias)). " *
+        "Bias values are defined on the production background grid."))
+    length(Component.zbar) == size(Component.nz_norm, 1) || throw(DimensionMismatch(
+        "AngularRedshiftFluctuations.zbar must have length $(size(Component.nz_norm, 1)) " *
+        "(one entry per tomographic bin); got length $(length(Component.zbar))."))
+    Component.Kernel = _arf_kernel(Component.bias, bg.H, Component.nz_norm, bg.z, Component.zbar)
+end
+
+# ----------------------------------------------------------------------------
+# AngularRedshiftFluctuations kernel: pure broadcast.
+#
+#   K[b, i] = bias[b, i] · H[i] / c · nz_norm[b, i] · (z[i] - zbar[b])
+#
+# Identical to _number_counts_kernel with one extra real-space weight; no new
+# k-dependence is introduced, so this reuses NumberCounts's projected-matter
+# weight tensors everywhere downstream (see src/cls.jl). Pure broadcast → no
+# custom rrule needed; ForwardDiff / Zygote / Mooncake all handle `.*`-style
+# ops natively. `zbar` is plain Float64 and never carries Duals.
+# ----------------------------------------------------------------------------
+function _arf_kernel(bias::AbstractMatrix, H::AbstractVector, nz_norm::AbstractMatrix,
+                     z::AbstractVector, zbar::AbstractVector)
+    return @. bias * (H' / C_LIGHT) * nz_norm * (z' - zbar)
+end
+
+function compute_kernel!(Component::Nothing, bg::Background)
     return nothing
 end
 
@@ -981,6 +1086,11 @@ const _PROMOTE_COMPONENTS = (
         (:Kernel, :T_mat),
         (:ell_prefactor, :keep), (:limber_factor, :keep),
     )),
+    (:AngularRedshiftFluctuations, (
+        (:nz, :T_mat), (:z, :keep), (:nz_norm, :T_mat), (:bias, :T_mat), (:zbar, :keep),
+        (:nz_norms, :T_vec),
+        (:Kernel, :T_mat), (:ell_prefactor, :keep), (:limber_factor, :keep),
+    )),
 )
 
 for (_struct, _fields) in _PROMOTE_COMPONENTS
@@ -1024,11 +1134,13 @@ function prepare_probe(GC::GalaxyClustering, bg::Background{U}) where {U}
     RSD = _copy_promote_eltype(GC.RSD, U)
     μ = _copy_promote_eltype(GC.μ, U)
     PNG = _copy_promote_eltype(GC.PNG, U)
+    ARF = _copy_promote_eltype(GC.ARF, U)
     compute_kernel!(δ, bg)
     compute_kernel!(RSD, bg)
     compute_kernel!(μ, bg)
     compute_kernel!(PNG, bg)
-    return GalaxyClustering(; δ, RSD, μ, PNG)
+    compute_kernel!(ARF, bg)
+    return GalaxyClustering(; δ, RSD, μ, PNG, ARF)
 end
 
 function prepare_probe(WL::WeakLensing, bg::Background{U}) where {U}
@@ -1051,11 +1163,12 @@ end
     evaluate_components!(GC::GalaxyClustering, bg::Background)
 
 Evaluate every component of `GC` (density `δ`, and any of RSD,
-magnification bias `μ`, or primordial non-Gaussianity `PNG` that are
-switched on, i.e. not `nothing`) against the background `bg`: promotes each
-component's element type to match `bg`'s (so downstream automatic
-differentiation traces through the right number type), then computes its
-kernel in place via `compute_kernel!`. Mutates `GC`.
+magnification bias `μ`, primordial non-Gaussianity `PNG`, or angular
+redshift fluctuations `ARF` that are switched on, i.e. not `nothing`)
+against the background `bg`: promotes each component's element type to
+match `bg`'s (so downstream automatic differentiation traces through the
+right number type), then computes its kernel in place via `compute_kernel!`.
+Mutates `GC`.
 
 This compatibility path cannot change the concrete component types stored in
 an existing probe. Use [`prepare_probe`](@ref) when differentiating through the
@@ -1066,14 +1179,17 @@ function evaluate_components!(GC::GalaxyClustering, bg::Background{U}) where {U}
     _require_inplace_eltype(GC.RSD, U)
     _require_inplace_eltype(GC.μ, U)
     _require_inplace_eltype(GC.PNG, U)
+    _require_inplace_eltype(GC.ARF, U)
     GC.δ   = _promote_eltype(GC.δ, U)
     GC.RSD = _promote_eltype(GC.RSD, U)
     GC.μ   = _promote_eltype(GC.μ, U)
     GC.PNG = _promote_eltype(GC.PNG, U)
+    GC.ARF = _promote_eltype(GC.ARF, U)
     compute_kernel!(GC.δ, bg)
     compute_kernel!(GC.RSD, bg)
     compute_kernel!(GC.μ, bg)
     compute_kernel!(GC.PNG, bg)
+    compute_kernel!(GC.ARF, bg)
 end
 
 @doc raw"""

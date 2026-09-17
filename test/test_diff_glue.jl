@@ -137,6 +137,44 @@ Random.seed!(9876)
     end
 
     # ---------------------------------------------------------------------
+    # Testset 2b — GalaxyClustering auto-spectrum with ARF active, wrt
+    # AngularRedshiftFluctuations.bias. `zbar` is fixed Float64 (never
+    # differentiated); this exercises _arf_kernel's pure-broadcast AD path
+    # and the new _combine_gc_nonlimber_arf branch end-to-end.
+    # ---------------------------------------------------------------------
+    @testset "GalaxyClustering auto-spectrum with ARF wrt ARF.bias" begin
+        zbar = [1.0]
+        raw_gc_template = Blast.GalaxyClustering(
+            δ = Blast.NumberCounts(nz=nz_grid, z=z_grid,
+                                    bias=ones(nz_bins, length(bg.z))),
+            ARF = Blast.AngularRedshiftFluctuations(nz=nz_grid, z=z_grid,
+                                    bias=ones(nz_bins, length(bg.z)), zbar=zbar))
+        W, Plans = Blast.SetUp(raw_gc_template)
+        gc_template = Blast.prepare_probe(raw_gc_template, bg)
+        PS = Blast.prepare_pk_workspace(Plans, pk_grid,
+                                         pk_limber_lin, pk_limber_nonl, bg)
+        W = Blast.compute_w(W, PS)
+
+        function f_arf(arf_bias_flat)
+            arf_bias = reshape(arf_bias_flat, nz_bins, length(bg.z))
+            raw_gc = Blast.GalaxyClustering(
+                δ = Blast.NumberCounts(nz=nz_grid, z=z_grid,
+                                        bias=ones(nz_bins, length(bg.z))),
+                ARF = Blast.AngularRedshiftFluctuations(nz=nz_grid, z=z_grid,
+                                        bias=arf_bias, zbar=zbar))
+            gc = Blast.prepare_probe(raw_gc, bg)
+            cls = Blast.get_Cℓ(Blast.full_ℓ_range, gc, PS, W, bg, Plans)
+            return sum(cls)
+        end
+
+        arf_bias0 = ones(nz_bins * length(bg.z))
+        check_gradient(f_arf, arf_bias0;
+                       skip_forward=false,
+                       skip_zygote=true,
+                       skip_fd=true)
+    end
+
+    # ---------------------------------------------------------------------
     # Testset 3 — WeakLensing auto-spectrum, wrt IntrinsicAlignment.A.
     # Exercises:
     #   CosmicShear kernel (_cosmic_shear_kernel_tullio, has rrule)

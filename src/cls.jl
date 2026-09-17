@@ -47,7 +47,7 @@ end
 
 Return the probe kernel evaluated on the χ–R grid.
 """
-function get_kernel_array(Probe::Union{NumberCounts, RedshiftSpaceDistortions, PrimordialNonGaussianity, IntegratedSachsWolfe}, bg::Background)
+function get_kernel_array(Probe::Union{NumberCounts, RedshiftSpaceDistortions, PrimordialNonGaussianity, IntegratedSachsWolfe, AngularRedshiftFluctuations}, bg::Background)
     n_bins = size(Probe.Kernel, 1)
     nχ = length(bg.χ)
     nR = length(Blast.R)
@@ -381,6 +381,49 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::PrimordialNo
     return compute_Cℓ(Component1, Component2, W.w_2_00_ϕ, bg)
 end
 
+## Angular redshift fluctuations (ARF)
+#
+# ARF shares NumberCounts's exact weight-tensor class (see
+# AngularRedshiftFluctuations's docstring in src/probes.jl): its kernel is
+# δ's kernel times a fixed real-space (z - zbar) weight, with no new
+# k-dependence. Every pair below therefore mirrors the corresponding
+# NumberCounts pair one-for-one, substituting AngularRedshiftFluctuations.
+function get_Cℓ(Component1::AngularRedshiftFluctuations, Component2::AngularRedshiftFluctuations, W::ProjectedMatterDensity, bg::Background)
+    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕTT, bg)
+end
+
+function get_Cℓ(Component1::AngularRedshiftFluctuations, Component2::NumberCounts, W::ProjectedMatterDensity, bg::Background)
+    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕTT, bg)
+end
+
+function get_Cℓ(Component1::NumberCounts, Component2::AngularRedshiftFluctuations, W::ProjectedMatterDensity, bg::Background)
+    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕTT, bg)
+end
+
+function get_Cℓ(Component1::AngularRedshiftFluctuations, Component2::RedshiftSpaceDistortions, W::ProjectedMatterDensity, bg::Background)
+    return compute_Cℓ(Component1, Component2, W.w_2_02_ϕTT, W.w_2_20_ϕTT, bg)
+end
+
+function get_Cℓ(Component1::RedshiftSpaceDistortions, Component2::AngularRedshiftFluctuations, W::ProjectedMatterDensity, bg::Background)
+    return compute_Cℓ(Component1, Component2, W.w_2_20_ϕTT, W.w_2_02_ϕTT, bg)
+end
+
+function get_Cℓ(Component1::AngularRedshiftFluctuations, Component2::MagnificationBias, W::ProjectedMatterDensity, bg::Background)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕTT, bg)
+end
+
+function get_Cℓ(Component1::MagnificationBias, Component2::AngularRedshiftFluctuations, W::ProjectedMatterDensity, bg::Background)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕTT, bg)
+end
+
+function get_Cℓ(Component1::AngularRedshiftFluctuations, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity, bg::Background)
+    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT_R1, bg)
+end
+
+function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::AngularRedshiftFluctuations, W::ProjectedMatterDensity, bg::Background)
+    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT, bg)
+end
+
 # ----------------------------------------------------------------------------
 # Pair-spectrum transpose helper.
 #
@@ -404,7 +447,7 @@ _transpose_cℓ_pair(c::Number) = c
 _cℓ_term_eltype(c::AbstractArray) = eltype(c)
 _cℓ_term_eltype(c::Number) = typeof(c)
 
-function _combine_gc_nonlimber(
+function _combine_gc_nonlimber_base(
     Cℓ_δδ, Cℓ_δRSD, Cℓ_RSDδ, Cℓ_RSDRSD,
     Cℓ_δμ, Cℓ_μδ, Cℓ_μμ, Cℓ_μRSD, Cℓ_RSDμ,
 )
@@ -421,7 +464,7 @@ function _combine_gc_nonlimber(
     return result
 end
 
-function _combine_gc_nonlimber(
+function _combine_gc_nonlimber_png(
     Cℓ_δδ, Cℓ_δRSD, Cℓ_RSDδ, Cℓ_RSDRSD,
     Cℓ_δμ, Cℓ_μδ, Cℓ_μμ, Cℓ_μRSD, Cℓ_RSDμ,
     Cℓ_δfNL, Cℓ_fNLδ, Cℓ_fNLRSD, Cℓ_RSDfNL,
@@ -442,6 +485,71 @@ function _combine_gc_nonlimber(
                 Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ +
                 Cℓ_δfNL + Cℓ_fNLδ - Cℓ_fNLRSD - Cℓ_RSDfNL +
                 Cℓ_μfNL + Cℓ_fNLμ + Cℓ_fNLfNL
+    return result
+end
+
+# ARF shares δ's weight-tensor class exactly (see AngularRedshiftFluctuations's
+# docstring), so its cross-term signs mirror δ's signs one-for-one: "+" for
+# δ/μ/PNG-like partners, "-" for RSD (matching -Cℓ_δRSD/-Cℓ_RSDδ above).
+#
+# NOTE: `_combine_gc_nonlimber_*` are named by which terms they combine
+# (rather than overloaded on positional arity alone) because the ARF-only
+# case has the same arity (16) as the PNG-only case above — an untyped-arg
+# overload at the same arity would silently redefine one of them instead of
+# adding a new dispatch.
+function _combine_gc_nonlimber_arf(
+    Cℓ_δδ, Cℓ_δRSD, Cℓ_RSDδ, Cℓ_RSDRSD,
+    Cℓ_δμ, Cℓ_μδ, Cℓ_μμ, Cℓ_μRSD, Cℓ_RSDμ,
+    Cℓ_ARFARF, Cℓ_ARFδ, Cℓ_δARF, Cℓ_ARFμ, Cℓ_μARF, Cℓ_ARFRSD, Cℓ_RSDARF,
+)
+    T = promote_type(
+        _cℓ_term_eltype(Cℓ_δδ), _cℓ_term_eltype(Cℓ_δRSD),
+        _cℓ_term_eltype(Cℓ_RSDδ), _cℓ_term_eltype(Cℓ_RSDRSD),
+        _cℓ_term_eltype(Cℓ_δμ), _cℓ_term_eltype(Cℓ_μδ),
+        _cℓ_term_eltype(Cℓ_μμ), _cℓ_term_eltype(Cℓ_μRSD),
+        _cℓ_term_eltype(Cℓ_RSDμ), _cℓ_term_eltype(Cℓ_ARFARF),
+        _cℓ_term_eltype(Cℓ_ARFδ), _cℓ_term_eltype(Cℓ_δARF),
+        _cℓ_term_eltype(Cℓ_ARFμ), _cℓ_term_eltype(Cℓ_μARF),
+        _cℓ_term_eltype(Cℓ_ARFRSD), _cℓ_term_eltype(Cℓ_RSDARF),
+    )
+    result = similar(Cℓ_δδ, T)
+    @. result = Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD +
+                Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ +
+                Cℓ_ARFARF + Cℓ_ARFδ + Cℓ_δARF + Cℓ_ARFμ + Cℓ_μARF -
+                Cℓ_ARFRSD - Cℓ_RSDARF
+    return result
+end
+
+function _combine_gc_nonlimber_arf_png(
+    Cℓ_δδ, Cℓ_δRSD, Cℓ_RSDδ, Cℓ_RSDRSD,
+    Cℓ_δμ, Cℓ_μδ, Cℓ_μμ, Cℓ_μRSD, Cℓ_RSDμ,
+    Cℓ_δfNL, Cℓ_fNLδ, Cℓ_fNLRSD, Cℓ_RSDfNL,
+    Cℓ_μfNL, Cℓ_fNLμ, Cℓ_fNLfNL,
+    Cℓ_ARFARF, Cℓ_ARFδ, Cℓ_δARF, Cℓ_ARFμ, Cℓ_μARF, Cℓ_ARFRSD, Cℓ_RSDARF,
+    Cℓ_ARFfNL, Cℓ_fNLARF,
+)
+    T = promote_type(
+        _cℓ_term_eltype(Cℓ_δδ), _cℓ_term_eltype(Cℓ_δRSD),
+        _cℓ_term_eltype(Cℓ_RSDδ), _cℓ_term_eltype(Cℓ_RSDRSD),
+        _cℓ_term_eltype(Cℓ_δμ), _cℓ_term_eltype(Cℓ_μδ),
+        _cℓ_term_eltype(Cℓ_μμ), _cℓ_term_eltype(Cℓ_μRSD),
+        _cℓ_term_eltype(Cℓ_RSDμ), _cℓ_term_eltype(Cℓ_δfNL),
+        _cℓ_term_eltype(Cℓ_fNLδ), _cℓ_term_eltype(Cℓ_fNLRSD),
+        _cℓ_term_eltype(Cℓ_RSDfNL), _cℓ_term_eltype(Cℓ_μfNL),
+        _cℓ_term_eltype(Cℓ_fNLμ), _cℓ_term_eltype(Cℓ_fNLfNL),
+        _cℓ_term_eltype(Cℓ_ARFARF), _cℓ_term_eltype(Cℓ_ARFδ),
+        _cℓ_term_eltype(Cℓ_δARF), _cℓ_term_eltype(Cℓ_ARFμ),
+        _cℓ_term_eltype(Cℓ_μARF), _cℓ_term_eltype(Cℓ_ARFRSD),
+        _cℓ_term_eltype(Cℓ_RSDARF), _cℓ_term_eltype(Cℓ_ARFfNL),
+        _cℓ_term_eltype(Cℓ_fNLARF),
+    )
+    result = similar(Cℓ_δδ, T)
+    @. result = Cℓ_δδ - Cℓ_δRSD - Cℓ_RSDδ + Cℓ_RSDRSD +
+                Cℓ_δμ + Cℓ_μδ + Cℓ_μμ - Cℓ_μRSD - Cℓ_RSDμ +
+                Cℓ_δfNL + Cℓ_fNLδ - Cℓ_fNLRSD - Cℓ_RSDfNL +
+                Cℓ_μfNL + Cℓ_fNLμ + Cℓ_fNLfNL +
+                Cℓ_ARFARF + Cℓ_ARFδ + Cℓ_δARF + Cℓ_ARFμ + Cℓ_μARF -
+                Cℓ_ARFRSD - Cℓ_RSDARF + Cℓ_ARFfNL + Cℓ_fNLARF
     return result
 end
 
@@ -471,28 +579,67 @@ function _gc_nonlimber_png_pairs(G, W, integ, W_δ, W_RSD, W_μ, W_fNL)
     )
 end
 
+# ARF's within-GG cross-pairs. Mirrors _gc_nonlimber_base_pairs's transpose
+# trick: each direction of a pair shares the same weight tensor(s) as the
+# corresponding δ pair, so one direction is computed and the other recovered
+# via _transpose_cℓ_pair (see the "Pair-spectrum transpose helper" note above).
+function _gc_nonlimber_arf_pairs(G, W, integ, W_δ, W_RSD, W_μ, W_ARF)
+    Cℓ_ARFARF = _compute_Cℓ_cached(G.ARF, G.ARF, W_ARF, W_ARF, W.w_2_00_ϕTT, integ)
+    Cℓ_ARFδ = _compute_Cℓ_cached(G.ARF, G.δ, W_ARF, W_δ, W.w_2_00_ϕTT, integ)
+    Cℓ_ARFμ = _compute_Cℓ_cached(G.ARF, G.μ, W_ARF, W_μ, W.w_0_00_ϕTT, integ)
+    Cℓ_ARFRSD = _compute_Cℓ_rsd_cached(G.ARF, G.RSD, W_ARF, W_RSD, W.w_2_02_ϕTT, W.w_2_20_ϕTT, integ)
+    return (
+        Cℓ_ARFARF, Cℓ_ARFδ, _transpose_cℓ_pair(Cℓ_ARFδ),
+        Cℓ_ARFμ, _transpose_cℓ_pair(Cℓ_ARFμ),
+        Cℓ_ARFRSD, _transpose_cℓ_pair(Cℓ_ARFRSD),
+    )
+end
+
+# ARF×PNG cross-pairs use _R1-sliced vs full weight tensors that are NOT
+# equal under index transpose (same caveat as _gc_nonlimber_png_pairs), so
+# they are computed independently in both directions.
+function _gc_nonlimber_arf_png_pairs(G, W, integ, W_ARF, W_fNL)
+    return (
+        _compute_Cℓ_cached(G.ARF, G.PNG, W_ARF, W_fNL, W.w_2_00_ϕT_R1, integ),
+        _compute_Cℓ_cached(G.PNG, G.ARF, W_fNL, W_ARF, W.w_2_00_ϕT, integ),
+    )
+end
+
 function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
     integ = _prepare_nonlimber_integration(bg)
     W_δ = _get_kernel_or_nothing(G.δ, bg)
     W_RSD = _get_kernel_or_nothing(G.RSD, bg)
     W_μ = _get_kernel_or_nothing(G.μ, bg)
     W_fNL = _get_kernel_or_nothing(G.PNG, bg)
+    W_ARF = _get_kernel_or_nothing(G.ARF, bg)
 
     base_pairs = _gc_nonlimber_base_pairs(G, W, integ, W_δ, W_RSD, W_μ)
 
-    Cℓ_nonlimber = if isnothing(G.PNG)
-        # Keep the common no-PNG path free of scalar 0. sentinel terms.  Besides
-        # avoiding unnecessary calls, this keeps the fused broadcast small enough
-        # for Julia inference to materialize a concrete Array return type.
-        _combine_gc_nonlimber(base_pairs...)
-    else
+    Cℓ_nonlimber = if isnothing(G.PNG) && isnothing(G.ARF)
+        # Keep the common no-PNG/no-ARF path free of scalar 0. sentinel terms.
+        # Besides avoiding unnecessary calls, this keeps the fused broadcast
+        # small enough for Julia inference to materialize a concrete Array
+        # return type.
+        _combine_gc_nonlimber_base(base_pairs...)
+    elseif isnothing(G.ARF)
         # PNG cross-pairs use _R1-sliced vs full weight tensors that are NOT
         # equal under index transpose, so they cannot be folded; computed
         # independently.
         png_pairs = _gc_nonlimber_png_pairs(G, W, integ, W_δ, W_RSD, W_μ, W_fNL)
-        _combine_gc_nonlimber(base_pairs..., png_pairs...)
+        _combine_gc_nonlimber_png(base_pairs..., png_pairs...)
+    elseif isnothing(G.PNG)
+        arf_pairs = _gc_nonlimber_arf_pairs(G, W, integ, W_δ, W_RSD, W_μ, W_ARF)
+        _combine_gc_nonlimber_arf(base_pairs..., arf_pairs...)
+    else
+        png_pairs = _gc_nonlimber_png_pairs(G, W, integ, W_δ, W_RSD, W_μ, W_fNL)
+        arf_pairs = _gc_nonlimber_arf_pairs(G, W, integ, W_δ, W_RSD, W_μ, W_ARF)
+        arf_png_pairs = _gc_nonlimber_arf_png_pairs(G, W, integ, W_ARF, W_fNL)
+        _combine_gc_nonlimber_arf_png(base_pairs..., png_pairs..., arf_pairs..., arf_png_pairs...)
     end
-    K_limber_G = get_limber_kernel(G)
+    # Auto-spectrum: ARF's Limber contribution belongs here (mirrors its "+"
+    # sign against δ/μ above), unlike the generic get_limber_kernel(G) used
+    # by GC×WL — see _gc_limber_kernel_with_arf's docstring in limber.jl.
+    K_limber_G = _gc_limber_kernel_with_arf(G)
     Cℓ_correction = get_limber_correction(K_limber_G, Pk)
     Cℓ_limber = get_limber_Cℓ(K_limber_G, Pk)
 
@@ -619,6 +766,10 @@ function get_Cℓ(Component1::CMBLensing, Component2::PrimordialNonGaussianity, 
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1, bg)
 end
 
+function get_Cℓ(Component1::CMBLensing, Component2::AngularRedshiftFluctuations, W::ProjectedMatterDensity, bg::Background)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕTT, bg)
+end
+
 function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::NumberCounts, W::ProjectedMatterDensity, bg::Background)
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕTT, bg)
 end
@@ -640,15 +791,30 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk:
     Cℓ_κRSD = get_Cℓ(K.κ, G.RSD, W, bg)
     Cℓ_κμ = get_Cℓ(K.κ, G.μ, W, bg)
     Cℓ_κfNL = get_Cℓ(K.κ, G.PNG, W, bg)
+    Cℓ_κARF = get_Cℓ(K.κ, G.ARF, W, bg)
     Cℓ_Tδ = get_Cℓ(K.ISW, G.δ, W, bg)
     Cℓ_TRSD = get_Cℓ(K.ISW, G.RSD, W, bg)
     Cℓ_Tμ = get_Cℓ(K.ISW, G.μ, W, bg)
     Cℓ_TfNL = get_Cℓ(K.ISW, G.PNG, W, bg)
+    # Deliberately no Cℓ_TARF (ISW×ARF) term: ARF only crosses with κ, not
+    # ISW, per the AngularRedshiftFluctuations docstring.
 
-    Cℓ_nonlimber = @. Cℓ_κδ - Cℓ_κRSD + Cℓ_κμ + Cℓ_κfNL + Cℓ_Tδ - Cℓ_TRSD + Cℓ_Tμ + Cℓ_TfNL
+    Cℓ_nonlimber = @. Cℓ_κδ - Cℓ_κRSD + Cℓ_κμ + Cℓ_κfNL + Cℓ_κARF + Cℓ_Tδ - Cℓ_TRSD + Cℓ_Tμ + Cℓ_TfNL
+
+    # Limber piece: δ/μ cross the FULL CMB kernel (κ+ISW combined), matching
+    # existing precedent. ARF crosses κ's OWN kernel only, never ISW's — the
+    # generic get_limber_kernel(::CMB) merges κ+ISW into one array, so this
+    # cannot be expressed via the generic Union{GalaxyClustering,WeakLensing,
+    # CMB} dispatch; it is added explicitly here instead.
     Cℓ_correction = get_limber_correction(K, G, Pk)
     Cℓ_limber = get_limber_Cℓ(K, G, Pk)
-    full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1) 
+    if !isnothing(G.ARF)
+        K_limber_κ = get_limber_kernel(K.κ)
+        K_limber_ARF = get_limber_kernel(G.ARF)
+        Cℓ_correction = Cℓ_correction .+ get_limber_correction(K_limber_κ, K_limber_ARF, Pk)
+        Cℓ_limber = Cℓ_limber .+ get_limber_Cℓ(K_limber_κ, K_limber_ARF, Pk)
+    end
+    full_Cℓ = cat(Cℓ_nonlimber .+ Cℓ_correction, Cℓ_limber; dims=1)
 
     nbins_A = size(K.κ.Kernel, 1)
     nbins_B = size(G.δ.Kernel, 1)

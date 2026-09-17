@@ -14,6 +14,9 @@ function _type_stability_workload()
         PNG=Blast.PrimordialNonGaussianity(
             nz=nz, z=z_nz, bias=ones(1, n_bg), f_NL=1.0, p=0.0,
         ),
+        ARF=Blast.AngularRedshiftFluctuations(
+            nz=nz, z=z_nz, bias=ones(1, n_bg), zbar=[1.0],
+        ),
     )
     lensing = Blast.WeakLensing(
         γ=Blast.CosmicShear(nz=nz, z=z_nz),

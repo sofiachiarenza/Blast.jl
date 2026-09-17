@@ -116,9 +116,30 @@ _combine_limber_kernels(::Nothing, ::Nothing) = nothing
 Sum Limber kernels over implemented `GalaxyClustering` Limber components.
 
 Current implementation includes number counts `δ` and magnification `μ`.
+
+Deliberately excludes `ARF`: this generic method also backs the GC×WL
+(cosmic shear) Limber cross-term via `get_limber_correction`/`get_limber_Cℓ`
+dispatching on `Union{GalaxyClustering, WeakLensing, CMB}`, and ARF must
+never appear there (it does not cross with `WeakLensing` at all). ARF's own
+Limber contribution to the GG auto-spectrum and the κ×G cross is added
+explicitly at those two call sites, using the generic
+`get_limber_kernel(::AbstractComponents)` on `G.ARF` directly — see
+[`_gc_limber_kernel_with_arf`](@ref) and `src/cls.jl`.
 """
 function get_limber_kernel(G::GalaxyClustering)
     return _combine_limber_kernels(get_limber_kernel(G.δ), get_limber_kernel(G.μ))
+end
+
+"""
+    _gc_limber_kernel_with_arf(G::GalaxyClustering)
+
+`get_limber_kernel(G)` (δ, μ) plus ARF's own Limber kernel, summed. Used only
+by the GG auto-spectrum, where ARF's Limber contribution legitimately
+belongs (mirroring its "+" sign against δ and μ in the non-Limber sum). Not
+used for GC×WL, where the plain `get_limber_kernel(G)` (ARF-free) applies.
+"""
+function _gc_limber_kernel_with_arf(G::GalaxyClustering)
+    return _combine_limber_kernels(get_limber_kernel(G), get_limber_kernel(G.ARF))
 end
 
 """

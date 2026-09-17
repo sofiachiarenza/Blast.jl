@@ -284,3 +284,43 @@ end
     expected_png = @. (bg.H' / Blast.C_LIGHT) * f_NL * b_phi * png.nz_norm
     @test png.Kernel ≈ expected_png
 end
+
+@testset "Probes: AngularRedshiftFluctuations kernel" begin
+    cosmo = get_test_cosmo()
+    bg = get_test_bg(cosmo)
+
+    z = collect(bg.z)
+    n_bg = length(z)
+    n_bins = 2
+    nz = zeros(n_bins, n_bg)
+    nz[1, :] .= @. exp(-((z - 0.8)^2) / 0.05)
+    nz[2, :] .= @. exp(-((z - 1.6)^2) / 0.08)
+    bias = 1.5 .+ rand(n_bins, n_bg)
+    zbar = [0.8, 1.6]  # fixed, user-supplied — NOT computed from nz by Blast
+
+    arf = Blast.AngularRedshiftFluctuations(nz=copy(nz), z=copy(z), bias=copy(bias), zbar=copy(zbar))
+    @test Blast.has_nz(arf)
+    Blast.compute_kernel!(arf, bg)
+
+    # K[b,i] = bias[b,i] · H[i]/c · nz_norm[b,i] · (z[i] - zbar[b])
+    #        = (z[i] - zbar[b]) · K_δ[b,i]
+    expected_arf = @. bias * (bg.H' / Blast.C_LIGHT) * arf.nz_norm * (z' - zbar)
+    @test arf.Kernel ≈ expected_arf
+    @test size(arf.Kernel) == (n_bins, n_bg)
+
+    # Confirms the user's hypothesis directly: ARF is exactly the
+    # NumberCounts kernel times the fixed (z - zbar) weight.
+    nc = Blast.NumberCounts(nz=copy(nz), z=copy(z), bias=copy(bias))
+    Blast.compute_kernel!(nc, bg)
+    @test arf.Kernel ≈ @.((z' - zbar) * nc.Kernel)
+
+    # Bad bias shape
+    @test_throws DimensionMismatch Blast.compute_kernel!(
+        Blast.AngularRedshiftFluctuations(nz=copy(nz), z=copy(z),
+            bias=ones(n_bins, n_bg - 1), zbar=copy(zbar)), bg)
+
+    # Bad zbar length (must be one entry per bin)
+    @test_throws DimensionMismatch Blast.compute_kernel!(
+        Blast.AngularRedshiftFluctuations(nz=copy(nz), z=copy(z),
+            bias=copy(bias), zbar=[0.8]), bg)
+end

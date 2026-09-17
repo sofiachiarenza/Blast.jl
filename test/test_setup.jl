@@ -53,6 +53,35 @@ end
     @test !isnothing(W_comb.w_minus2_00_ϕTT) # γ is now present
 end
 
+@testset "Setup: ARF activation leaves the weight-tensor footprint unchanged" begin
+    # AngularRedshiftFluctuations is spin-equivalent to NumberCounts (see its
+    # docstring in src/probes.jl): every w_* tensor it needs is already
+    # allocated by the have_μ/have_RSD/have_PNG/have_κ flags introduced for
+    # δ's own cross-terms, and w_2_00_ϕTT (ARF's own auto tensor) is already
+    # unconditionally allocated. So SetUp should need zero code changes for
+    # ARF — this test is a direct regression guard for that architectural
+    # claim: activating ARF must not change *which* tensors are non-nothing,
+    # for every GalaxyClustering / GalaxyClustering×CMB combination.
+    _active_fields(W) = Set(name for name in fieldnames(typeof(W)) if !isnothing(getfield(W, name)))
+
+    gc_no_arf = Blast.GalaxyClustering(
+        δ = Blast.NumberCounts(), RSD = Blast.RedshiftSpaceDistortions(),
+        μ = Blast.MagnificationBias(), PNG = Blast.PrimordialNonGaussianity())
+    gc_arf = Blast.GalaxyClustering(
+        δ = Blast.NumberCounts(), RSD = Blast.RedshiftSpaceDistortions(),
+        μ = Blast.MagnificationBias(), PNG = Blast.PrimordialNonGaussianity(),
+        ARF = Blast.AngularRedshiftFluctuations())
+
+    W_no_arf, _ = Blast.SetUp(gc_no_arf)
+    W_arf, _ = Blast.SetUp(gc_arf)
+    @test _active_fields(W_no_arf) == _active_fields(W_arf)
+
+    cmb = Blast.CMB(κ = Blast.CMBLensing())
+    W_no_arf_cmb, _ = Blast.SetUp(gc_no_arf, cmb)
+    W_arf_cmb, _ = Blast.SetUp(gc_arf, cmb)
+    @test _active_fields(W_no_arf_cmb) == _active_fields(W_arf_cmb)
+end
+
 @testset "Setup: compute_w populates active fields" begin
     # Direct unit test for compute_w: for every non-nothing w_*_ϕTT/ϕT/ϕ
     # field in W, its coefs array must be finite and non-zero after

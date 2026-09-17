@@ -105,11 +105,32 @@ K_i^{\mathrm{PNG}}(z) = \frac{H(z)}{c}\, f_{\mathrm{NL}}\, b_{\Phi,i}(z)\, \hat 
 b_{\Phi,i}(z) = 2\,\delta_c\,\left[b_i(z)-p\right]
 ```
 
+- Angular redshift fluctuations (ARF, `δz`): built with the exact same
+  formalism as number counts, replacing $\hat n_i(z)$ with a
+  redshift-fluctuation-weighted window
+  (Hernández-Monteagudo, Chaves-Montero & Angulo 2021, MNRAS 503, L56;
+  Bermejo-Climent et al. 2026, [arXiv:2601.16948](https://arxiv.org/abs/2601.16948), Eq. 15):
+
+```math
+K_i^{\mathrm{ARF}}(z) = \left(z - \bar z_i\right) K_i^{\delta}(z)
+= \left(z - \bar z_i\right)\frac{H(z)}{c}\, b_i(z)\, \hat n_i(z)
+```
+
+  where $\bar z_i$ is a fixed, per-bin reference redshift supplied by the
+  user (e.g. the mean redshift of bin $i$'s own $dN/dz$) — Blast does not
+  compute it from $\hat n_i(z)$.
+
 The probe containers combine these components as follows:
 
-- `GalaxyClustering = \delta + \mathrm{RSD} + \mu + \mathrm{PNG}`
+- `GalaxyClustering = \delta + \mathrm{RSD} + \mu + \mathrm{PNG} + \mathrm{ARF}`
 - `WeakLensing = \gamma + \mathrm{IA}`
 - `CMB = \kappa_{\mathrm{CMB}} + \mathrm{ISW}`
+
+ARF participates in the full `GalaxyClustering` (GG) combinatorics — crossing
+with $\delta$, RSD, $\mu$, and PNG — and in the CMB-lensing cross
+(`CMB.κ` × `GalaxyClustering`). It deliberately does **not** cross with
+`CMB.ISW`, nor with `WeakLensing` (cosmic shear or intrinsic alignment):
+those contributions are absent from `get_Cℓ` for probes including `ARF`.
 
 ## Limber approximation
 

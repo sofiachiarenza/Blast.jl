@@ -76,6 +76,35 @@ raw_GC = Blast.GalaxyClustering(δ=δ, RSD=rsd, μ=μ, PNG=PNG)
 GC = Blast.prepare_probe(raw_GC, bg)
 ```
 
+## Angular redshift fluctuations (ARF)
+
+ARF (`δz`) is built with the same n(z)/bias inputs as `NumberCounts`, plus a
+fixed per-bin reference redshift `zbar` (e.g. each bin's own mean redshift)
+that you supply — Blast does not compute it from `nz`:
+
+```julia
+zbar = [1.05, 2.10]  # one entry per tomographic bin, computed by you
+
+arf = Blast.AngularRedshiftFluctuations(nz=nz_g, z=zn, bias=bias_matrix, zbar=zbar)
+
+raw_GC_arf = Blast.GalaxyClustering(δ=δ, ARF=arf)
+GC_arf = Blast.prepare_probe(raw_GC_arf, bg)
+```
+
+ARF participates in the full galaxy-clustering (GG) combinatorics — it can
+be combined with any of `RSD`, `μ`, `PNG` above — and in the CMB-lensing
+cross `CMB.κ × GalaxyClustering`. It deliberately does **not** cross with
+`CMB.ISW` or with `WeakLensing` (cosmic shear/intrinsic alignment): those
+contributions are simply absent from `get_Cℓ` for a probe that includes
+`ARF`.
+
+```julia
+cmb = Blast.CMB(κ=Blast.CMBLensing())
+W, plans = Blast.SetUp(GC_arf, cmb)
+# ... compute_w as below ...
+Cℓ_κG = Blast.get_Cℓ(ell_list, cmb, GC_arf, PowerSpectrum, W, bg, plans)  # includes κ×ARF
+```
+
 ## Weak lensing — all effects on
 
 Cosmic shear $\gamma$ + intrinsic alignment using the built-in NLA model,

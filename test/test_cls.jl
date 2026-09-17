@@ -161,6 +161,205 @@ end
     @test !(cls_png ≈ cls_δ)
 end
 
+@testset "Cls: GC auto with ARF active (no PNG)" begin
+    # Exercises the new _combine_gc_nonlimber_arf branch (16-arg: base + arf),
+    # distinct from the pre-existing 16-arg PNG branch despite equal arity
+    # (see the dispatch-collision note in src/cls.jl).
+    cosmo = get_test_cosmo()
+    bg = get_test_bg(cosmo)
+
+    nk = length(Blast.k_cheb)
+    nz_lin = length(Blast.z_lin)
+    pk_grid = ones(nz_lin, nk)
+
+    nz_cheb = length(Blast.z_cheb)
+    nk_limber = length(Blast.k_limber)
+    pk_limber = ones(nz_cheb, nk_limber)
+
+    nz = ones(1, 50)
+    z_nz = LinRange(0.0, 3.6, 50)
+    n_bg = length(bg.z)
+
+    gc_δ = Blast.GalaxyClustering(δ = Blast.NumberCounts(nz=nz, z=z_nz, bias=ones(1, n_bg)))
+    W_δ, Plans_δ = Blast.SetUp(gc_δ)
+    Blast.evaluate_components!(gc_δ, bg)
+    PS_δ = Blast.prepare_pk_workspace(Plans_δ, pk_grid, pk_limber, pk_limber, bg)
+    W_δ = Blast.compute_w(W_δ, PS_δ)
+    cls_δ = Blast.get_Cℓ(Blast.full_ℓ_range, gc_δ, PS_δ, W_δ, bg, Plans_δ)
+
+    gc_arf = Blast.GalaxyClustering(
+        δ = Blast.NumberCounts(nz=nz, z=z_nz, bias=ones(1, n_bg)),
+        ARF = Blast.AngularRedshiftFluctuations(nz=nz, z=z_nz, bias=ones(1, n_bg), zbar=[1.0]))
+    W_arf, Plans_arf = Blast.SetUp(gc_arf)
+    @test !isnothing(W_arf.w_2_00_ϕTT)  # shared with δ — no new tensor needed
+
+    Blast.evaluate_components!(gc_arf, bg)
+    @test all(isfinite, gc_arf.ARF.Kernel)
+    @test any(!iszero, gc_arf.ARF.Kernel)
+
+    PS_arf = Blast.prepare_pk_workspace(Plans_arf, pk_grid, pk_limber, pk_limber, bg)
+    W_arf = Blast.compute_w(W_arf, PS_arf)
+    cls_arf = Blast.get_Cℓ(Blast.full_ℓ_range, gc_arf, PS_arf, W_arf, bg, Plans_arf)
+
+    @test size(cls_arf) == (length(Blast.full_ℓ_range), 1, 1)
+    @test all(isfinite, cls_arf)
+    @test !(cls_arf ≈ cls_δ)
+end
+
+@testset "Cls: GC auto with ARF and PNG combined" begin
+    # Exercises the new 25-arg _combine_gc_nonlimber_arf_png branch.
+    cosmo = get_test_cosmo()
+    bg = get_test_bg(cosmo)
+
+    pk_grid = ones(length(Blast.z_lin), length(Blast.k_cheb))
+    pk_limber = ones(length(Blast.z_cheb), length(Blast.k_limber))
+
+    nz = ones(1, 50)
+    z_nz = LinRange(0.0, 3.6, 50)
+    n_bg = length(bg.z)
+
+    gc = Blast.GalaxyClustering(
+        δ = Blast.NumberCounts(nz=nz, z=z_nz, bias=ones(1, n_bg)),
+        PNG = Blast.PrimordialNonGaussianity(nz=nz, z=z_nz, bias=ones(1, n_bg), f_NL=1.0, p=0.0),
+        ARF = Blast.AngularRedshiftFluctuations(nz=nz, z=z_nz, bias=ones(1, n_bg), zbar=[1.0]))
+    W, Plans = Blast.SetUp(gc)
+    Blast.evaluate_components!(gc, bg)
+    PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber, pk_limber, bg)
+    W = Blast.compute_w(W, PS)
+    cls = Blast.get_Cℓ(Blast.full_ℓ_range, gc, PS, W, bg, Plans)
+
+    @test size(cls) == (length(Blast.full_ℓ_range), 1, 1)
+    @test all(isfinite, cls)
+end
+
+@testset "Cls: ARF pairwise dispatch matches a pre-weighted NumberCounts" begin
+    # Strong correctness check for the new ARF get_Cℓ methods: since
+    # ARF.Kernel == (z - zbar) .* δ.Kernel exactly (test_probes.jl), an ARF
+    # component and a "fake" NumberCounts whose bias is pre-multiplied by
+    # (z - zbar) must produce bit-identical kernels — and therefore
+    # bit-identical Cℓ against any third partner, PROVIDED the new ARF
+    # dispatch methods route to the same weight tensors as the corresponding
+    # NumberCounts ones. This validates (a) no typo'd weight-tensor name in
+    # the new ARF get_Cℓ methods and (b) the ARF kernel values, using the
+    # already-trusted NumberCounts pathway as ground truth. It does not
+    # independently re-derive the +/- sign of each term inside
+    # _combine_gc_nonlimber_arf (that sign is asserted by analogy to δ's
+    # sign, since ARF and δ share the same weight-tensor class).
+    cosmo = get_test_cosmo()
+    bg = get_test_bg(cosmo)
+    z = collect(bg.z)
+    n_bg = length(z)
+
+    nz = ones(1, 50)
+    z_nz = LinRange(0.0, 3.6, 50)
+    bias = ones(1, n_bg)
+    zbar = [1.0]
+    s = fill(0.4, 1, n_bg)
+
+    arf = Blast.AngularRedshiftFluctuations(nz=nz, z=z_nz, bias=copy(bias), zbar=copy(zbar))
+    Blast.compute_kernel!(arf, bg)
+
+    bias_eff = @. bias * (z' - zbar)
+    fake_nc = Blast.NumberCounts(nz=nz, z=z_nz, bias=bias_eff)
+    Blast.compute_kernel!(fake_nc, bg)
+    @test arf.Kernel ≈ fake_nc.Kernel
+
+    μ = Blast.MagnificationBias(nz=nz, z=z_nz, s=copy(s))
+    Blast.compute_kernel!(μ, bg)
+
+    W = Blast.ProjectedMatterDensity(w_2_00_ϕTT=Blast.w_2_00_ϕTT(), w_0_00_ϕTT=Blast.w_0_00_ϕTT())
+    pk_grid = ones(length(Blast.z_lin), length(Blast.k_cheb))
+    pk_limber = ones(length(Blast.z_cheb), length(Blast.k_limber))
+    gc_for_plans = Blast.GalaxyClustering(δ = Blast.NumberCounts(nz=nz, z=z_nz, bias=bias))
+    _, Plans = Blast.SetUp(gc_for_plans)
+    PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber, pk_limber, bg)
+    W = Blast.compute_w(W, PS)
+
+    cl_arf_μ = Blast.get_Cℓ(arf, μ, W, bg)
+    cl_fake_μ = Blast.get_Cℓ(fake_nc, μ, W, bg)
+    @test cl_arf_μ ≈ cl_fake_μ
+
+    cl_μ_arf = Blast.get_Cℓ(μ, arf, W, bg)
+    cl_μ_fake = Blast.get_Cℓ(μ, fake_nc, W, bg)
+    @test cl_μ_arf ≈ cl_μ_fake
+end
+
+@testset "Cls: KG (CMB×GC) — ARF crosses κ only, not ISW" begin
+    cosmo = get_test_cosmo()
+    bg = get_test_bg(cosmo)
+
+    pk_grid = ones(length(Blast.z_lin), length(Blast.k_cheb))
+    pk_limber = ones(length(Blast.z_cheb), length(Blast.k_limber))
+
+    nz = ones(1, 50)
+    z_nz = LinRange(0.0, 3.6, 50)
+    n_bg = length(bg.z)
+
+    function _kg_cls(; with_arf::Bool, with_isw::Bool)
+        δ = Blast.NumberCounts(nz=nz, z=z_nz, bias=ones(1, n_bg))
+        arf = with_arf ? Blast.AngularRedshiftFluctuations(nz=nz, z=z_nz, bias=ones(1, n_bg), zbar=[1.0]) : nothing
+        gc = Blast.GalaxyClustering(; δ, ARF=arf)
+        cmb = with_isw ? Blast.CMB(κ=Blast.CMBLensing(), ISW=Blast.IntegratedSachsWolfe()) : Blast.CMB(κ=Blast.CMBLensing())
+
+        W, Plans = Blast.SetUp(gc, cmb)
+        Blast.evaluate_components!(gc, bg)
+        Blast.evaluate_components!(cmb, bg)
+        PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber, pk_limber, bg)
+        W = Blast.compute_w(W, PS)
+        return Blast.get_Cℓ(Blast.full_ℓ_range, cmb, gc, PS, W, bg, Plans)
+    end
+
+    cls_κ_noarf = _kg_cls(with_arf=false, with_isw=false)
+    cls_κ_arf = _kg_cls(with_arf=true, with_isw=false)
+    @test size(cls_κ_arf) == (length(Blast.full_ℓ_range), 1, 1)
+    @test all(isfinite, cls_κ_arf)
+    # κ×ARF must actually contribute.
+    @test !(cls_κ_arf ≈ cls_κ_noarf)
+
+    cls_κisw_noarf = _kg_cls(with_arf=false, with_isw=true)
+    cls_κisw_arf = _kg_cls(with_arf=true, with_isw=true)
+
+    # The "turn on ISW" increment must be identical whether or not ARF is
+    # active — this is only true if ARF contributes zero to the ISW cross
+    # (i.e. no hidden Cℓ_TARF term), since the only ISW-driven contribution
+    # in either case is Tδ.
+    increment_noarf = cls_κisw_noarf .- cls_κ_noarf
+    increment_arf = cls_κisw_arf .- cls_κ_arf
+    @test increment_arf ≈ increment_noarf
+end
+
+@testset "Cls: ARF is excluded from the GC×WL (cosmic shear) cross-spectrum" begin
+    cosmo = get_test_cosmo()
+    bg = get_test_bg(cosmo)
+
+    pk_grid = ones(length(Blast.z_lin), length(Blast.k_cheb))
+    pk_limber = ones(length(Blast.z_cheb), length(Blast.k_limber))
+
+    nz = ones(1, 50)
+    z_nz = LinRange(0.0, 3.6, 50)
+    n_bg = length(bg.z)
+
+    wl = Blast.WeakLensing(γ = Blast.CosmicShear(nz=nz, z=z_nz))
+
+    gc_noarf = Blast.GalaxyClustering(δ = Blast.NumberCounts(nz=nz, z=z_nz, bias=ones(1, n_bg)))
+    gc_arf = Blast.GalaxyClustering(
+        δ = Blast.NumberCounts(nz=nz, z=z_nz, bias=ones(1, n_bg)),
+        ARF = Blast.AngularRedshiftFluctuations(nz=nz, z=z_nz, bias=ones(1, n_bg), zbar=[1.0]))
+
+    W, Plans = Blast.SetUp(gc_arf, wl)
+    Blast.evaluate_components!(gc_noarf, bg)
+    Blast.evaluate_components!(gc_arf, bg)
+    Blast.evaluate_components!(wl, bg)
+    PS = Blast.prepare_pk_workspace(Plans, pk_grid, pk_limber, pk_limber, bg)
+    W = Blast.compute_w(W, PS)
+
+    cls_noarf = Blast.get_Cℓ(Blast.full_ℓ_range, gc_noarf, wl, PS, W, bg, Plans)
+    cls_arf = Blast.get_Cℓ(Blast.full_ℓ_range, gc_arf, wl, PS, W, bg, Plans)
+
+    # ARF must be completely absent from this cross-spectrum by design.
+    @test cls_arf ≈ cls_noarf
+end
+
 @testset "Cls: CMB×GC with ISW active" begin
     # End-to-end exercise of the ISW dispatch chain through the non-limber
     # CMB×GC cross-spectrum. test_limber.jl covers ISW at the Limber-kernel

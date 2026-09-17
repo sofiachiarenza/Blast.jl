@@ -62,6 +62,7 @@ export GalaxyClustering, WeakLensing, CMB
 export NumberCounts, CosmicShear, CMBLensing
 export RedshiftSpaceDistortions, MagnificationBias
 export IntrinsicAlignment, IntegratedSachsWolfe, PrimordialNonGaussianity
+export AngularRedshiftFluctuations
 
 # Setup and workspace
 export SetUp, FFTPlans, PowerSpectrum, ProjectedMatterDensity

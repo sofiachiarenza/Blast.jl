@@ -38,6 +38,7 @@ Blast.NumberCounts
 Blast.RedshiftSpaceDistortions
 Blast.MagnificationBias
 Blast.PrimordialNonGaussianity
+Blast.AngularRedshiftFluctuations
 Blast.CosmicShear
 Blast.IntrinsicAlignment
 Blast.CMBLensing
@@ -59,6 +60,7 @@ Blast.compute_kernel!(::Blast.NumberCounts, ::Blast.Background)
 Blast.compute_kernel!(::Blast.RedshiftSpaceDistortions, ::Blast.Background)
 Blast.compute_kernel!(::Blast.MagnificationBias, ::Blast.Background)
 Blast.compute_kernel!(::Blast.PrimordialNonGaussianity, ::Blast.Background)
+Blast.compute_kernel!(::Blast.AngularRedshiftFluctuations, ::Blast.Background)
 Blast.compute_kernel!(::Blast.CosmicShear, ::Blast.Background)
 Blast.compute_kernel!(::Blast.IntrinsicAlignment, ::Blast.Background)
 Blast.compute_kernel!(::Blast.CMBLensing, ::Blast.Background)
