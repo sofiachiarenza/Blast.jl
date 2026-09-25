@@ -1,0 +1,4 @@
+Manifest.toml
+grids.npz
+.ipynb_checkpoints/
+__pycache__/

@@ -1,0 +1,17 @@
+diff --git a/fortran/equations.f90 b/fortran/equations.f90
+index d78aa84..95b3c19 100644
+--- a/fortran/equations.f90
++++ b/fortran/equations.f90
+@@ -1540,9 +1540,11 @@
+                     ![CHM] Now we introduce f_NL in bias definition:
+                     biasEff=W%Window%GetBias(k,a)
+                     if (biasEff==0) biasEff=1 ! we avoid NaNs this way
++                    ! [BLAST-VALIDATION] Newtonian-gauge correction (comoving_density_ev - 3 adotoa) sigma/k
++                    ! removed, leaving b * synchronous-gauge delta_c as in Blast's NumberCounts kernel.
+                     counts_density_source= W%wing(j)*(clxc*biasEff * &
+                      (1+(biasEff-1.)/biasEff*3*1.686*CP%f_NL*(-3./5.)/(phi*k*k*a) &
+-                        *(CP%omch2+CP%ombh2)*100*100/c_light/c_light )  + 1.*(W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
++                        *(CP%omch2+CP%ombh2)*100*100/c_light/c_light )  + 0.*(W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
+                     !if (abs(a-0.5).lt.0.01) print*,'TST counts:',1/a-1,k,counts_density_source, W%Fq
+                    ! chm ______ 
+                 else

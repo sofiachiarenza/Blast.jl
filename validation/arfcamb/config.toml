@@ -1,0 +1,27 @@
+# Single source of truth for the Blast vs ARFCAMB validation.
+# Read by generate_camb_reference.py (tomllib) and blast_pieces.jl (TOML).
+
+[cosmology]  # DESI fiducial (c000), as in NewBlastTheory/blARF_cls.ipynb
+h = 0.6736
+As = 2.0830e-9
+ns = 0.9649
+ombh2 = 0.02237
+omch2 = 0.1200
+mnu = 0.06
+w0 = -1.0
+wa = 0.0
+
+[window]  # single Gaussian bin, tabulated (ARFCAMB ARF needs SplinedSourceWindow)
+z0 = 1.0
+sigma = 0.2
+zmin = 0.0
+zmax = 2.4
+nz = 1201
+
+[tracer]
+bias = 1.5
+s = 0.2  # magnification slope dlog10N/dm
+
+[ell]
+lmin = 2
+lmax = 300

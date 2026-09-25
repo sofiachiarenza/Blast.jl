@@ -61,6 +61,10 @@ global data = load_reference_data()
         include("test_limber.jl")
     end
 
+    @testset "ARFCAMB Validation" begin
+        include("test_arfcamb_validation.jl")
+    end
+
 @testset "Automatic Differentiation" begin
     include("test_diff_cls.jl")
     include("test_diff_cosmo.jl")

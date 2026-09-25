@@ -1,0 +1,18 @@
+# Conda environment for building ARFCAMB and generating the Blast ARF
+# validation fixture. See README.md for the full procedure.
+name: arfcamb
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - scipy
+  - matplotlib
+  - jupyter
+  - ipykernel
+  - gfortran
+  - make
+  - setuptools<70  # ARFCAMB build imports pkg_resources
+  - packaging
+  - wheel
+  - pip
