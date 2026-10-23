@@ -114,6 +114,14 @@ function _compute_Cℓ_fused_tullio(W_A, W_B, pmj, w_χ, w_R, prefactor, Δχ, �
     return Cℓ
 end
 
+# Both fused helpers split the folded (χ, R) domain into two triangles:
+#   triangle 1: A at χ,  B at Rχ   (pmj02 below)
+#   triangle 2: A at Rχ, B at χ    (pmj20 below)
+# The one-tensor form reuses pmj on both, which is only valid when the pair's
+# projected tensor is symmetric under A↔B (every ϕTT and ϕ weight). Mixed-PNG
+# pairs carry one transfer function, on the non-PNG leg, so they take ϕT_R1
+# (T at χ) on the triangle where that leg sits at χ and ϕT (T at Rχ) on the
+# other. The `rsd` name is historical; the contraction is generic.
 function _compute_Cℓ_rsd_fused_tullio(W_A, W_B, pmj02, pmj20, w_χ, w_R, prefactor, Δχ, χ_grid)
     W_A_r1 = W_A[:, :, end]
     W_B_r1 = W_B[:, :, end]
@@ -353,28 +361,31 @@ function get_Cℓ(Component1::RedshiftSpaceDistortions, Component2::Magnificatio
     return compute_Cℓ(Component1, Component2, W.w_0_20_ϕTT, W.w_0_02_ϕTT, bg)
 end
 
+# Mixed PNG pairs: the transfer function sits on the non-PNG leg, so the
+# tensors are (ϕT_R1, ϕT) when that leg is Component1 and (ϕT, ϕT_R1) when it
+# is Component2. See the note above _compute_Cℓ_rsd_fused_tullio.
 function get_Cℓ(Component1::NumberCounts, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT_R1, bg)
+    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT_R1, W.w_2_00_ϕT, bg)
 end
 
 function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::NumberCounts, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT, bg)
+    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT, W.w_2_00_ϕT_R1, bg)
 end
 
 function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::RedshiftSpaceDistortions, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_2_02_ϕT, W.w_2_20_ϕT, bg)
+    return compute_Cℓ(Component1, Component2, W.w_2_02_ϕT, W.w_2_20_ϕT_R1, bg)
 end
 
 function get_Cℓ(Component1::RedshiftSpaceDistortions, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_2_20_ϕT_R1, W.w_2_02_ϕT_R1, bg)
+    return compute_Cℓ(Component1, Component2, W.w_2_20_ϕT_R1, W.w_2_02_ϕT, bg)
 end
 
 function get_Cℓ(Component1::MagnificationBias, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1, bg)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1, W.w_0_00_ϕT, bg)
 end
 
 function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::MagnificationBias, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT, bg)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT, W.w_0_00_ϕT_R1, bg)
 end
 
 function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity, bg::Background)
@@ -567,14 +578,17 @@ function _gc_nonlimber_base_pairs(G, W, integ, W_δ, W_RSD, W_μ)
     )
 end
 
+# Mixed-PNG pairs take (ϕT_R1, ϕT) on their two triangles (see the note above
+# _compute_Cℓ_rsd_fused_tullio). With that ordering PNG×X is the index
+# transpose of X×PNG, so, as for the base pairs, one direction is computed.
 function _gc_nonlimber_png_pairs(G, W, integ, W_δ, W_RSD, W_μ, W_fNL)
+    Cℓ_δfNL = _compute_Cℓ_rsd_cached(G.δ, G.PNG, W_δ, W_fNL, W.w_2_00_ϕT_R1, W.w_2_00_ϕT, integ)
+    Cℓ_RSDfNL = _compute_Cℓ_rsd_cached(G.RSD, G.PNG, W_RSD, W_fNL, W.w_2_20_ϕT_R1, W.w_2_02_ϕT, integ)
+    Cℓ_μfNL = _compute_Cℓ_rsd_cached(G.μ, G.PNG, W_μ, W_fNL, W.w_0_00_ϕT_R1, W.w_0_00_ϕT, integ)
     return (
-        _compute_Cℓ_cached(G.δ, G.PNG, W_δ, W_fNL, W.w_2_00_ϕT_R1, integ),
-        _compute_Cℓ_cached(G.PNG, G.δ, W_fNL, W_δ, W.w_2_00_ϕT, integ),
-        _compute_Cℓ_rsd_cached(G.PNG, G.RSD, W_fNL, W_RSD, W.w_2_02_ϕT, W.w_2_20_ϕT, integ),
-        _compute_Cℓ_rsd_cached(G.RSD, G.PNG, W_RSD, W_fNL, W.w_2_20_ϕT_R1, W.w_2_02_ϕT_R1, integ),
-        _compute_Cℓ_cached(G.μ, G.PNG, W_μ, W_fNL, W.w_0_00_ϕT_R1, integ),
-        _compute_Cℓ_cached(G.PNG, G.μ, W_fNL, W_μ, W.w_0_00_ϕT, integ),
+        Cℓ_δfNL, _transpose_cℓ_pair(Cℓ_δfNL),
+        _transpose_cℓ_pair(Cℓ_RSDfNL), Cℓ_RSDfNL,
+        Cℓ_μfNL, _transpose_cℓ_pair(Cℓ_μfNL),
         _compute_Cℓ_cached(G.PNG, G.PNG, W_fNL, W_fNL, W.w_2_00_ϕ, integ),
     )
 end
@@ -622,9 +636,6 @@ function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpe
         # return type.
         _combine_gc_nonlimber_base(base_pairs...)
     elseif isnothing(G.ARF)
-        # PNG cross-pairs use _R1-sliced vs full weight tensors that are NOT
-        # equal under index transpose, so they cannot be folded; computed
-        # independently.
         png_pairs = _gc_nonlimber_png_pairs(G, W, integ, W_δ, W_RSD, W_μ, W_fNL)
         _combine_gc_nonlimber_png(base_pairs..., png_pairs...)
     elseif isnothing(G.PNG)
@@ -709,11 +720,11 @@ function get_Cℓ(Component1::MagnificationBias, Component2::IntrinsicAlignment,
 end
 
 function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::CosmicShear, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT, bg)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT, W.w_0_00_ϕT_R1, bg)
 end
 
 function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::IntrinsicAlignment, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT, bg)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT, W.w_0_00_ϕT_R1, bg)
 end
 
 function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
@@ -731,8 +742,8 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLens
     Cℓ_RSDI = _compute_Cℓ_rsd_cached(G.RSD, L.IA, W_RSD, W_IA, W.w_0_20_ϕTT, W.w_0_02_ϕTT, integ)
     Cℓ_μγ = _compute_Cℓ_cached(G.μ, L.γ, W_μ, W_γ, W.w_minus2_00_ϕTT, integ)
     Cℓ_μI = _compute_Cℓ_cached(G.μ, L.IA, W_μ, W_IA, W.w_minus2_00_ϕTT, integ)
-    Cℓ_fNLγ = _compute_Cℓ_cached(G.PNG, L.γ, W_fNL, W_γ, W.w_0_00_ϕT, integ)
-    Cℓ_fNLI = _compute_Cℓ_cached(G.PNG, L.IA, W_fNL, W_IA, W.w_0_00_ϕT, integ)
+    Cℓ_fNLγ = _compute_Cℓ_rsd_cached(G.PNG, L.γ, W_fNL, W_γ, W.w_0_00_ϕT, W.w_0_00_ϕT_R1, integ)
+    Cℓ_fNLI = _compute_Cℓ_rsd_cached(G.PNG, L.IA, W_fNL, W_IA, W.w_0_00_ϕT, W.w_0_00_ϕT_R1, integ)
 
     Cℓ_nonlimber = @. Cℓ_δγ + Cℓ_δI - Cℓ_RSDγ - Cℓ_RSDI + Cℓ_μγ + Cℓ_μI + Cℓ_fNLγ + Cℓ_fNLI
     K_limber_G = get_limber_kernel(G)
@@ -763,7 +774,7 @@ function get_Cℓ(Component1::CMBLensing, Component2::MagnificationBias, W::Proj
 end
 
 function get_Cℓ(Component1::CMBLensing, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1, bg)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1, W.w_0_00_ϕT, bg)
 end
 
 function get_Cℓ(Component1::CMBLensing, Component2::AngularRedshiftFluctuations, W::ProjectedMatterDensity, bg::Background)
@@ -783,7 +794,7 @@ function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::MagnificationBia
 end
 
 function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1, bg)
+    return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1, W.w_0_00_ϕT, bg)
 end
 
 function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
