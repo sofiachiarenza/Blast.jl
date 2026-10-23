@@ -18,11 +18,18 @@ isdefined(@__MODULE__, :build_characterization_state) ||
     # Stage 3 intentionally replaced normalization by D(first positive χ) with
     # normalization by ACE's exact D(0). Freeze the size of that scientific
     # change rather than silently blessing arbitrary drift in IA observables.
-    intentional_growth_deltas = Dict(
+    #
+    # The mixed-PNG transfer-leg fix (issue #38, test_png_transfer_ordering.jl)
+    # moves every spectrum with a PNG cross term at this fixture's f_NL = 7:
+    # cl_gg, cl_gc (κ×PNG, ISW×PNG) and cl_gl, whose range now covers both
+    # changes (growth alone was 2.4e-4–2.7e-4).
+    intentional_deltas = Dict(
         "lensing_ia_kernel" => (3.0e-3, 3.2e-3),
-        "cl_gl" => (2.4e-4, 2.7e-4),
+        "cl_gl" => (4.0e-4, 4.3e-4),
         "cl_lc" => (1.6e-4, 1.8e-4),
         "cl_ll" => (8.5e-5, 1.0e-4),
+        "cl_gg" => (3.0e-4, 3.2e-4),
+        "cl_gc" => (4.3e-3, 4.5e-3),
     )
 
     for name in sort!(collect(keys(arrays)))
@@ -34,8 +41,8 @@ isdefined(@__MODULE__, :build_characterization_state) ||
         relative_l2 = norm(actual .- expected) / scale
         peak_relative_max = maximum(abs, actual .- expected) / peak
 
-        if haskey(intentional_growth_deltas, name)
-            lower, upper = intentional_growth_deltas[name]
+        if haskey(intentional_deltas, name)
+            lower, upper = intentional_deltas[name]
             @test lower ≤ relative_l2 ≤ upper
             continue
         end

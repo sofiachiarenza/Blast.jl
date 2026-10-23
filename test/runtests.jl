@@ -45,6 +45,10 @@ global data = load_reference_data()
         include("test_cls.jl")
     end
 
+    @testset "PNG Transfer-Leg Ordering" begin
+        include("test_png_transfer_ordering.jl")
+    end
+
     @testset "Legacy Characterization" begin
         include("test_legacy_characterization.jl")
     end
