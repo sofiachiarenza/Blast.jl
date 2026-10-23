@@ -12,7 +12,7 @@ isdefined(@__MODULE__, :get_test_bg) || include("test_fixtures.jl")
 # leg, run the production get_Cℓ paths on real components, and compare with
 # an unfolded integral over the full (χ₁, χ₂) square in which D and h are put
 # on the right leg explicitly. Nothing in the reference knows about the
-# folding.
+# folding. validation/png_external/unfolded_check.jl is the standalone version.
 
 # Spherical Bessel j₂, with a series below x = 0.1 where the closed form cancels.
 _j2(x) = x < 0.1 ? x^2 / 15 - x^4 / 210 + x^6 / 7560 :
@@ -76,6 +76,7 @@ end
         RSD = Blast.RedshiftSpaceDistortions(nz=nz_g, z=z, growth_rate=bg.f),
         μ   = Blast.MagnificationBias(nz=nz_g, z=z, s=fill(0.3, 2, n_bg)),
         PNG = Blast.PrimordialNonGaussianity(nz=nz_g, z=z, bias=bias, f_NL=1.0, p=1.0),
+        ARF = Blast.AngularRedshiftFluctuations(nz=nz_g, z=z, bias=bias, zbar=[0.5, 1.2]),
     )
     L = Blast.WeakLensing(γ  = Blast.CosmicShear(nz=nz_s, z=z),
                           IA = Blast.IntrinsicAlignment(nz=nz_s, z=z))
@@ -112,11 +113,11 @@ end
     end
     maxnorm(x, ref) = maximum(abs, x .- ref) / maximum(abs, ref)
 
-    # The pre-fix call sites miss the reference by 1.7e-2 to 9e-2 on every
+    # The pre-fix call sites miss the reference by 1.7e-2 to 2.4e-1 on every
     # pair here. The folded quadrature itself (checked with D ≡ 1, where there
-    # is no ordering question) agrees to ~1e-5, except for the broad μ, γ
-    # and κ kernels that reach down to χ → 0, where its floor is ~4e-4.
-    # Each tolerance sits between that floor and the pre-fix error.
+    # is no ordering question) agrees to ~1e-5 (ARF ~1e-4), except for the
+    # broad μ, γ and κ kernels that reach down to χ → 0, where its floor is
+    # ~4e-4. Each tolerance sits between that floor and the pre-fix error.
     tol = 2e-4
     tol_broad = 2e-3
     broad = Union{Blast.MagnificationBias, Blast.CosmicShear, Blast.CMBLensing}
@@ -126,6 +127,7 @@ end
         (G.δ, G.PNG), (G.PNG, G.δ),
         (G.RSD, G.PNG), (G.PNG, G.RSD),
         (G.μ, G.PNG), (G.PNG, G.μ),
+        (G.ARF, G.PNG), (G.PNG, G.ARF),
         (G.PNG, L.γ), (G.PNG, L.IA),
         (C.κ, G.PNG), (C.ISW, G.PNG),
     )
@@ -133,7 +135,7 @@ end
     end
 
     @testset "reverse pairs are index transposes" begin
-        for (A, B) in ((G.δ, G.PNG), (G.RSD, G.PNG), (G.μ, G.PNG))
+        for (A, B) in ((G.δ, G.PNG), (G.RSD, G.PNG), (G.μ, G.PNG), (G.ARF, G.PNG))
             AB = Blast.get_Cℓ(A, B, W, bg)
             BA = Blast.get_Cℓ(B, A, W, bg)
             @test BA ≈ permutedims(AB, (1, 3, 2)) rtol = 1e-12
@@ -158,6 +160,9 @@ end
         @test maxnorm(μfNL, unfolded(G.μ, G.PNG)) < tol_broad
         @test maxnorm(fNLμ, unfolded(G.PNG, G.μ)) < tol_broad
 
+        ARFfNL, fNLARF = Blast._gc_nonlimber_arf_png_pairs(G, W, integ, K(G.ARF), K(G.PNG))
+        @test maxnorm(ARFfNL, unfolded(G.ARF, G.PNG)) < tol
+        @test maxnorm(fNLARF, unfolded(G.PNG, G.ARF)) < tol
     end
 
     @testset "cached GL path" begin

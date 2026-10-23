@@ -428,11 +428,11 @@ function get_Cℓ(Component1::MagnificationBias, Component2::AngularRedshiftFluc
 end
 
 function get_Cℓ(Component1::AngularRedshiftFluctuations, Component2::PrimordialNonGaussianity, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT_R1, bg)
+    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT_R1, W.w_2_00_ϕT, bg)
 end
 
 function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::AngularRedshiftFluctuations, W::ProjectedMatterDensity, bg::Background)
-    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT, bg)
+    return compute_Cℓ(Component1, Component2, W.w_2_00_ϕT, W.w_2_00_ϕT_R1, bg)
 end
 
 # ----------------------------------------------------------------------------
@@ -609,14 +609,11 @@ function _gc_nonlimber_arf_pairs(G, W, integ, W_δ, W_RSD, W_μ, W_ARF)
     )
 end
 
-# ARF×PNG cross-pairs use _R1-sliced vs full weight tensors that are NOT
-# equal under index transpose (same caveat as _gc_nonlimber_png_pairs), so
-# they are computed independently in both directions.
+# ARF×PNG follows _gc_nonlimber_png_pairs: (ϕT_R1, ϕT) per triangle, with
+# PNG×ARF recovered as the transpose.
 function _gc_nonlimber_arf_png_pairs(G, W, integ, W_ARF, W_fNL)
-    return (
-        _compute_Cℓ_cached(G.ARF, G.PNG, W_ARF, W_fNL, W.w_2_00_ϕT_R1, integ),
-        _compute_Cℓ_cached(G.PNG, G.ARF, W_fNL, W_ARF, W.w_2_00_ϕT, integ),
-    )
+    Cℓ_ARFfNL = _compute_Cℓ_rsd_cached(G.ARF, G.PNG, W_ARF, W_fNL, W.w_2_00_ϕT_R1, W.w_2_00_ϕT, integ)
+    return (Cℓ_ARFfNL, _transpose_cℓ_pair(Cℓ_ARFfNL))
 end
 
 function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)

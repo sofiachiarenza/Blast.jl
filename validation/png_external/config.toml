@@ -1,0 +1,49 @@
+# Single source of truth for the Blast fNL validation against ARFCAMB_nogauge
+# and SwiftCℓ (issue #38). Read by generate_camb_png.py, blast_png.jl and
+# swift_png.py.
+
+[cosmology]  # same DESI fiducial as validation/arfcamb
+h = 0.6736
+As = 2.0830e-9
+ns = 0.9649
+ombh2 = 0.02237
+omch2 = 0.1200
+mnu = 0.06
+w0 = -1.0
+wa = 0.0
+
+[tracer]
+p = 1.0       # ARFCAMB hard-codes b_Φ = 2 δc (b - 1)
+f_NL = 20.0   # runs at 0, +f_NL, -f_NL separate the δ×PNG and PNG×PNG pieces
+
+[window]  # tabulated Gaussian bins, shared n(z) table for every code
+zmin = 0.0
+zmax = 3.6
+nz = 1001
+
+# Two wide, overlapping bins where growth varies across and between bins (the
+# ordering fix acts on the transfer function's position), plus the narrow
+# high-z bin of the paper comparison (Blastoise/PAPER, highz_gaussian_nz).
+#
+# The biases must differ between bins: when every PNG kernel is a common
+# multiple c = f_NL b_Φ / b of its δ kernel, the pre-fix δ×PNG and PNG×δ
+# errors cancel exactly in the summed GG spectrum (the pre-fix error is
+# ∝ (c_j - c_i) on bin pair ij), so equal biases cannot tell old from fixed.
+[[bins]]
+z0 = 0.6
+sigma = 0.15
+bias = 1.2
+
+[[bins]]
+z0 = 1.2
+sigma = 0.25
+bias = 1.8
+
+[[bins]]
+z0 = 3.0
+sigma = 0.11
+bias = 3.0
+
+[ell]
+lmin = 2
+lmax = 200    # Blast evaluates PNG non-Limber only (ℓ < 220)
