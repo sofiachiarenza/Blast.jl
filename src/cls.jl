@@ -7,11 +7,7 @@ function make_grid(χ::Array{<:Any, 1}, R::Array{<:Any, 1})
     return vec(χ * R') 
 end
 
-# χ–R grid helpers are global invariants (Blast.χ and Blast.R are constants).
-# Cache once to avoid rebuilding in every get_Cℓ path.
-const χR_GRID_FLAT = make_grid(Blast.χ, Blast.R)
-const INV_χ2_GRID_FLAT = 1.0 ./ (χR_GRID_FLAT .^ 2)
-const INV_χ2_GRID_ROW = reshape(INV_χ2_GRID_FLAT, 1, :)
+# χ-dependent interpolation geometry is owned by the fixed radial plan.
 const FULL_ℓ2 = Blast.full_ℓ_range .^ 2
 const FULL_ℓ2_REVERSED = reverse(FULL_ℓ2)
 
@@ -39,7 +35,8 @@ Interpolate a probe kernel from the χ grid onto a χ–R grid using Background 
 function grid_interpolator(Probe::AbstractComponents, bg::Background) 
     kernel = Probe.Kernel
     chi_grid = bg.χ
-    return collect(akima_interpolation(collect(kernel'), chi_grid, χR_GRID_FLAT)')
+    queries=isnothing(bg.radial_plan) ? make_grid(bg.χ,Blast.R) : bg.radial_plan.chiR_flat
+    return collect(akima_interpolation(collect(kernel'), chi_grid, queries)')
 end
 
 """
@@ -50,7 +47,7 @@ Return the probe kernel evaluated on the χ–R grid.
 function get_kernel_array(Probe::Union{NumberCounts, RedshiftSpaceDistortions, PrimordialNonGaussianity, IntegratedSachsWolfe, AngularRedshiftFluctuations}, bg::Background)
     n_bins = size(Probe.Kernel, 1)
     nχ = length(bg.χ)
-    nR = length(Blast.R)
+    nR = isnothing(bg.radial_plan) ? length(Blast.R) : length(bg.radial_plan.R)
     W_array = reshape(grid_interpolator(Probe, bg), n_bins, nχ, nR)
     _apply_kernel_array_cutoff!(W_array)
     return W_array
@@ -59,9 +56,10 @@ end
 function get_kernel_array(Probe::Union{CosmicShear, IntrinsicAlignment, MagnificationBias, CMBLensing}, bg::Background)
     n_bins = size(Probe.Kernel, 1)
     nχ = length(bg.χ)
-    nR = length(Blast.R)
+    nR = isnothing(bg.radial_plan) ? length(Blast.R) : length(bg.radial_plan.R)
     W_L = grid_interpolator(Probe, bg)
-    W_L .*= INV_χ2_GRID_ROW
+    inverse=isnothing(bg.radial_plan) ? reshape(inv.(make_grid(bg.χ,Blast.R).^2),1,:) : bg.radial_plan.inv_chiR2_row
+    W_L .*= inverse
     _apply_kernel_array_cutoff!(W_L)
     return reshape(W_L, n_bins, nχ, nR)
 end
@@ -132,12 +130,11 @@ function _compute_Cℓ_rsd_fused_tullio(W_A, W_B, pmj02, pmj20, w_χ, w_R, prefa
 end
 
 function _prepare_nonlimber_integration(bg::Background)
-    _require_production_background(bg)
-    nχ = size(bg.χ, 1)
-    nR = size(Blast.R, 1)
-    Δχ = ((last(bg.χ)-first(bg.χ))/(nχ-1))
-    w_χ = simpson_weights_array(nχ)
-    w_R = get_clencurt_weights_R_integration(2*nR+1)
+    isnothing(bg.radial_plan) && _require_production_background(bg)
+    plan=bg.radial_plan
+    _require_radial_background(bg,plan)
+    w_χ,Δχ = _radial_outer(plan)
+    w_R = plan.R_weights
     χ_grid = bg.χ
     return (; Δχ, w_χ, w_R, χ_grid)
 end
@@ -162,8 +159,8 @@ function _validate_multipoles(ℓ)
     return nothing
 end
 
-function _pair_prefactor(Component1::AbstractComponents, Component2::AbstractComponents)
-    return 2/π .* Component1.ell_prefactor[1:length(ℓ_nonlimber)] .* Component2.ell_prefactor[1:length(ℓ_nonlimber)]
+function _pair_prefactor(Component1::AbstractComponents, Component2::AbstractComponents, n::Integer=length(ℓ_nonlimber))
+    return 2/π .* Component1.ell_prefactor[1:n] .* Component2.ell_prefactor[1:n]
 end
 
 function _compute_Cℓ_from_kernels(W_A, W_B, pmj, prefactor, integ)
@@ -181,14 +178,14 @@ function _compute_Cℓ_cached(Component1::Union{AbstractComponents, Nothing}, Co
     if isnothing(Component1) || isnothing(Component2) || isnothing(w)
         return 0.
     end
-    return _compute_Cℓ_from_kernels(W_A, W_B, w.w, _pair_prefactor(Component1, Component2), integ)
+    return _compute_Cℓ_from_kernels(W_A, W_B, w.w, _pair_prefactor(Component1, Component2, size(w.w,1)), integ)
 end
 
 function _compute_Cℓ_rsd_cached(Component1::Union{AbstractComponents, Nothing}, Component2::Union{AbstractComponents, Nothing}, W_A, W_B, w02::Union{ProjectedMatterDensityComponent, Nothing}, w20::Union{ProjectedMatterDensityComponent, Nothing}, integ)
     if isnothing(Component1) || isnothing(Component2) || isnothing(w02) || isnothing(w20)
         return 0.
     end
-    return _compute_Cℓ_rsd_from_kernels(W_A, W_B, w02.w, w20.w, _pair_prefactor(Component1, Component2), integ)
+    return _compute_Cℓ_rsd_from_kernels(W_A, W_B, w02.w, w20.w, _pair_prefactor(Component1, Component2, size(w02.w,1)), integ)
 end
 
 # Shared finalize step: given `full_Cℓ` stacked on `full_ℓ_range`, interpolate
@@ -200,7 +197,7 @@ end
 # `eltype(full_Cℓ)` is used for the zeros(...) initializer so ForwardDiff.Dual
 # threads through the loop assignment; plain `zeros(...)` would silently strip
 # Duals at the `Cℓ_final[:, i, j] = ...` store.
-function _finalize_Cℓ(full_Cℓ, ℓ, nbins_A::Integer, nbins_B::Integer, P::Union{FFTPlans, Nothing})
+function _finalize_Cℓ(full_Cℓ, ℓ, nbins_A::Integer, nbins_B::Integer, P::Union{SpectralPlans, Nothing})
     _validate_multipoles(ℓ)
     nℓ = size(ℓ, 1)
     nℓ_full = size(full_Cℓ, 1)
@@ -224,7 +221,7 @@ function _finalize_Cℓ(full_Cℓ, ℓ, nbins_A::Integer, nbins_B::Integer, P::U
     return Cℓ_final
 end
 
-function _finalize_Cℓ_parts(Cℓ_nonlimber::AbstractArray{<:Any, 3}, Cℓ_correction::AbstractArray{<:Any, 3}, Cℓ_limber::AbstractArray{<:Any, 3}, ℓ, nbins_A::Integer, nbins_B::Integer, P::Union{FFTPlans, Nothing})
+function _finalize_Cℓ_parts(Cℓ_nonlimber::AbstractArray{<:Any, 3}, Cℓ_correction::AbstractArray{<:Any, 3}, Cℓ_limber::AbstractArray{<:Any, 3}, ℓ, nbins_A::Integer, nbins_B::Integer, P::Union{SpectralPlans, Nothing})
     _validate_multipoles(ℓ)
     nℓ = size(ℓ, 1)
     n_nonlimber = size(Cℓ_nonlimber, 1)
@@ -257,7 +254,7 @@ function _finalize_Cℓ_parts(Cℓ_nonlimber::AbstractArray{<:Any, 3}, Cℓ_corr
     return Cℓ_final
 end
 
-function _finalize_Cℓ_parts(Cℓ_nonlimber::AbstractArray{<:Any, 3}, Cℓ_correction::Number, Cℓ_limber::AbstractArray{<:Any, 3}, ℓ, nbins_A::Integer, nbins_B::Integer, P::Union{FFTPlans, Nothing})
+function _finalize_Cℓ_parts(Cℓ_nonlimber::AbstractArray{<:Any, 3}, Cℓ_correction::Number, Cℓ_limber::AbstractArray{<:Any, 3}, ℓ, nbins_A::Integer, nbins_B::Integer, P::Union{SpectralPlans, Nothing})
     _validate_multipoles(ℓ)
     nℓ = size(ℓ, 1)
     n_nonlimber = size(Cℓ_nonlimber, 1)
@@ -294,10 +291,11 @@ end
     compute_Cℓ(Component1, Component2, w, bg)
 """
 function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractComponents, w::ProjectedMatterDensityComponent, bg::Background) 
+    _check_component_geometry(w,bg)
     integ = _prepare_nonlimber_integration(bg)
     W_A = get_kernel_array(Component1, bg)
     W_B = get_kernel_array(Component2, bg)
-    prefactor = _pair_prefactor(Component1, Component2)
+    prefactor = _pair_prefactor(Component1, Component2, size(w.w,1))
     return _compute_Cℓ_from_kernels(W_A, W_B, w.w, prefactor, integ)
 end
 
@@ -306,10 +304,12 @@ end
 """
 function compute_Cℓ(Component1::AbstractComponents, Component2::AbstractComponents, 
     w02::ProjectedMatterDensityComponent, w20::ProjectedMatterDensityComponent, bg::Background) 
+    _check_component_geometry(w02,bg)
+    _check_component_geometry(w20,bg)
     integ = _prepare_nonlimber_integration(bg)
     W_A = get_kernel_array(Component1, bg)
     W_B = get_kernel_array(Component2, bg)
-    prefactor = _pair_prefactor(Component1, Component2)
+    prefactor = _pair_prefactor(Component1, Component2, size(w02.w,1))
     return _compute_Cℓ_rsd_from_kernels(W_A, W_B, w02.w, w20.w, prefactor, integ)
 end
 
@@ -616,7 +616,8 @@ function _gc_nonlimber_arf_png_pairs(G, W, integ, W_ARF, W_fNL)
     return (Cℓ_ARFfNL, _transpose_cℓ_pair(Cℓ_ARFfNL))
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
+function get_Cℓ(ℓ::AbstractArray{<:Any,1}, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{SpectralPlans, Nothing}=nothing)
+    _check_compatible(W, Pk, P, bg)
     integ = _prepare_nonlimber_integration(bg)
     W_δ = _get_kernel_or_nothing(G.δ, bg)
     W_RSD = _get_kernel_or_nothing(G.RSD, bg)
@@ -672,7 +673,8 @@ function get_Cℓ(Component1::IntrinsicAlignment, Component2::IntrinsicAlignment
     return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT, bg)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{SpectralPlans, Nothing}=nothing)
+    _check_compatible(W, Pk, P, bg)
     integ = _prepare_nonlimber_integration(bg)
     W_γ = _get_kernel_or_nothing(L.γ, bg)
     W_IA = _get_kernel_or_nothing(L.IA, bg)
@@ -724,7 +726,8 @@ function get_Cℓ(Component1::PrimordialNonGaussianity, Component2::IntrinsicAli
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT, W.w_0_00_ϕT_R1, bg)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{SpectralPlans, Nothing}=nothing)
+    _check_compatible(W, Pk, P, bg)
     integ = _prepare_nonlimber_integration(bg)
     W_δ = _get_kernel_or_nothing(G.δ, bg)
     W_RSD = _get_kernel_or_nothing(G.RSD, bg)
@@ -753,7 +756,8 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, L::WeakLens
     return _finalize_Cℓ_parts(Cℓ_nonlimber, Cℓ_correction, Cℓ_limber, ℓ, nbins_A, nbins_B, P)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, L::WeakLensing, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{SpectralPlans, Nothing}=nothing)
+    _check_compatible(W, Pk, P, bg)
     return get_Cℓ(ℓ, G, L, Pk, W, bg, P)
 end
 
@@ -794,7 +798,8 @@ function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::PrimordialNonGau
     return compute_Cℓ(Component1, Component2, W.w_0_00_ϕT_R1, W.w_0_00_ϕT, bg)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{SpectralPlans, Nothing}=nothing)
+    _check_compatible(W, Pk, P, bg)
     Cℓ_κδ = get_Cℓ(K.κ, G.δ, W, bg)
     Cℓ_κRSD = get_Cℓ(K.κ, G.RSD, W, bg)
     Cℓ_κμ = get_Cℓ(K.κ, G.μ, W, bg)
@@ -829,7 +834,8 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, G::GalaxyClustering, Pk:
     return _finalize_Cℓ(full_Cℓ, ℓ, nbins_A, nbins_B, P)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, G::GalaxyClustering, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{SpectralPlans, Nothing}=nothing)
+    _check_compatible(W, Pk, P, bg)
     return get_Cℓ(ℓ, K, G, Pk, W, bg, P)
 end
 
@@ -850,7 +856,8 @@ function get_Cℓ(Component1::IntegratedSachsWolfe, Component2::IntrinsicAlignme
     return compute_Cℓ(Component1, Component2, W.w_minus2_00_ϕTT, bg)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, L::WeakLensing, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{SpectralPlans, Nothing}=nothing)
+    _check_compatible(W, Pk, P, bg)
     Cℓ_κγ = get_Cℓ(K.κ, L.γ, W, bg)
     Cℓ_κI = get_Cℓ(K.κ, L.IA, W, bg)
     Cℓ_Tγ = get_Cℓ(K.ISW, L.γ, W, bg)
@@ -866,6 +873,7 @@ function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, K::CMB, L::WeakLensing, Pk::Powe
     return _finalize_Cℓ(full_Cℓ, ℓ, nbins_A, nbins_B, P)
 end
 
-function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, S::WeakLensing, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{FFTPlans, Nothing}=nothing)
+function get_Cℓ(ℓ::AbstractArray{<:Any, 1}, S::WeakLensing, K::CMB, Pk::PowerSpectrum, W::ProjectedMatterDensity, bg::Background, P::Union{SpectralPlans, Nothing}=nothing)
+    _check_compatible(W, Pk, P, bg)
     return get_Cℓ(ℓ, K, S, Pk, W, bg, P)
 end

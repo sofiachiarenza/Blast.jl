@@ -19,6 +19,23 @@ using Pkg
 Pkg.add(url="https://github.com/sofiachiarenza/Blast.jl")
 ```
 
+### Development setup (temporary)
+
+This branch requires the unreleased `AbstractCosmologicalEmulators` 0.12
+(branch `96-b-spline`), which is not in the General registry yet, so a plain
+`Pkg.add`/`Pkg.instantiate` fails to resolve. From a clone of this repository,
+pin it first, then instantiate/test as usual:
+
+```bash
+julia --project=. scripts/bootstrap_ace_dev.jl
+julia --project=. -e 'using Pkg; Pkg.test()'
+# docs environment:
+julia --project=docs/ scripts/bootstrap_ace_dev.jl
+```
+
+The script (and its CI steps) will be removed once a registered ACE release
+provides these APIs.
+
 ## Usage
 After installing it, you can start instantiating the objects needed to compute the $C_\ell$'s. To begin, initialize the cosmological model and background quantities:
 
@@ -86,6 +103,51 @@ See [`docs/src/example.md`](docs/src/example.md) (or the built docs) for a
 complete 6x2pt example with every effect switched on (redshift-space
 distortions, magnification bias, primordial non-Gaussianity, and intrinsic
 alignment).
+
+### Experimental non-Limber B-spline backends
+
+`SetUp` still uses the legacy Chebyshev backend by default. This branch also
+supports explicit direct and fiducial-ratio cubic B-spline tensor bundles.
+These are experimental: passing algebra, API and gradient tests does **not**
+certify physical-spectrum accuracy or establish a recommended coefficient count.
+Supply a portable bundle manifest and choose its count explicitly; the package
+does not generate or select a bank for you.
+
+The following pattern assumes the prepared probes/background above, a bundle
+path `manifest`, a chosen coefficient count `N`, and your own callable
+`pmm(k, z)` returning **total-matter** linear power in Mpc³ with k in Mpc⁻¹:
+
+```julia
+bank = Blast.load_tensor_bank(manifest; count=N, representation=:ratio)
+# Use representation=:direct for a direct-expansion bundle instead.
+backend = Blast.CubicBSplineBackend(bank)
+W_template, plans = Blast.SetUp(GC, WL; backend=backend)
+grid = Blast.nonlimber_grid(plans)
+
+# Non-Limber sampling is backend-specific. Array order is (z, k).
+pk = [pmm(k, z) for z in grid.z, k in grid.k]
+# Supply the same separate Limber-grid arrays as in the existing workflow.
+PowerSpectrum = Blast.prepare_pk_workspace(
+    plans, pk, pk_limber_lin, pk_limber_nonlin, bg; pk_grid=grid)
+W = Blast.compute_w(W_template, PowerSpectrum)
+Cℓ_GG = Blast.get_Cℓ(ell, GC, PowerSpectrum, W, bg, plans)
+```
+
+Do not reuse a Chebyshev-sampled `pk` array on a spline grid just because its
+shape matches. Passing `pk_grid` checks coordinates as well as shape. Workspaces
+and plans from different bank signatures cannot be mixed. No emulator is loaded
+implicitly; `pmm` and the Limber inputs remain the caller's responsibility.
+
+The ratio backend divides the **complete physical source** by fixed fiducial
+normalizers before solving for coefficients: qTT = Pmm,fid,
+qT = √(PΦ,fid Pmm,fid), and qPHI = PΦ,fid. It does not rescale the input `pk`
+in place or recompute the fiducial model as sampled parameters change. The
+bundle carries the corresponding distinct TT, T and Φ tensor families.
+
+Banks are shared read-only. Give each concurrent chain its own `SetUp` plans,
+mutable workspace and prepared differentiation cache. The functional
+`compute_w` path above is suitable for generic-number checks; do not pass
+ForwardDiff dual inputs into a preallocated Float64-only workspace.
 
 ## Citing 
 

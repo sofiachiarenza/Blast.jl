@@ -18,6 +18,9 @@ jobs:
       - uses: julia-actions/setup-julia@latest
         with:
           version: '1.10'
+      # Temporary: ACE 0.12 (branch 96-b-spline) is not registered yet.
+      - name: Pin unreleased AbstractCosmologicalEmulators
+        run: julia --project=docs/ scripts/bootstrap_ace_dev.jl
       - name: Install dependencies
         run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - name: Build and deploy

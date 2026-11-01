@@ -15,9 +15,9 @@ Always targets the global Blast.χ grid to ensure consistent LOS integration.
 - `z_of_χ`: Pre-built Akima interpolator closure for z(χ).
 
 # Notes
-The χ grid is assumed to be **uniformly spaced**. Kernel computations
-(`compute_kernel!` for `CosmicShear` and `MagnificationBias`) rely on this
-assumption when constructing the Simpson weight matrices.
+The default grid retains the exact legacy Simpson rule. Nonuniform kernel
+calculations require an explicit fixed `RadialQuadraturePlan`; a bare custom
+grid does not imply a quadrature rule.
 """
 struct Background{T, F, C<:AbstractCosmology}
     cosmo::C
@@ -28,6 +28,13 @@ struct Background{T, F, C<:AbstractCosmology}
     D_norm::Vector{T}
     f::Vector{T}
     z_of_χ::F
+    radial_plan::Union{Nothing,RadialQuadraturePlan}
+end
+
+# Preserve the existing explicitly typed snapshot constructor. New nonuniform
+# callers must pass the ninth argument (the fixed plan) explicitly.
+function Background{T,F,C}(cosmo,z,chi,H,D,D_norm,f,z_of_chi) where {T,F,C<:AbstractCosmology}
+    return Background{T,F,C}(cosmo,z,chi,H,D,D_norm,f,z_of_chi,_default_radial_plan(chi))
 end
 
 """
@@ -58,13 +65,13 @@ the computed arrays. This is the normal public path and is required when a
 cosmology carries ForwardDiff `Dual` parameters. With ACE 0.11's concretely
 parameterized cosmology, ordinary Float64 calls remain fully inferred.
 
-The complete power-spectrum pipeline currently accepts only the default
-production `Blast.χ` grid. A custom `χ_grid` may be used for isolated
-background and kernel calculations, but `prepare_pk_workspace` and `get_Cℓ`
-reject it because their plans, integration weights, and artifacts are fixed to
-the production grid.
+For a fixed nonuniform grid, pass `radial_plan=plan` here and to `SetUp`, and
+use a tensor bank generated at exactly those nodes. The background, bank and
+spectral workspace are checked for coordinate/policy agreement. A bare custom
+`χ_grid` still does not select an integration rule or resample a bank.
 """
-function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
+function Background(cosmo::AbstractCosmology; χ_grid=nothing, radial_plan=nothing)
+    χ_grid,radial_plan = _background_geometry(χ_grid,radial_plan)
     issorted(χ_grid) || throw(ArgumentError(
         "χ_grid must be monotonically increasing (got minimum at index $(argmin(χ_grid)))"))
     # Runtime T detection: evaluate the cosmology-dependent broadcasts, then
@@ -74,13 +81,14 @@ function Background(cosmo::AbstractCosmology; χ_grid=Blast.χ)
     fine_χ_raw = r_z.(fine_z, Ref(cosmo))
     H_array_raw = H_0_CONV .* cosmo.h .* E_z.(fine_z, Ref(cosmo))
     T = promote_type(eltype(χ_grid), eltype(fine_χ_raw), eltype(H_array_raw))
-    return _build_background(T, cosmo, collect(χ_grid))
+    return _build_background(T, cosmo, collect(χ_grid), radial_plan)
 end
 
-function Background{T}(cosmo::C; χ_grid=Blast.χ) where {T, C<:AbstractCosmology}
+function Background{T}(cosmo::C; χ_grid=nothing, radial_plan=nothing) where {T, C<:AbstractCosmology}
+    χ_grid,radial_plan = _background_geometry(χ_grid,radial_plan)
     issorted(χ_grid) || throw(ArgumentError(
         "χ_grid must be monotonically increasing (got minimum at index $(argmin(χ_grid)))"))
-    return _build_background(T, cosmo, collect(χ_grid))
+    return _build_background(T, cosmo, collect(χ_grid), radial_plan)
 end
 
 """
@@ -90,7 +98,7 @@ Function barrier that actually constructs the Background, specialized on the
 concrete scalar, cosmology, and grid types.
 """
 function _build_background(::Type{T}, cosmo::C,
-                           χ_grid_vec::Vector{V}) where {T, C<:AbstractCosmology, V}
+                           χ_grid_vec::Vector{V}, radial_plan=nothing) where {T, C<:AbstractCosmology, V}
     # `fine_z` is a pure Float64 sampling grid (no cosmology dependence), used
     # for two independent interpolations below.  `collect()` materializes the
     # LinRange as a Vector so Mooncake can build a proper tangent; the
@@ -149,7 +157,8 @@ function _build_background(::Type{T}, cosmo::C,
         D_array,
         D_norm_array,
         f_array,
-        z_of_χ_interp
+        z_of_χ_interp,
+        radial_plan
     )
 end
 

@@ -1,0 +1,191 @@
+{
+  "count": 33,
+  "shape": [
+    22,
+    128,
+    64,
+    33
+  ],
+  "dtype": "float64",
+  "axis_order": [
+    "ell",
+    "chi",
+    "R",
+    "bspline_coefficient"
+  ],
+  "generator_sha256": "dfa4cba5b6784c5b8d05078013e946d2e0df34024a193ef52a6a6e11a488a72f",
+  "inputs_manifest_sha256": "f38afdfb2a9462d0abfa39a38cf63c9b4a6107ec22cf5dce1196f6d2adfca3ab",
+  "quadrature_N": 131073,
+  "merger_sha256": "b42593e8a2f26a9f5bb2a18adb1819da800b017824b32bca0999c4dee1c4dc9d",
+  "resume_existing": true,
+  "banks": [
+    {
+      "family": "direct",
+      "geometry": "T_2_00",
+      "path": "N033/direct/T_2_00.npy",
+      "sha256": "735ee1458b6a3c5fc1bde86f4f1ee620136bcfe6bc1a6b8e9a862cc0066caddd",
+      "bytes": 47579264,
+      "provenance": "verified_existing"
+    },
+    {
+      "family": "direct",
+      "geometry": "T_minus2_00",
+      "path": "N033/direct/T_minus2_00.npy",
+      "sha256": "d5fc58c8ed6e2cf55ebcd6b764c279463799c77f07d2046be7fea5020e9c4969",
+      "bytes": 47579264,
+      "provenance": "verified_existing"
+    },
+    {
+      "family": "direct",
+      "geometry": "T_0_00",
+      "path": "N033/direct/T_0_00.npy",
+      "sha256": "88a5613043f4af78464231d2ac9f3514dd703bc2da20e2fcce93f77a39685090",
+      "bytes": 47579264,
+      "provenance": "verified_existing"
+    },
+    {
+      "family": "direct",
+      "geometry": "T_0_02",
+      "path": "N033/direct/T_0_02.npy",
+      "sha256": "d08f2d25c4dc4587a470f628722830e5ad23aadf2bcd1430d84b0633e043a6eb",
+      "bytes": 47579264,
+      "provenance": "verified_existing"
+    },
+    {
+      "family": "direct",
+      "geometry": "T_0_20",
+      "path": "N033/direct/T_0_20.npy",
+      "sha256": "261d922f175cbddea65719560674a26d3b5f4bffa6ea5c8c1b8a455a2eca2241",
+      "bytes": 47579264,
+      "provenance": "verified_existing"
+    },
+    {
+      "family": "direct",
+      "geometry": "T_2_02",
+      "path": "N033/direct/T_2_02.npy",
+      "sha256": "2c364dc8b69a29e01470ad5570607274f4a0e8476d15a5482e6c89e7d1d61ba5",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "direct",
+      "geometry": "T_2_20",
+      "path": "N033/direct/T_2_20.npy",
+      "sha256": "e6df36c3c9b2e6b807884bfac1e21603023b9585fa0369665fdada829fdff8ad",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "direct",
+      "geometry": "T_2_22",
+      "path": "N033/direct/T_2_22.npy",
+      "sha256": "e709113e477b5b0d7b57ea3e92d012a614da7e8744f81b73cf37f41bb050c727",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_TT",
+      "geometry": "T_2_00",
+      "path": "N033/ratio_TT/T_2_00.npy",
+      "sha256": "b83392890b54adf0c8fc88bf8ce24adeeb1fb7253df9547118fa247af688d120",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_TT",
+      "geometry": "T_minus2_00",
+      "path": "N033/ratio_TT/T_minus2_00.npy",
+      "sha256": "de616166dc489d3fdbb9943139f3677c74596a14e64dfe58ebb1c95586945861",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_TT",
+      "geometry": "T_0_00",
+      "path": "N033/ratio_TT/T_0_00.npy",
+      "sha256": "49af0661f4615f03ab6b3bf6e4c270d0a967bd700ab8d9bd243e1f50dd5b7760",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_TT",
+      "geometry": "T_0_02",
+      "path": "N033/ratio_TT/T_0_02.npy",
+      "sha256": "de476b2651fa35f41baeb274810905bc709356382c2abbdeb38af8abcaf7feee",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_TT",
+      "geometry": "T_0_20",
+      "path": "N033/ratio_TT/T_0_20.npy",
+      "sha256": "8a76af43f5570415ae470dcfe39b4244c5fb30b1628a156d2a05fca3ad501599",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_TT",
+      "geometry": "T_2_02",
+      "path": "N033/ratio_TT/T_2_02.npy",
+      "sha256": "db139fd6a26fd6dbaa1f400c559100eeaae9ae78da35049044aa861fe2e26cfa",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_TT",
+      "geometry": "T_2_20",
+      "path": "N033/ratio_TT/T_2_20.npy",
+      "sha256": "ec0d8a50b3655d0104a5e602584e06c5e545442bac474b850c94f7ccb2e90d0b",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_TT",
+      "geometry": "T_2_22",
+      "path": "N033/ratio_TT/T_2_22.npy",
+      "sha256": "8ce9ccfa630664a1abd5eebf15a36639588b6e5b8c25a11116bbd25587bb001c",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_T",
+      "geometry": "T_2_00",
+      "path": "N033/ratio_T/T_2_00.npy",
+      "sha256": "304297c5a8d3944107186d93b570c83adcc89d8fc87233801877f61d8fbe7cbf",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_T",
+      "geometry": "T_0_00",
+      "path": "N033/ratio_T/T_0_00.npy",
+      "sha256": "b100d7a58537b5972764012a454c8945680759ff0c5b94b9a586194cbdfa17d4",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_T",
+      "geometry": "T_2_02",
+      "path": "N033/ratio_T/T_2_02.npy",
+      "sha256": "fe7efa2e697fa5f9f9bdc41e57bb86c8a1675de4acb65475f3e82970a57464ec",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_T",
+      "geometry": "T_2_20",
+      "path": "N033/ratio_T/T_2_20.npy",
+      "sha256": "59c724a501a6f15e6c69e528fc6306bfbd5978e7fb262a6d2e3b8f136e08ea9e",
+      "bytes": 47579264,
+      "provenance": "merged"
+    },
+    {
+      "family": "ratio_PHI",
+      "geometry": "T_2_00",
+      "path": "N033/ratio_PHI/T_2_00.npy",
+      "sha256": "1039b6a738a65c22f133df77e54355c6f1994053983ed4b5834695e4f095f761",
+      "bytes": 47579264,
+      "provenance": "merged"
+    }
+  ]
+}

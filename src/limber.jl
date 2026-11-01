@@ -11,13 +11,14 @@ function _limber_contraction(P_term, K1, K2, weights, Δχ)
     return Cℓ
 end
 
-# Limber integration helpers: all based on fixed Blast.χ and ℓ grids.
-# `LIMBER_INV_χ2_ROW` is pre-shaped as a `(1, nχ)` row so it can be broadcast
-# against `pk.{ΔP,Pδ}_limber` rows without per-call `reshape` allocations.
+# Preserve the exact cached legacy rule. Other fixed geometries use the
+# arrays owned by PowerSpectrum's radial plan, never these default weights.
 const LIMBER_N_NONLIMBER = length(Blast.ℓ_nonlimber)
-const LIMBER_INV_χ2_ROW = reshape(1.0 ./ (Blast.χ .^ 2), 1, :)
 const LIMBER_Δχ = (last(Blast.χ) - first(Blast.χ)) / (length(Blast.χ) - 1)
 const LIMBER_WEIGHTS = Blast.simpson_weights_array(length(Blast.χ))
+
+_limber_quadrature(plan::RadialQuadraturePlan) = plan === LEGACY_RADIAL_PLAN ?
+    (LIMBER_WEIGHTS,LIMBER_Δχ) : _radial_outer(plan)
 
 """
     get_limber_k_polynomials(plan::ChebyshevPlan, l::AbstractVector, chi::AbstractVector; is_log_k=true) -> Array
@@ -192,9 +193,10 @@ end
 get_limber_correction(::Nothing, pk::PowerSpectrum) = 0.
 
 function get_limber_correction(K::AbstractArray{<:Any,3}, pk::PowerSpectrum)
-    ΔP_over_χ2 = @views pk.ΔP_limber[1:LIMBER_N_NONLIMBER, :] .* LIMBER_INV_χ2_ROW
+    ΔP_over_χ2 = @views pk.ΔP_limber[1:LIMBER_N_NONLIMBER, :] .* pk.radial_plan.inv_chi2_row
     K_low = _low_ℓ_slice(K)
-    return _limber_contraction(ΔP_over_χ2, K_low, K_low, LIMBER_WEIGHTS, LIMBER_Δχ)
+    weights,step=_limber_quadrature(pk.radial_plan)
+    return _limber_contraction(ΔP_over_χ2, K_low, K_low, weights, step)
 end
 
 @doc raw"""
@@ -219,8 +221,9 @@ get_limber_correction(::Nothing, KB::AbstractArray{<:Any,3}, pk::PowerSpectrum) 
 get_limber_correction(KA::AbstractArray{<:Any,3}, ::Nothing, pk::PowerSpectrum) = 0.
 
 function get_limber_correction(KA::AbstractArray{<:Any,3}, KB::AbstractArray{<:Any,3}, pk::PowerSpectrum)
-    ΔP_over_χ2 = @views pk.ΔP_limber[1:LIMBER_N_NONLIMBER, :] .* LIMBER_INV_χ2_ROW
-    return _limber_contraction(ΔP_over_χ2, _low_ℓ_slice(KA), _low_ℓ_slice(KB), LIMBER_WEIGHTS, LIMBER_Δχ)
+    ΔP_over_χ2 = @views pk.ΔP_limber[1:LIMBER_N_NONLIMBER, :] .* pk.radial_plan.inv_chi2_row
+    weights,step=_limber_quadrature(pk.radial_plan)
+    return _limber_contraction(ΔP_over_χ2, _low_ℓ_slice(KA), _low_ℓ_slice(KB), weights, step)
 end
 
 @doc raw"""
@@ -243,9 +246,10 @@ end
 get_limber_Cℓ(::Nothing, pk::PowerSpectrum) = 0.
 
 function get_limber_Cℓ(K::AbstractArray{<:Any,3}, pk::PowerSpectrum)
-    Pδ_over_χ2 = @views pk.Pδ_limber[(LIMBER_N_NONLIMBER+1):end, :] .* LIMBER_INV_χ2_ROW
+    Pδ_over_χ2 = @views pk.Pδ_limber[(LIMBER_N_NONLIMBER+1):end, :] .* pk.radial_plan.inv_chi2_row
     K_high = _high_ℓ_slice(K)
-    return _limber_contraction(Pδ_over_χ2, K_high, K_high, LIMBER_WEIGHTS, LIMBER_Δχ)
+    weights,step=_limber_quadrature(pk.radial_plan)
+    return _limber_contraction(Pδ_over_χ2, K_high, K_high, weights, step)
 end
 
 @doc raw"""
@@ -267,6 +271,7 @@ get_limber_Cℓ(::Nothing, KB::AbstractArray{<:Any,3}, pk::PowerSpectrum) = 0.
 get_limber_Cℓ(KA::AbstractArray{<:Any,3}, ::Nothing, pk::PowerSpectrum) = 0.
 
 function get_limber_Cℓ(KA::AbstractArray{<:Any,3}, KB::AbstractArray{<:Any,3}, pk::PowerSpectrum)
-    Pδ_over_χ2 = @views pk.Pδ_limber[(LIMBER_N_NONLIMBER+1):end, :] .* LIMBER_INV_χ2_ROW
-    return _limber_contraction(Pδ_over_χ2, _high_ℓ_slice(KA), _high_ℓ_slice(KB), LIMBER_WEIGHTS, LIMBER_Δχ)
+    Pδ_over_χ2 = @views pk.Pδ_limber[(LIMBER_N_NONLIMBER+1):end, :] .* pk.radial_plan.inv_chi2_row
+    weights,step=_limber_quadrature(pk.radial_plan)
+    return _limber_contraction(Pδ_over_χ2, _high_ℓ_slice(KA), _high_ℓ_slice(KB), weights, step)
 end

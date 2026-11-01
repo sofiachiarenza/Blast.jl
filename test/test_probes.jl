@@ -129,7 +129,16 @@ end
     # Match the legacy 1000-point background grid used to generate LJ references
     z_ref = collect(LinRange(1e-3, 4.0, 1000))
     χ_ref = Blast.compute_χ.(z_ref, Ref(cosmo))
-    bg_ref = Blast.Background(cosmo; χ_grid=χ_ref)
+    # Uniform z does NOT give uniform chi. This historical regression used
+    # endpoint-step Simpson weights anyway. Opt into that exact old operator
+    # explicitly; it is not an accuracy reference for nonuniform integration.
+    n_ref = length(χ_ref)
+    Δχ_legacy = (last(χ_ref) - first(χ_ref)) / (n_ref - 1)
+    old_suffix = Blast.simpson_weights_matrix(n_ref)
+    compatibility_plan = Blast.RadialQuadraturePlan(
+        χ_ref, Δχ_legacy .* Blast.simpson_weights_array(n_ref),
+        Δχ_legacy .* old_suffix)
+    bg_ref = Blast.Background(cosmo; radial_plan=compatibility_plan)
 
     n_bins = size(bins["dNdz"], 1)
     nc = Blast.NumberCounts(nz=bins["dNdz"], z=bins["z"], bias=ones(n_bins, length(bg_ref.z)))
@@ -139,6 +148,13 @@ end
     Blast.compute_kernel!(nc, bg_ref)
     Blast.compute_kernel!(cs, bg_ref)
     Blast.compute_kernel!(cmbκ, bg_ref)
+
+    # Check the explicit-plan path against the frozen pre-plan contraction,
+    # not merely against the loose published LJ amplitude/shape checks.
+    prefac = 1.5 * Blast.H_0_CONV^2 * Blast.ω_m0(bg_ref) / Blast.C_LIGHT^2
+    old_shear = Blast._cosmic_shear_kernel_tullio(
+        bg_ref.H, bg_ref.χ, bg_ref.z, cs.nz_norm, old_suffix, Δχ_legacy, prefac)
+    @test cs.Kernel ≈ old_shear rtol=1e-13 atol=1e-20
 
     lj_clustering = data["LJ_clustering"]
     lj_shear = data["LJ_shear"]

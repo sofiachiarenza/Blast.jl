@@ -703,8 +703,7 @@ function compute_kernel!(Component::CosmicShear, bg::Background)
 
     prefac = 1.5 * H_0_CONV^2 * ω_m0(bg) / C_LIGHT^2
 
-    simpson_matrix = simpson_weights_matrix(length(bg.z))
-    Δχ = (bg.χ[end] - bg.χ[1]) / (length(bg.χ) - 1)
+    simpson_matrix, Δχ = _kernel_quadrature(bg.χ, bg.radial_plan)
 
     Component.Kernel = _cosmic_shear_kernel_tullio(
         bg.H, bg.χ, bg.z, Component.nz_norm, simpson_matrix, Δχ, prefac)
@@ -812,8 +811,7 @@ function compute_kernel!(Component::MagnificationBias, bg::Background)
 
     prefac = 1.5 * H_0_CONV^2 * ω_m0(bg) / C_LIGHT^2
 
-    simpson_matrix = simpson_weights_matrix(length(bg.z))
-    Δχ = (bg.χ[end] - bg.χ[1]) / (length(bg.χ) - 1)
+    simpson_matrix, Δχ = _kernel_quadrature(bg.χ, bg.radial_plan)
 
     Component.Kernel = _magnification_bias_kernel_tullio(
         bg.H, bg.χ, bg.z, Component.nz_norm, Component.s,

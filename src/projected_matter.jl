@@ -142,8 +142,9 @@ abstract type ProjectedMatterDensityComponent end
 # Parametric w_* structs (Phase B).
 #
 # Each struct carries a type parameter T matching the element type of `w`.
-# `T̃` is always `Array{Float64, 4}` — a reference to one of the precomputed
-# `T_tildes.T_*` constants, never differentiated wrt.
+# `T̃` is always `Array{Float64, 4}` — a reference to one of the tensors of a
+# fixed `TensorBank` (shared, never copied, never differentiated wrt), and
+# `signature` identifies that bank.
 #
 # The functional `compute_w(w, c)` returns a fresh struct whose array eltype
 # follows `c`; this is the ForwardDiff path because Dual-valued coefficients
@@ -162,7 +163,18 @@ abstract type ProjectedMatterDensityComponent end
 # appending one line to the table.
 # ────────────────────────────────────────────────────────────────────────────
 
-# (struct_name, T_tildes field, coef source ∈ {:ϕTT,:ϕT,:ϕ}, slice to R1 column?)
+# Source-aware lookup in a RatioSplineBank (TT: 8 geometries, T: 4, PHI: T_2_00 only); no dummy arrays.
+_ratio_tensor(bank::RatioSplineBank, ::Val{:ϕTT}, geometry::Symbol) = getfield(bank.TT, geometry)
+function _ratio_tensor(bank::RatioSplineBank, ::Val{:ϕT}, geometry::Symbol)
+    haskey(bank.T, geometry) || throw(ArgumentError("ratio bank has no T-family tensor for geometry $geometry"))
+    return bank.T[geometry]
+end
+function _ratio_tensor(bank::RatioSplineBank, ::Val{:ϕ}, geometry::Symbol)
+    geometry === :T_2_00 || throw(ArgumentError("ratio bank has no PHI tensor for geometry $geometry"))
+    return bank.PHI
+end
+
+# (struct_name, TensorBank field, coef source ∈ {:ϕTT,:ϕT,:ϕ}, slice to R1 column?)
 const _PROJECTED_MATTER_COMPONENTS = (
     (:w_2_00_ϕTT,      :T_2_00,      :ϕTT, false),
     (:w_minus2_00_ϕTT, :T_minus2_00, :ϕTT, false),
@@ -190,16 +202,24 @@ for (_name, _T_tilde_field, _coef_source, _r1_slice) in _PROJECTED_MATTER_COMPON
         mutable struct $_name{T<:Real} <: ProjectedMatterDensityComponent
             T̃::Array{Float64, 4}
             w::Array{T, 3}
+            signature::BankSignature
         end
-        $_name() = $_name{Float64}(T_tildes.$_T_tilde_field, zeros(Float64, 1, 1, 1))
+        $_name(bank::TensorBank{Array{Float64, 4}}) =
+            $_name{Float64}(bank.$_T_tilde_field, zeros(Float64, 1, 1, 1), bank.signature)
+        # Ratio banks: the component holds its ACTUAL family array (R1 uses the T family, never a slice).
+        $_name(bank::RatioSplineBank{Array{Float64, 4}}) =
+            $_name{Float64}(_ratio_tensor(bank, Val($(QuoteNode(_coef_source))), $(QuoteNode(_T_tilde_field))),
+                            zeros(Float64, 1, 1, 1), bank.signature)
+        # Legacy zero-argument constructor: the fixed legacy Chebyshev bank.
+        $_name() = $_name(legacy_tensor_bank())
         function compute_w(w::$_name, c::PowerSpectrum)
             result = w_ell_tullio($_coefs_expr, w.T̃)
-            return $_name{eltype(result)}(w.T̃, result)
+            return $_name{eltype(result)}(w.T̃, result, w.signature)
         end
         function allocate_compute_w(w::$_name, c::PowerSpectrum)
             output_type = promote_type(eltype(c.$_coef_field.coefs), eltype(w.T̃))
             output = zeros(output_type, size(w.T̃)[1:3])
-            return $_name{output_type}(w.T̃, output)
+            return $_name{output_type}(w.T̃, output, w.signature)
         end
     end
 end
@@ -243,6 +263,55 @@ with a `PowerSpectrum` object.
     w_2_00_ϕ::T17          = nothing
 end
 
+# Signature of a workspace: the common signature of its active components.
+# Derived rather than stored so the field list stays the 17 components.
+_component_signature(::Nothing) = nothing
+_component_signature(w::ProjectedMatterDensityComponent) = w.signature
+
+"""
+    bank_signature(W::ProjectedMatterDensity)
+
+The [`BankSignature`](@ref) shared by all active components. Throws if the
+components were built from different banks.
+"""
+function bank_signature(W::ProjectedMatterDensity)
+    sigs = filter(!isnothing, map(f -> _component_signature(getfield(W, f)), fieldnames(typeof(W))))
+    isempty(sigs) && throw(ArgumentError("ProjectedMatterDensity has no active component"))
+    all(==(first(sigs)), sigs) ||
+        throw(ArgumentError("ProjectedMatterDensity mixes components from different tensor banks"))
+    return first(sigs)
+end
+
+_spectral_config_error(what) = throw(ArgumentError(
+    "incompatible spectral configuration: $what. W, Pk and plans must come from the same SetUp backend/bank."))
+
+# Public-boundary compatibility checks (not used inside contraction loops).
+function _check_compatible(W::ProjectedMatterDensity, Pk::PowerSpectrum)
+    bank_signature(W) == Pk.signature || _spectral_config_error("W and Pk were built for different banks/sites")
+    return nothing
+end
+function _check_compatible(W::ProjectedMatterDensity, Pk::PowerSpectrum, ::Nothing)
+    return _check_compatible(W, Pk)
+end
+function _check_compatible(W::ProjectedMatterDensity, Pk::PowerSpectrum, P::SpectralPlans)
+    _check_compatible(W, Pk)
+    bank_signature(P) == Pk.signature || _spectral_config_error("plans and Pk were built for different banks/sites")
+    P.radial_plan.signature==Pk.radial_plan.signature || _spectral_config_error("plans and Pk have different radial weights/suffix policies")
+    return nothing
+end
+
+function _check_compatible(W::ProjectedMatterDensity,Pk::PowerSpectrum,P,bg::Background)
+    _check_compatible(W,Pk,P)
+    _require_radial_background(bg,Pk.radial_plan)
+    return nothing
+end
+
+function _check_component_geometry(w::ProjectedMatterDensityComponent,bg::Background)
+    isnothing(bg.radial_plan) && _require_production_background(bg)
+    w.signature.geometry==bg.radial_plan.geometry || _spectral_config_error("component bank and Background axes differ")
+    return nothing
+end
+
 """
     allocate_compute_w(W, c)
 
@@ -255,6 +324,7 @@ not share it between concurrently evaluated chains or tasks; allocate one
 workspace per concurrent execution.
 """
 function allocate_compute_w(W::ProjectedMatterDensity, c::PowerSpectrum)
+    _check_compatible(W, c)
     return ProjectedMatterDensity(
         w_2_00_ϕTT      = allocate_compute_w(W.w_2_00_ϕTT,      c),
         w_minus2_00_ϕTT = allocate_compute_w(W.w_minus2_00_ϕTT, c),
@@ -295,6 +365,7 @@ function compute_w(W::ProjectedMatterDensity, c::PowerSpectrum)
     # Threads.@spawn adds scheduler overhead, gives no meaningful overlap on the
     # realistic 3×2pt workload, and introduces task/foreigncall nodes that AD
     # backends such as Mooncake cannot differentiate through.
+    _check_compatible(W, c)
     return ProjectedMatterDensity(
         w_2_00_ϕTT      = compute_w(W.w_2_00_ϕTT,      c),
         w_minus2_00_ϕTT = compute_w(W.w_minus2_00_ϕTT, c),
@@ -336,14 +407,21 @@ because its output arrays must carry `Dual` values.
 This function mutates `workspace` and is not safe for concurrent calls on the
 same object. Independent tasks/chains must use independent workspaces.
 """
+# The fused scans read ONE tensor (the TT one) for every family of a geometry. That is only valid
+# when all participating components really share that tensor (direct/Chebyshev banks); ratio banks
+# have different TT/T/PHI tensors and use the single-component scans instead.
+_shares_tensor(a, rest...) = all(w -> w.T̃ === a.T̃, rest)
+
 function compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
+    _check_compatible(W, c)
     c_tt = c.cϕTT.coefs
     c_t = isnothing(c.cϕT) ? nothing : c.cϕT.coefs
     c_t_r1 = isnothing(c_t) ? nothing : @view(c_t[:, :, end])
     c_phi = isnothing(c.cϕ) ? nothing : c.cϕ.coefs
 
     if !isnothing(W.w_2_00_ϕTT) && !isnothing(W.w_2_00_ϕT) &&
-       !isnothing(W.w_2_00_ϕT_R1) && !isnothing(W.w_2_00_ϕ)
+       !isnothing(W.w_2_00_ϕT_R1) && !isnothing(W.w_2_00_ϕ) &&
+       _shares_tensor(W.w_2_00_ϕTT, W.w_2_00_ϕT, W.w_2_00_ϕT_R1, W.w_2_00_ϕ)
         _w_fused4_inplace!(
             W.w_2_00_ϕTT.w, W.w_2_00_ϕT.w,
             W.w_2_00_ϕT_R1.w, W.w_2_00_ϕ.w,
@@ -357,7 +435,8 @@ function compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
     end
 
     if !isnothing(W.w_0_00_ϕTT) && !isnothing(W.w_0_00_ϕT) &&
-       !isnothing(W.w_0_00_ϕT_R1)
+       !isnothing(W.w_0_00_ϕT_R1) &&
+       _shares_tensor(W.w_0_00_ϕTT, W.w_0_00_ϕT, W.w_0_00_ϕT_R1)
         _w_fused3_inplace!(
             W.w_0_00_ϕTT.w, W.w_0_00_ϕT.w, W.w_0_00_ϕT_R1.w,
             c_tt, c_t, c_t_r1, W.w_0_00_ϕTT.T̃,
@@ -369,7 +448,8 @@ function compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
     end
 
     if !isnothing(W.w_2_02_ϕTT) && !isnothing(W.w_2_02_ϕT) &&
-       !isnothing(W.w_2_02_ϕT_R1)
+       !isnothing(W.w_2_02_ϕT_R1) &&
+       _shares_tensor(W.w_2_02_ϕTT, W.w_2_02_ϕT, W.w_2_02_ϕT_R1)
         _w_fused3_inplace!(
             W.w_2_02_ϕTT.w, W.w_2_02_ϕT.w, W.w_2_02_ϕT_R1.w,
             c_tt, c_t, c_t_r1, W.w_2_02_ϕTT.T̃,
@@ -381,7 +461,8 @@ function compute_w!(W::ProjectedMatterDensity, c::PowerSpectrum)
     end
 
     if !isnothing(W.w_2_20_ϕTT) && !isnothing(W.w_2_20_ϕT) &&
-       !isnothing(W.w_2_20_ϕT_R1)
+       !isnothing(W.w_2_20_ϕT_R1) &&
+       _shares_tensor(W.w_2_20_ϕTT, W.w_2_20_ϕT, W.w_2_20_ϕT_R1)
         _w_fused3_inplace!(
             W.w_2_20_ϕTT.w, W.w_2_20_ϕT.w, W.w_2_20_ϕT_R1.w,
             c_tt, c_t, c_t_r1, W.w_2_20_ϕTT.T̃,

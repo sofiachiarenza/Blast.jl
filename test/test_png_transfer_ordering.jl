@@ -48,7 +48,7 @@ end
     Rχ_at = χ .* R'                 # position of triangle-1's B leg
 
     lift(A) = repeat(reshape(A, 1, nχ, nR), nℓ, 1, 1)
-    wrap(T, A) = T{Float64}(zeros(1, 1, 1, 1), lift(A))
+    wrap(T, A) = T{Float64}(zeros(1, 1, 1, 1), lift(A), Blast.legacy_tensor_bank().signature)
     # ϕT ↔ T(k, Rχ), ϕT_R1 ↔ T(k, χ); _02 has the derivative at Rχ, _20 at χ.
     toy = (
         w_2_00_ϕT    = wrap(Blast.w_2_00_ϕT,    F_fold .* D.(Rχ_at)),

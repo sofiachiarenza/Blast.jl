@@ -19,13 +19,15 @@ end
 """
     AbstractCoeff
 
-Abstract supertype for Chebyshev-coefficient containers in BLAST.
+Abstract supertype for source-family coefficient containers in BLAST. A container
+names a physical source family (not a basis); the coefficients are expressed in
+the basis of the backend that produced them.
 """
 abstract type AbstractCoeff end
 
 """
     cϕTT{T} <: AbstractCoeff
-Container for Chebyshev coefficients of the unequal time power spectrum.
+Container for the coefficients of the unequal time power spectrum source family.
 """
 mutable struct cϕTT{T} <: AbstractCoeff
     coefs::Array{T, 3}
@@ -34,7 +36,7 @@ cϕTT(coefs::AbstractArray{T, 3}) where T = cϕTT{T}(coefs)
 
 """
     cϕT{T} <: AbstractCoeff
-Container for Chebyshev coefficients of the power spectrum built with only one transfer function.
+Container for the coefficients of the power spectrum source family built with only one transfer function.
 """
 mutable struct cϕT{T} <: AbstractCoeff
     coefs::Array{T, 3}
@@ -43,7 +45,7 @@ cϕT(coefs::AbstractArray{T, 3}) where T = cϕT{T}(coefs)
 
 """
     cϕ{T} <: AbstractCoeff
-Container for Chebyshev coefficients of the primordial power spectrum.
+Container for the coefficients of the primordial power spectrum source family.
 """
 mutable struct cϕ{T} <: AbstractCoeff
     coefs::Array{T, 1}

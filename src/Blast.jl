@@ -7,6 +7,8 @@ using StaticArrays
 using FFTW
 using NPZ
 using Artifacts
+using SHA
+using TOML
 using PhysicalConstants
 using Memoization
 using FastTransforms
@@ -38,7 +40,13 @@ const C_LIGHT = c_0.val * 10^(-3)   # speed of light in km/s
 
 include("constants.jl")
 include("chebcoefs.jl")
+include("bsplinecoefs.jl")
 include("utils.jl")
+include("radial_quadrature.jl")
+include("tensor_banks.jl")
+include("spectral_backends.jl")
+include("tensor_bundle.jl")
+include("bspline_backend.jl")
 include("cosmo.jl")
 include("probes.jl")
 include("setup.jl")
@@ -65,36 +73,13 @@ export IntrinsicAlignment, IntegratedSachsWolfe, PrimordialNonGaussianity
 export AngularRedshiftFluctuations
 
 # Setup and workspace
-export SetUp, FFTPlans, PowerSpectrum, ProjectedMatterDensity
+export SetUp, SpectralPlans, FFTPlans, PowerSpectrum, ProjectedMatterDensity
+export ChebyshevBackend, CubicBSplineBackend, nonlimber_grid, load_tensor_bank
+export RadialQuadraturePlan
 
 # Core functions
 export prepare_probe, evaluate_components!, compute_kernel!, compute_w, compute_w!, allocate_compute_w
 export prepare_pk_workspace, get_Cℓ
 # ─────────────────────────────────────────────────────────────────────────────
-
-struct T̃{A<:AbstractArray{<:Any,4}}
-    T_2_00::A
-    T_0_00::A
-    T_minus2_00::A
-    T_0_02::A
-    T_0_20::A
-    T_2_02::A
-    T_2_20::A
-    T_2_22::A
-end
-
-function __init__()
-    Tdir = joinpath(artifact"T_tildes", "T_tildes_128_64_161")
-    global T_tildes = T̃(
-        load_Ts(joinpath(Tdir, "T_tilde_2_00"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
-        load_Ts(joinpath(Tdir, "T_tilde_0_00"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
-        load_Ts(joinpath(Tdir, "T_tilde_-2_00"),  128, 64, 161)[:, :, _R_KEEP_IDX, :],
-        load_Ts(joinpath(Tdir, "T_tilde_0_02"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
-        load_Ts(joinpath(Tdir, "T_tilde_0_20"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
-        load_Ts(joinpath(Tdir, "T_tilde_2_02"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
-        load_Ts(joinpath(Tdir, "T_tilde_2_20"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
-        load_Ts(joinpath(Tdir, "T_tilde_2_22"),   128, 64, 161)[:, :, _R_KEEP_IDX, :],
-    )
-end
 
 end # module Blast

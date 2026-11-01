@@ -3,6 +3,7 @@ using DelimitedFiles
 using Statistics
 
 include(joinpath(@__DIR__, "..", "test", "characterization_workload.jl"))
+include(joinpath(@__DIR__, "benchmark_instrumentation.jl"))
 
 function summarize(label, trial)
     times_ms = trial.times ./ 1.0e6
@@ -42,7 +43,9 @@ function main()
     )
     Blast.FFTW.set_num_threads(fftw_threads)
 
+    progress("build characterization state start")
     state = build_characterization_state()
+    progress("state built; warmup start")
     spectrum = prepare_characterization_spectrum(state)
     weights = Blast.compute_w(state.weights_template, spectrum)
     workspace = Blast.allocate_compute_w(state.weights_template, spectrum)
@@ -61,29 +64,37 @@ function main()
     Blast.SetUp(state.probes.galaxy, state.probes.lensing, state.probes.cmb)
     GC.gc()
 
-    trials = Pair{String, Any}[
-        "background" => @benchmark(Blast.Background($(state.cosmo));
+    specs = Pair{String, Any}[
+        "background" => () -> @benchmark(Blast.Background($(state.cosmo));
                                      samples=samples, seconds=seconds, evals=1),
-        "prepare_components" => @benchmark(build_characterization_probes($(state.bg));
+        "prepare_components" => () -> @benchmark(build_characterization_probes($(state.bg));
                                            samples=samples, seconds=seconds, evals=1),
-        "setup" => @benchmark(Blast.SetUp($(state.probes.galaxy),
+        "setup" => () -> @benchmark(Blast.SetUp($(state.probes.galaxy),
                                            $(state.probes.lensing), $(state.probes.cmb));
                               samples=max(5, samples ÷ 3), seconds=seconds, evals=1),
-        "prepare_pmm" => @benchmark(prepare_characterization_spectrum($state);
+        "prepare_pmm" => () -> @benchmark(prepare_characterization_spectrum($state);
                                     samples=samples, seconds=seconds, evals=1),
-        "compute_w" => @benchmark(Blast.compute_w($(state.weights_template), $spectrum);
+        "compute_w" => () -> @benchmark(Blast.compute_w($(state.weights_template), $spectrum);
                                    samples=samples, seconds=seconds, evals=1),
-        "compute_w_reusable" => @benchmark(Blast.compute_w!($workspace, $spectrum);
+        "compute_w_reusable" => () -> @benchmark(Blast.compute_w!($workspace, $spectrum);
                                             samples=samples, seconds=seconds, evals=1),
-        "project_all" => @benchmark(project_characterization_spectra(
+        "project_all" => () -> @benchmark(project_characterization_spectra(
                                         $state, $spectrum, $workspace);
                                      samples=samples, seconds=seconds, evals=1),
-        "full_cached" => @benchmark(run_characterization($state);
+        "full_cached" => () -> @benchmark(run_characterization($state);
                                       samples=samples, seconds=seconds, evals=1),
-        "full_from_cosmology" => @benchmark(run_characterization();
+        "full_from_cosmology" => () -> @benchmark(run_characterization();
                                              samples=max(5, samples ÷ 3),
                                              seconds=seconds, evals=1),
     ]
+
+    progress("warmup complete; timed sections follow (hot timings)")
+    trials = Pair{String, Any}[]
+    for (label, run) in specs
+        thermal_gate(label)
+        push!(trials, label => run())
+        thermal_log("after $label")
+    end
 
     rows = [summarize(label, trial) for (label, trial) in trials]
     println("julia_version=", VERSION)
@@ -92,6 +103,7 @@ function main()
     println("julia_threads=", Threads.nthreads())
     println("fftw_threads=", fftw_threads)
     println("cpu_model=", Sys.cpu_info()[1].model)
+    println("thermal_max_c_requested=", thermal_threshold())
     for row in rows
         println(row.label, " min_ms=", row.minimum_ms,
                 " median_ms=", row.median_ms,
